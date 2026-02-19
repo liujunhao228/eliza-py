@@ -5,6 +5,10 @@
 
 基于规则和轻量级统计实现语义分析。
 可选使用 LTP 增强模式进行更精确的分析。
+
+情感分析增强：
+- 支持集成新的情感分析引擎（规则、BERT、SnowNLP）
+- 提供详细的情感分析结果（分数、标签、细粒度情感）
 """
 
 import logging
@@ -22,7 +26,7 @@ class SemanticAnalyzer:
     语义分析器
 
     功能:
-    - 情感分析（基于词典）
+    - 情感分析（基于词典或外部引擎）
     - 意图检测（基于关键词）
     - 实体提取（基于规则或 LTP）
     - 话题识别
@@ -38,6 +42,7 @@ class SemanticAnalyzer:
         self,
         use_ltp: bool = False,
         ltp_engine: Optional[Any] = None,
+        sentiment_engine: Optional[Any] = None,
     ):
         """
         初始化语义分析器
@@ -45,12 +50,14 @@ class SemanticAnalyzer:
         Args:
             use_ltp: 是否使用 LTP 增强
             ltp_engine: LTP 引擎实例（可选）
+            sentiment_engine: 情感分析引擎实例（可选）
         """
         self.preprocessor = TextPreprocessor()
         self.use_ltp = use_ltp
         self.ltp_engine = ltp_engine
+        self.sentiment_engine = sentiment_engine
 
-        # 情感词库
+        # 情感词库（用于降级或无外部引擎时）
         self.positive_words = {
             "好", "棒", "喜欢", "开心", "高兴", "快乐", "幸福", "满意",
             "爱", "美好", "顺利", "成功", "优秀", "赞美", "感谢",
@@ -114,6 +121,7 @@ class SemanticAnalyzer:
         analysis = {
             "tokens": words,
             "sentiment": self._analyze_sentiment(words),
+            "sentiment_detail": self._analyze_sentiment_with_engine(text),
             "intent": self._detect_intent(words),
             "entities": self._extract_entities(words, text),
             "original_text": text,
@@ -121,6 +129,36 @@ class SemanticAnalyzer:
         }
 
         return analysis
+
+    def _analyze_sentiment_with_engine(self, text: str) -> Optional[Dict]:
+        """
+        使用外部情感分析引擎进行详细分析
+
+        Args:
+            text: 待分析文本
+
+        Returns:
+            详细情感分析结果
+        """
+        if self.sentiment_engine and self.sentiment_engine.is_available:
+            try:
+                result = self.sentiment_engine.analyze(text)
+                return {
+                    "score": result.score,
+                    "label": result.label.value if hasattr(result.label, 'value') else str(result.label),
+                    "confidence": result.confidence,
+                    "emotions": result.emotions,
+                    "keywords": result.keywords,
+                }
+            except Exception as e:
+                logger.warning(f"情感分析引擎分析失败，使用降级方案：{e}")
+                degradation_monitor.register_degradation(
+                    component='sentiment_engine',
+                    reason=f'情感分析引擎异常：{type(e).__name__}',
+                    severity=2,
+                    recovery_plan='使用内置规则情感分析'
+                )
+        return None
 
     def _analyze_with_ltp(self, text: str, standardized_text: str, words: List[str]) -> Dict:
         """
@@ -145,9 +183,22 @@ class SemanticAnalyzer:
             # 合并实体（去重）
             all_entities = list(set(rule_entities + ltp_entities))
 
+            # 基础情感分析
+            base_sentiment = self._analyze_sentiment(words)
+
+            # 详细情感分析（使用引擎或降级）
+            sentiment_detail = self._analyze_sentiment_with_engine(text)
+            if sentiment_detail is None:
+                sentiment_detail = {
+                    "score": base_sentiment,
+                    "label": self.get_sentiment_label(base_sentiment),
+                    "confidence": 0.5,
+                }
+
             return {
                 "tokens": ltp_result.tokens or words,
-                "sentiment": self._analyze_sentiment(words),
+                "sentiment": base_sentiment,
+                "sentiment_detail": sentiment_detail,
                 "intent": self._detect_intent(words),
                 "entities": all_entities,
                 "syntax": ltp_result.syntax.to_dict() if ltp_result.syntax else None,
@@ -170,52 +221,52 @@ class SemanticAnalyzer:
     def _analyze_sentiment(self, tokens: List[str]) -> float:
         """
         简单情感分析
-        
+
         Args:
             tokens: 分词结果
-            
+
         Returns:
             情感分数 (-1.0 到 1.0)
         """
         pos_count = sum(
-            1 for token in tokens 
+            1 for token in tokens
             if any(pw in token for pw in self.positive_words)
         )
         neg_count = sum(
-            1 for token in tokens 
+            1 for token in tokens
             if any(nw in token for nw in self.negative_words)
         )
-        
+
         if pos_count + neg_count == 0:
             return 0.0
-        
+
         # 归一化到 [-1, 1]
         return (pos_count - neg_count) / (pos_count + neg_count)
 
     def _detect_intent(self, tokens: List[str]) -> str:
         """
         意图检测
-        
+
         Args:
             tokens: 分词结果
-            
+
         Returns:
             意图类型
         """
         intent_scores = defaultdict(int)
-        
+
         for intent, keywords in self.intent_keywords.items():
             # 检查 tokens 中是否包含关键词或其子串
             score = sum(
-                1 for token in tokens 
+                1 for token in tokens
                 if any(kw in token for kw in keywords)
             )
             intent_scores[intent] = score
-        
+
         # 返回得分最高的意图
         if max(intent_scores.values()) > 0:
             return max(intent_scores, key=intent_scores.get)
-        
+
         return "general"
 
     def _extract_entities(
@@ -225,27 +276,27 @@ class SemanticAnalyzer:
     ) -> List[Tuple[str, str]]:
         """
         提取关键实体
-        
+
         Args:
             tokens: 分词结果
             text: 原始文本
-            
+
         Returns:
             实体列表 [(类型，文本), ...]
         """
         entities = []
-        
+
         # 人称代词
         for pronoun in self.pronouns:
             if pronoun in tokens:
                 entity_type = self.pronoun_entity_map.get(pronoun, "pronoun")
                 entities.append((entity_type, pronoun))
-        
+
         # 时间词
         for tw in self.time_words:
             if tw in tokens:
                 entities.append(("time", tw))
-        
+
         # 简单的人名识别（中文常见姓氏 + 名字模式）
         common_surnames = {
             "李", "王", "张", "刘", "陈", "杨", "黄", "赵", "周", "吴",
@@ -254,16 +305,16 @@ class SemanticAnalyzer:
         for i, token in enumerate(tokens):
             if len(token) >= 2 and token[0] in common_surnames:
                 entities.append(("person", token))
-        
+
         return entities
 
     def get_sentiment_label(self, sentiment_score: float) -> str:
         """
         获取情感标签
-        
+
         Args:
             sentiment_score: 情感分数
-            
+
         Returns:
             情感标签
         """
@@ -277,13 +328,24 @@ class SemanticAnalyzer:
     def analyze_with_label(self, text: str) -> Dict:
         """
         分析文本并添加情感标签
-        
+
         Args:
             text: 待分析的文本
-            
+
         Returns:
             分析结果字典（包含情感标签）
         """
         analysis = self.analyze(text)
-        analysis["sentiment_label"] = self.get_sentiment_label(analysis["sentiment"])
+        sentiment_detail = analysis.get("sentiment_detail", {})
+        analysis["sentiment_label"] = sentiment_detail.get("label", self.get_sentiment_label(analysis["sentiment"]))
         return analysis
+
+    def set_sentiment_engine(self, sentiment_engine: Any) -> None:
+        """
+        设置情感分析引擎
+
+        Args:
+            sentiment_engine: 情感分析引擎实例
+        """
+        self.sentiment_engine = sentiment_engine
+        logger.info("情感分析引擎已设置")

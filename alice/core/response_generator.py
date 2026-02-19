@@ -4,6 +4,11 @@
 响应生成器模块
 
 负责根据意图和上下文生成合适的响应。
+
+情感分析增强：
+- 支持基于情感标签的响应选择
+- 提供情感驱动的共情回应
+- 支持细粒度情感（喜、怒、哀、惧等）的特定响应
 """
 
 import logging
@@ -18,12 +23,13 @@ logger = logging.getLogger(__name__)
 class ResponseGenerator:
     """
     响应生成器
-    
+
     功能:
     - 基于意图的响应选择
     - 基于重组规则的响应生成
     - 回退响应处理
     - 响应多样性控制
+    - 情感驱动的共情回应
     """
 
     def __init__(self, rules_file: Optional[str] = None):
@@ -100,6 +106,73 @@ class ResponseGenerator:
             "原来是这样啊。",
         ]
 
+        # 情感驱动响应
+        self._init_empathy_responses()
+
+    def _init_empathy_responses(self) -> None:
+        """初始化情感驱动响应池"""
+        # 正面情感响应
+        self.positive_responses = [
+            "哇，听得出你现在心情不错！这种好心情是因为什么呢？",
+            "太好了！这种开心的感觉真棒，能多跟我分享一下吗？",
+            "真为你高兴！这种时候最想和谁分享呢？",
+            "听起来很棒！这种感觉让你想到了什么？",
+        ]
+
+        # 负面情感响应
+        self.negative_responses = [
+            "听起来那阵子你挺不容易的，那种感觉现在还在吗？",
+            "我能感受到你的难过，想和我多说说吗？",
+            "这种情况确实让人难受，你是怎么应对的呢？",
+            "我在这里陪着你，想说什么都可以。",
+        ]
+
+        # 细粒度情感响应
+        self.emotion_specific_responses = {
+            # 喜悦
+            "joy": [
+                "真为你感到开心！这种喜悦是从哪里来的呢？",
+                "太好了！这种快乐的感觉一定很美妙吧？",
+            ],
+            # 愤怒
+            "anger": [
+                "听起来这件事让你很生气，能说说发生了什么吗？",
+                "我理解你的感受，遇到这种事确实会让人恼火。",
+            ],
+            # 悲伤
+            "sadness": [
+                "我能感受到你的难过，想和我多说说吗？",
+                "这种悲伤的感觉一定很难熬，我在这里陪着你。",
+            ],
+            # 恐惧
+            "fear": [
+                "听起来这件事让你有些害怕，能告诉我更多吗？",
+                "别担心，我在这里。这种担心是从哪里来的呢？",
+            ],
+            # 焦虑
+            "anxiety": [
+                "听起来你有些焦虑，这种感觉是什么时候开始的？",
+                "我理解这种不安的感觉，想和我聊聊吗？",
+            ],
+            # 厌恶
+            "disgust": [
+                "听起来这件事让你很反感，能说说为什么吗？",
+                "我理解你的感受，遇到这种事确实让人不舒服。",
+            ],
+            # 惊讶
+            "surprise": [
+                "哇，这真是个意外！当时你是怎么反应的？",
+                "听起来很令人惊讶，接下来发生了什么？",
+            ],
+        }
+
+        # 情感强度修饰词
+        self.intensity_modifiers = {
+            "strong": ["真的", "确实", "非常"],
+            "moderate": ["有点", "有些", "比较"],
+            "weak": ["稍微", "略微"],
+        }
+
     def generate(
         self,
         user_input: str,
@@ -117,24 +190,69 @@ class ResponseGenerator:
         Returns:
             生成的响应
         """
-        # 1. 基于意图选择响应
+        # 1. 尝试基于情感选择响应（优先级最高）
+        sentiment_detail = semantic_info.get("sentiment_detail", {})
+        if sentiment_detail:
+            response = self._select_by_sentiment(
+                sentiment_detail=sentiment_detail,
+                user_input=user_input,
+            )
+            if response:
+                return response
+
+        # 2. 基于意图选择响应
         response = self._select_by_intent(intent, user_input)
         if response:
             return response
 
-        # 2. 对于问候、告别、感谢等 keyword_only 意图，不使用重组规则
+        # 3. 对于问候、告别、感谢等 keyword_only 意图，不使用重组规则
         # 直接返回回退响应，避免代词替换
         if intent in ("greeting", "farewell", "thanks"):
             return self._get_fallback_response()
 
-        # 3. 尝试使用重组规则（仅适用于非 keyword_only 意图）
+        # 4. 尝试使用重组规则（仅适用于非 keyword_only 意图）
         if semantic_info.get("tokens"):
             response = self._try_reassembly(user_input, semantic_info)
             if response:
                 return response
 
-        # 4. 使用回退响应
+        # 5. 使用回退响应
         return self._get_fallback_response()
+
+    def _select_by_sentiment(
+        self,
+        sentiment_detail: Dict[str, Any],
+        user_input: str,
+    ) -> Optional[str]:
+        """
+        根据情感选择响应
+
+        Args:
+            sentiment_detail: 详细情感分析结果
+            user_input: 用户输入
+
+        Returns:
+            选中的响应
+        """
+        label = sentiment_detail.get("label", "neutral")
+        emotions = sentiment_detail.get("emotions", {})
+        intensity = sentiment_detail.get("intensity", "moderate")
+
+        # 1. 优先使用细粒度情感响应
+        if emotions:
+            # 获取主导情感
+            dominant_emotion = max(emotions, key=emotions.get)
+            if dominant_emotion in self.emotion_specific_responses:
+                responses = self.emotion_specific_responses[dominant_emotion]
+                return random.choice(responses)
+
+        # 2. 使用情感极性响应
+        if label == "positive":
+            return random.choice(self.positive_responses)
+        elif label == "negative":
+            return random.choice(self.negative_responses)
+
+        return None
 
     def _select_by_intent(self, intent: str, user_input: str) -> Optional[str]:
         """
