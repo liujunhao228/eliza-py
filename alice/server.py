@@ -5,9 +5,17 @@ Alice Web 界面
 使用 Flask 提供 HTTP API 和简单的 Web 聊天界面
 """
 
-import os
+import logging
+from datetime import datetime
 from flask import Flask, request, jsonify, render_template_string
 from alice.alice_v2 import AliceBot
+from alice.exceptions import (
+    InputValidationError,
+    ScriptMatchingError,
+    ResponseGenerationError,
+)
+
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -297,41 +305,68 @@ def index():
 def chat():
     """
     聊天 API
-    
+
     Request JSON:
         {
             "message": "用户输入的消息"
         }
-    
+
     Response JSON:
         {
             "response": "Alice 的回复",
             "timestamp": "时间戳"
         }
     """
-    from datetime import datetime
-    
     data = request.get_json()
-    
+
     if not data or 'message' not in data:
         return jsonify({
             'error': '缺少 message 字段'
         }), 400
-    
+
     user_input = data['message'].strip()
-    
+
     if not user_input:
+        # 空输入交给核心层处理，保持一致性
+        response = alice.respond("")
         return jsonify({
-            'error': '消息不能为空'
-        }), 400
-    
-    # 生成回复
-    response = alice.respond(user_input)
-    
-    return jsonify({
-        'response': response,
-        'timestamp': datetime.now().isoformat()
-    })
+            'response': response,
+            'timestamp': datetime.now().isoformat()
+        })
+
+    try:
+        # 生成回复
+        response = alice.respond(user_input)
+        logger.info(f"请求处理成功：{user_input[:50]}...")
+
+        return jsonify({
+            'response': response,
+            'timestamp': datetime.now().isoformat()
+        })
+
+    except (InputValidationError, ScriptMatchingError) as e:
+        # 业务异常，返回友好提示
+        logger.warning(f"业务异常：{e}")
+        return jsonify({
+            'response': str(e),
+            'timestamp': datetime.now().isoformat()
+        })
+
+    except ResponseGenerationError as e:
+        # 响应生成错误
+        logger.error(f"响应生成失败：{e}", exc_info=True)
+        return jsonify({
+            'response': '系统出现故障，请稍后再试',
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+    except Exception as e:
+        # 未预期的错误
+        logger.critical(f"未预期的错误：{e}", exc_info=True)
+        return jsonify({
+            'response': '系统出现未知错误，请稍后再试',
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 
 @app.route('/api/reset', methods=['POST'])

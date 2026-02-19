@@ -11,7 +11,7 @@ import random
 from typing import Any, Dict, List, Optional
 
 from alice.plugins.base_plugin import BasePlugin, PluginResult
-from alice.utils.script_engine import ScriptEngine
+from alice.scripts.yaml_script_engine import YAMLScriptEngine, ScriptIntent
 from alice.nlp.syntax_reassembly import SyntaxReassembly
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class CuriosityPlugin(BasePlugin):
         super().__init__(config)
         self.priority = self.config.get("priority", 50)
 
-        self.script_engine: Optional[ScriptEngine] = None
+        self.script_engine: Optional[YAMLScriptEngine] = None
         self.reassembly_engine: Optional[SyntaxReassembly] = None
         self.script_history: Dict[str, int] = {}
         self.last_used_responses: Dict[str, str] = {}
@@ -59,12 +59,12 @@ class CuriosityPlugin(BasePlugin):
             script_file = self.config.get("script_file")
             rules_file = self.config.get("rules_file")
 
-            self.script_engine = ScriptEngine(script_file=script_file)
+            self.script_engine = YAMLScriptEngine(script_file=script_file)
             self.reassembly_engine = SyntaxReassembly(rules_file=rules_file)
 
             logger.info("好奇心插件初始化成功")
             return True
-            
+
         except Exception as e:
             logger.error(f"好奇心插件初始化失败：{e}")
             return False
@@ -72,11 +72,11 @@ class CuriosityPlugin(BasePlugin):
     def process_input(self, text: str, context: Dict[str, Any]) -> PluginResult:
         """
         处理用户输入并生成响应
-        
+
         Args:
             text: 用户输入文本
             context: 对话上下文
-            
+
         Returns:
             插件处理结果
         """
@@ -85,32 +85,32 @@ class CuriosityPlugin(BasePlugin):
                 success=False,
                 response="系统未初始化",
             )
-        
+
         try:
-            # 匹配脚本
-            match = self.script_engine.match(text)
-            
-            if not match:
+            # 使用 YAMLScriptEngine 匹配脚本
+            intent = self.script_engine.match(text, context)
+
+            if not intent:
                 return PluginResult(
                     success=False,
                     response=None,
                 )
-            
-            # 生成响应
-            response = self._generate_response(match)
-            
+
+            # 生成响应（支持 keyword_only 模板）
+            response = self._generate_response(intent, text, context)
+
             if response:
                 # 更新历史记录
-                self.script_history = self.script_engine.get_usage_statistics()
-                if match.script_id:
-                    self.last_used_responses[match.script_id] = response
-                
+                self.script_history = self.script_engine.get_stats()
+                self.last_used_responses[intent.name] = response
+
                 return PluginResult(
                     success=True,
                     response=response,
                     metadata={
-                        "script_id": match.script_id,
-                        "match_type": match.match_type,
+                        "intent": intent.name,
+                        "priority": intent.priority,
+                        "keyword_only": intent.keyword_only,
                     },
                 )
             else:
@@ -118,7 +118,7 @@ class CuriosityPlugin(BasePlugin):
                     success=False,
                     response=None,
                 )
-                
+
         except Exception as e:
             logger.error(f"好奇心插件处理失败：{e}")
             return PluginResult(
@@ -127,27 +127,36 @@ class CuriosityPlugin(BasePlugin):
                 metadata={"error": str(e)},
             )
 
-    def _generate_response(self, match) -> Optional[str]:
+    def _generate_response(
+        self,
+        intent: ScriptIntent,
+        text: str,
+        context: Dict[str, Any],
+    ) -> Optional[str]:
         """
-        生成响应：优先使用重组规则
-        
+        生成响应：支持 keyword_only 模板（不进行代词替换）
+
         Args:
-            match: 脚本匹配结果
-            
+            intent: 脚本意图
+            text: 用户输入
+            context: 对话上下文
+
         Returns:
             生成的响应
         """
-        response = None
-        
-        # 尝试使用重组规则
-        if match.reassembly_rules and match.components:
-            response = self._apply_reassembly(match)
-        
-        # 如果重组失败，使用预定义响应
-        if response is None and match.responses:
-            response = self._select_response(match)
-        
-        return response
+        if not self.script_engine:
+            return None
+
+        # 使用 YAMLScriptEngine 的 generate_response_with_reassembly 方法
+        # 该方法会根据 intent.keyword_only 决定是否进行代词替换
+        response = self.script_engine.generate_response_with_reassembly(
+            intent=intent,
+            context=context,
+            user_input=text,
+            reassembly_engine=self.reassembly_engine,
+        )
+
+        return response if response else None
 
     def _apply_reassembly(self, match) -> Optional[str]:
         """

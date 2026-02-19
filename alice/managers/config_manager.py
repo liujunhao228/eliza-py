@@ -15,6 +15,11 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from alice.exceptions import (
+    InvalidConfigurationError,
+    MissingConfigurationError,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,9 +68,13 @@ class ConfigManager:
     def _load_json_config(self, config_path: Path) -> None:
         """
         加载 JSON 配置文件
-        
+
         Args:
             config_path: 配置文件路径
+
+        Raises:
+            InvalidConfigurationError: 配置文件格式错误
+            MissingConfigurationError: 配置文件不存在
         """
         try:
             with open(config_path, "r", encoding="utf-8") as f:
@@ -73,20 +82,35 @@ class ConfigManager:
                 self._merge_config(config)
                 logger.info(f"配置已加载：{config_path}")
         except json.JSONDecodeError as e:
-            logger.error(f"配置文件格式错误 {config_path}: {e}")
+            raise InvalidConfigurationError(
+                f"配置文件格式错误：{config_path.name}, "
+                f"位置：第{e.lineno}行第{e.colno}列，"
+                f"详情：{e.msg}"
+            ) from e
+        except FileNotFoundError as e:
+            raise MissingConfigurationError(
+                f"配置文件不存在：{config_path}, "
+                f"请检查文件路径是否正确"
+            ) from e
         except IOError as e:
-            logger.error(f"无法读取配置文件 {config_path}: {e}")
+            raise MissingConfigurationError(
+                f"无法读取配置文件：{config_path}, "
+                f"请检查文件权限"
+            ) from e
 
     def _load_plugin_configs(self, plugins_dir: Path) -> None:
         """
         加载插件配置目录
-        
+
         Args:
             plugins_dir: 插件配置目录
+
+        Raises:
+            InvalidConfigurationError: 插件配置文件格式错误
         """
         if not plugins_dir.exists():
             return
-        
+
         for config_file in plugins_dir.glob("*.json"):
             try:
                 with open(config_file, "r", encoding="utf-8") as f:
@@ -94,6 +118,11 @@ class ConfigManager:
                     plugin_name = config_file.stem
                     self._configs[f"plugin.{plugin_name}"] = plugin_config
                     logger.info(f"插件配置已加载：{plugin_name}")
+            except json.JSONDecodeError as e:
+                raise InvalidConfigurationError(
+                    f"插件配置文件格式错误：{config_file.name}, "
+                    f"位置：第{e.lineno}行第{e.colno}列"
+                ) from e
             except Exception as e:
                 logger.error(f"加载插件配置失败 {config_file}: {e}")
 
@@ -214,16 +243,19 @@ class ConfigManager:
     def _persist_config(self) -> bool:
         """
         持久化配置到文件
-        
+
         Returns:
             是否持久化成功
+
+        Raises:
+            MissingConfigurationError: 无法写入配置文件
         """
         if not self._config_dirs:
             logger.warning("没有配置目录，无法持久化")
             return False
-        
+
         config_path = self._config_dirs[0] / "config.json"
-        
+
         try:
             config_path.parent.mkdir(parents=True, exist_ok=True)
             with open(config_path, "w", encoding="utf-8") as f:
@@ -231,8 +263,10 @@ class ConfigManager:
             logger.info(f"配置已持久化：{config_path}")
             return True
         except IOError as e:
-            logger.error(f"持久化配置失败：{e}")
-            return False
+            raise MissingConfigurationError(
+                f"无法写入配置文件：{config_path}, "
+                f"请检查目录权限"
+            ) from e
 
     def get_all(self) -> Dict[str, Any]:
         """

@@ -10,6 +10,8 @@ import logging
 import re
 from typing import List
 
+from alice.utils.degradation_monitor import degradation_monitor
+
 logger = logging.getLogger(__name__)
 
 # 尝试导入 jieba
@@ -83,18 +85,35 @@ class TextPreprocessor:
     def segment_text(self, text: str) -> List[str]:
         """
         中文分词
-        
+
         Args:
             text: 待分词的文本
-            
+
         Returns:
             分词结果列表
         """
         if JIEBA_AVAILABLE:
-            return list(jieba.cut(text))
+            try:
+                return list(jieba.cut(text))
+            except Exception as e:
+                logger.warning(f"jieba 分词失败，降级到基础分词模式：{e}")
+                degradation_monitor.register_degradation(
+                    component='text_processor',
+                    reason=f'jieba 分词异常：{type(e).__name__}',
+                    severity=2,
+                    recovery_plan='检查 jieba 库状态或重启服务'
+                )
+                # 降级到基础分词
+                return list(text)
         else:
             # 基础分词：按字符分割
             logger.warning("使用基础分词模式（按字符）")
+            degradation_monitor.register_degradation(
+                component='text_processor',
+                reason='jieba 未安装',
+                severity=1,
+                recovery_plan='安装 jieba: pip install jieba'
+            )
             return list(text)
 
     def clean_text(self, text: str) -> str:

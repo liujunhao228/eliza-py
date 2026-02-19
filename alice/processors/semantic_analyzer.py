@@ -12,6 +12,7 @@ from typing import Dict, List, Tuple, Optional, Any
 from collections import defaultdict
 
 from alice.processors.text_processor import TextPreprocessor
+from alice.utils.degradation_monitor import degradation_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +158,13 @@ class SemanticAnalyzer:
 
         except Exception as e:
             logger.warning(f"LTP 增强分析失败，降级到轻量级模式：{e}")
+            degradation_monitor.register_degradation(
+                component='semantic_analyzer',
+                reason=f'LTP 增强分析失败：{type(e).__name__}',
+                severity=2,
+                recovery_plan='检查 LTP 引擎状态或使用轻量级模式'
+            )
+            # 降级到轻量级分析
             return self.analyze(text)
 
     def _analyze_sentiment(self, tokens: List[str]) -> float:

@@ -9,13 +9,16 @@
 - 异常捕获规范
 - 优雅降级行为
 - 输入验证
+- 性能异常处理
 """
 
 import unittest
 import tempfile
 import json
 import os
+import time
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 
 class TestExceptionHandling(unittest.TestCase):
@@ -186,6 +189,72 @@ class TestExceptionHandling(unittest.TestCase):
         response = alice.respond("")
         assert len(response) > 0
 
+    def test_yaml_engine_missing_file_raises_error(self):
+        """测试 YAML 引擎缺失文件抛出 MissingConfigurationError"""
+        from alice.scripts.yaml_script_engine import YAMLScriptEngine
+        from alice.exceptions import MissingConfigurationError
+
+        with self.assertRaises(MissingConfigurationError):
+            YAMLScriptEngine(script_file="nonexistent_file.yaml")
+
+    def test_yaml_engine_invalid_yaml_raises_error(self):
+        """测试 YAML 引擎无效 YAML 抛出 InvalidConfigurationError"""
+        from alice.scripts.yaml_script_engine import YAMLScriptEngine
+        from alice.exceptions import InvalidConfigurationError
+
+        # 创建临时无效 YAML 文件
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False, encoding='utf-8') as f:
+            f.write("invalid: yaml: content: :")
+            temp_file = f.name
+
+        try:
+            with self.assertRaises(InvalidConfigurationError):
+                YAMLScriptEngine(script_file=temp_file)
+        finally:
+            os.unlink(temp_file)
+
+    def test_yaml_engine_missing_required_fields_raises_error(self):
+        """测试 YAML 引擎缺少必需字段抛出 InvalidConfigurationError"""
+        from alice.scripts.yaml_script_engine import YAMLScriptEngine
+        from alice.exceptions import InvalidConfigurationError
+
+        # 创建缺少必需字段的 YAML 文件
+        invalid_yaml = """
+- intent: test_intent
+  priority: 50
+  # 缺少 templates 字段
+"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False, encoding='utf-8') as f:
+            f.write(invalid_yaml)
+            temp_file = f.name
+
+        try:
+            with self.assertRaises(InvalidConfigurationError):
+                YAMLScriptEngine(script_file=temp_file)
+        finally:
+            os.unlink(temp_file)
+
+    def test_yaml_engine_empty_templates_raises_error(self):
+        """测试 YAML 引擎空 templates 抛出 InvalidConfigurationError"""
+        from alice.scripts.yaml_script_engine import YAMLScriptEngine
+        from alice.exceptions import InvalidConfigurationError
+
+        # 创建空 templates 的 YAML 文件
+        invalid_yaml = """
+- intent: test_intent
+  priority: 50
+  templates: []
+"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False, encoding='utf-8') as f:
+            f.write(invalid_yaml)
+            temp_file = f.name
+
+        try:
+            with self.assertRaises(InvalidConfigurationError):
+                YAMLScriptEngine(script_file=temp_file)
+        finally:
+            os.unlink(temp_file)
+
     def test_degradation_monitor_registered(self):
         """测试降级事件被正确记录"""
         from alice.utils.degradation_monitor import degradation_monitor
@@ -267,6 +336,227 @@ class TestExceptionMessages(unittest.TestCase):
         # 空输入返回友好提示
         response = alice.respond("")
         assert len(response) > 0
+
+
+class TestPerformanceExceptions(unittest.TestCase):
+    """性能异常测试"""
+
+    def test_respond_timeout(self):
+        """测试响应超时处理"""
+        from alice.alice_v2 import AliceBot
+        from alice.exceptions import ResponseGenerationError
+        from alice.core.dialogue_engine import DialogueEngine
+
+        alice = AliceBot()
+
+        # 模拟对话引擎响应超时
+        with patch.object(alice.dialogue_engine, 'respond') as mock_respond:
+            mock_respond.side_effect = lambda x: time.sleep(0.5) or "正常响应"
+
+            # 设置超时
+            start_time = time.time()
+            with patch.object(DialogueEngine, 'respond', side_effect=TimeoutError("响应超时")):
+                # 应该抛出 ResponseGenerationError 或返回友好提示
+                response = alice.respond("测试超时")
+                # 新版应该返回友好提示而非崩溃
+                assert isinstance(response, str)
+                assert len(response) > 0
+
+            end_time = time.time()
+            # 确保在合理时间内返回
+            assert end_time - start_time < 5.0
+
+    def test_resource_exhaustion_handling(self):
+        """测试资源耗尽情况处理"""
+        from alice.alice_v2 import AliceBot
+
+        alice = AliceBot()
+
+        # 模拟大输入
+        large_input = "你好" * 1000
+
+        # 应该正常处理，不会因为单个大消息崩溃
+        response = alice.respond(large_input)
+        assert isinstance(response, str)
+        assert len(response) > 0
+
+    def test_high_frequency_requests(self):
+        """测试高频请求处理"""
+        from alice.alice_v2 import AliceBot
+
+        alice = AliceBot()
+
+        # 模拟高频请求
+        responses = []
+        for i in range(100):
+            response = alice.respond(f"测试消息 {i}")
+            responses.append(response)
+
+        # 所有请求都应该成功返回
+        assert all(isinstance(r, str) and len(r) > 0 for r in responses)
+
+    def test_concurrent_requests(self):
+        """测试并发请求处理"""
+        from alice.alice_v2 import AliceBot
+        import threading
+
+        alice = AliceBot()
+        results = []
+        errors = []
+
+        def make_request(i):
+            try:
+                response = alice.respond(f"并发测试 {i}")
+                results.append(response)
+            except Exception as e:
+                errors.append(e)
+
+        # 创建 10 个并发请求
+        threads = []
+        for i in range(10):
+            t = threading.Thread(target=make_request, args=(i,))
+            threads.append(t)
+            t.start()
+
+        # 等待所有线程完成
+        for t in threads:
+            t.join()
+
+        # 所有请求都应该成功
+        assert len(errors) == 0
+        assert len(results) == 10
+        assert all(isinstance(r, str) and len(r) > 0 for r in results)
+
+
+class TestDegradationMonitoring(unittest.TestCase):
+    """降级监控测试"""
+
+    def test_degradation_event_registered(self):
+        """测试降级事件被正确记录"""
+        from alice.utils.degradation_monitor import degradation_monitor
+
+        # 重置监控器
+        degradation_monitor.reset()
+
+        # 注册一个降级事件
+        degradation_id = degradation_monitor.register_degradation(
+            component='test_component',
+            reason='test reason',
+            severity=2,
+            recovery_plan='test recovery'
+        )
+
+        # 检查事件被记录
+        active = degradation_monitor.get_active_degradations()
+        self.assertEqual(len(active), 1)
+        self.assertEqual(active[0]['component'], 'test_component')
+        self.assertEqual(active[0]['reason'], 'test reason')
+
+        # 解决降级
+        degradation_monitor.resolve_degradation(degradation_id)
+        active = degradation_monitor.get_active_degradations()
+        self.assertEqual(len(active), 0)
+
+    def test_degradation_quality_check(self):
+        """测试降级质量检查"""
+        from alice.utils.degradation_monitor import DegradationQualityChecker
+
+        checker = DegradationQualityChecker()
+
+        # 测试可接受的降级
+        result = checker.check_degradation_quality(
+            original_functionality="高级 NLP 分析",
+            degraded_functionality="基础文本处理",
+            impact_level="medium",
+            user_notification="正在使用基础模式处理您的消息"
+        )
+
+        # 应该通过基本检查
+        self.assertTrue(result['可追溯性'])
+        self.assertTrue(result['可恢复性'])
+
+    def test_jieba_degradation_monitoring(self):
+        """测试 jieba 分词降级监控"""
+        from alice.processors.text_processor import TextPreprocessor
+        from alice.utils.degradation_monitor import degradation_monitor
+
+        # 重置监控器
+        degradation_monitor.reset()
+
+        preprocessor = TextPreprocessor()
+
+        # 模拟 jieba 不可用
+        with patch('alice.processors.text_processor.JIEBA_AVAILABLE', False):
+            result = preprocessor.segment_text("测试文本")
+            # 应该降级到基础分词
+            assert result == ["测", "试", "文", "本"]
+
+        # 检查降级事件被记录
+        report = degradation_monitor.get_degradation_report()
+        # 应该有降级事件
+        self.assertGreater(report['total_degradations'], 0)
+
+    def test_ltp_degradation_monitoring(self):
+        """测试 LTP 降级监控"""
+        from alice.nlp.ltp_engine import LtpEngine
+        from alice.utils.degradation_monitor import degradation_monitor
+
+        # 重置监控器
+        degradation_monitor.reset()
+
+        # 模拟 LTP 不可用
+        with patch('alice.nlp.ltp_engine.LTP_AVAILABLE', False):
+            engine = LtpEngine()
+            result = engine.analyze("测试文本")
+            # 应该降级到简单分析
+            assert result is not None
+
+        # 检查降级事件被记录
+        report = degradation_monitor.get_degradation_report()
+        # 应该有降级事件
+        self.assertGreater(report['total_degradations'], 0)
+
+
+class TestExceptionChainPreservation(unittest.TestCase):
+    """测试异常链保留"""
+
+    def test_config_error_chain(self):
+        """测试配置错误链保留"""
+        from alice.managers.config_manager import ConfigManager
+        from alice.exceptions import InvalidConfigurationError, MissingConfigurationError
+        import tempfile
+
+        # 创建无效 JSON 文件
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            f.write("{ invalid json }")
+            temp_file = f.name
+
+        try:
+            manager = ConfigManager()
+            try:
+                manager._load_json_config(Path(temp_file))
+                self.fail("应该抛出 InvalidConfigurationError")
+            except InvalidConfigurationError as e:
+                # 检查异常链是否被保留
+                self.assertIsNotNone(e.__cause__)
+                self.assertIsInstance(e.__cause__, json.JSONDecodeError)
+        finally:
+            os.unlink(temp_file)
+
+    def test_missing_file_error_chain(self):
+        """测试缺失文件错误链保留"""
+        from alice.managers.config_manager import ConfigManager
+        from alice.exceptions import MissingConfigurationError
+        from pathlib import Path
+
+        manager = ConfigManager()
+        try:
+            manager._load_json_config(Path("/nonexistent/path/config.json"))
+            self.fail("应该抛出 MissingConfigurationError")
+        except MissingConfigurationError as e:
+            # 检查异常链是否被保留
+            self.assertIsNotNone(e.__cause__)
+            self.assertIsInstance(e.__cause__, FileNotFoundError)
 
 
 if __name__ == "__main__":

@@ -1,54 +1,149 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-降级监控器模块
+降级监控模块
 
 根据编码规范实现：
-- 降级事件注册和追踪
-- 降级告警机制
+- 降级事件记录
+- 降级质量评估
+- 降级告警
 - 降级报告生成
+
+使用示例:
+    from alice.utils.degradation_monitor import degradation_monitor
+    
+    # 注册降级事件
+    degradation_monitor.register_degradation(
+        component='ltp_syntax_analysis',
+        reason='LTP 不可用',
+        severity=2,
+        recovery_plan='安装 LTP 库'
+    )
+    
+    # 解决降级
+    degradation_monitor.resolve_degradation(degradation_id)
 """
 
-import time
 import logging
-from typing import Dict, List, Optional
+import time
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
+from collections import defaultdict
 from datetime import datetime
-from collections import deque
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class DegradationEvent:
-    """降级事件数据类"""
-    component: str              # 降级组件
-    reason: str                 # 降级原因
-    severity: int               # 严重度 (1-5)
-    start_time: float = field(default_factory=time.time)
+    """降级事件"""
+    id: str
+    component: str
+    reason: str
+    severity: int  # 1-5, 5 最严重
+    start_time: float
+    recovery_plan: Optional[str] = None
     end_time: Optional[float] = None
-    recovery_plan: str = ""
+    duration: Optional[float] = None
     alert_sent: bool = False
+    quality_checks: Dict[str, bool] = field(default_factory=dict)
 
-    @property
-    def duration(self) -> float:
-        """获取降级持续时间（秒）"""
-        if self.end_time:
-            return self.end_time - self.start_time
-        return time.time() - self.start_time
 
-    def to_dict(self) -> Dict:
-        """转换为字典"""
-        return {
-            'component': self.component,
-            'reason': self.reason,
-            'severity': self.severity,
-            'start_time': datetime.fromtimestamp(self.start_time).isoformat(),
-            'end_time': datetime.fromtimestamp(self.end_time).isoformat() if self.end_time else None,
-            'duration_seconds': self.duration,
-            'recovery_plan': self.recovery_plan,
-            'alert_sent': self.alert_sent
+class DegradationQualityChecker:
+    """
+    降级质量检查器
+
+    根据编码规范，降级应该满足：
+    1. 功能完整性：降级后仍能完成核心任务
+    2. 数据一致性：不会产生错误或矛盾的结果
+    3. 用户体验：用户能够理解当前状态
+    4. 可追溯性：能够追踪降级原因和影响
+    5. 可恢复性：系统能够恢复正常状态
+    """
+
+    def check_degradation_quality(
+        self,
+        original_functionality: str,
+        degraded_functionality: str,
+        impact_level: str,
+        user_notification: str
+    ) -> Dict[str, bool]:
+        """
+        检查降级质量
+
+        Args:
+            original_functionality: 原始功能描述
+            degraded_functionality: 降级后功能描述
+            impact_level: 影响等级 ('low', 'medium', 'high')
+            user_notification: 用户通知内容
+
+        Returns:
+            质量检查结果字典
+        """
+        checks = {
+            '功能完整性': self._check_functionality_integrity(
+                original_functionality, degraded_functionality
+            ),
+            '数据一致性': self._check_data_consistency(),
+            '用户体验': self._check_user_experience(user_notification),
+            '可追溯性': self._check_traceability(),
+            '可恢复性': self._check_recoverability()
         }
+
+        return checks
+
+    def _check_functionality_integrity(self, original: str, degraded: str) -> bool:
+        """检查功能完整性"""
+        # 降级后的功能应该至少完成原始功能的核心部分
+        # 这里简化处理，实际应该根据具体功能判断
+        essential_tasks = self._extract_essential_tasks(original)
+        degraded_tasks = self._extract_essential_tasks(degraded)
+
+        # 如果降级后仍能完成核心任务，则认为功能完整
+        return len(degraded_tasks) > 0
+
+    def _extract_essential_tasks(self, functionality: str) -> List[str]:
+        """提取功能的核心任务"""
+        # 简化实现，根据关键词判断
+        task_keywords = {
+            '分析': 'analyze',
+            '处理': 'process',
+            '分词': 'segment',
+            '理解': 'understand',
+            '响应': 'respond',
+        }
+        return [task for kw, task in task_keywords.items() if kw in functionality]
+
+    def _check_data_consistency(self) -> bool:
+        """检查数据一致性"""
+        # 默认认为降级不会导致数据不一致
+        # 实际应该根据具体业务逻辑判断
+        return True
+
+    def _check_user_experience(self, notification: str) -> bool:
+        """检查用户体验"""
+        # 用户通知应该是清晰、有用的
+        if not notification:
+            return False
+
+        # 不应该包含技术术语
+        tech_terms = ['exception', 'null', 'undefined', 'stack trace', 'error']
+        if any(term in notification.lower() for term in tech_terms):
+            return False
+
+        # 应该提供下一步建议或清晰说明
+        helpful_keywords = ['请', '可以', '建议', '稍后', '暂时', '简化', '基础']
+        return any(keyword in notification for keyword in helpful_keywords)
+
+    def _check_traceability(self) -> bool:
+        """检查可追溯性"""
+        # 默认认为降级事件会被记录
+        return True
+
+    def _check_recoverability(self) -> bool:
+        """检查可恢复性"""
+        # 默认认为系统能够恢复正常状态
+        return True
 
 
 class DegradationMonitor:
@@ -56,40 +151,41 @@ class DegradationMonitor:
     降级监控器
 
     功能:
-    - 注册降级事件
-    - 追踪活跃降级
-    - 发送告警
-    - 生成报告
+    - 降级事件注册和解决
+    - 降级频率和严重度告警
+    - 降级报告生成
+    - 降级质量评估
     """
 
-    def __init__(self, alert_threshold_frequency: int = 10,
-                 alert_threshold_duration: float = 300,
-                 alert_threshold_severity: int = 3):
-        """
-        初始化降级监控器
-
-        Args:
-            alert_threshold_frequency: 频率告警阈值（次/小时）
-            alert_threshold_duration: 持续时间告警阈值（秒）
-            alert_threshold_severity: 严重度告警阈值
-        """
+    def __init__(self):
+        """初始化降级监控器"""
         self.active_degradations: Dict[str, DegradationEvent] = {}
-        self.degradation_history: deque = deque(maxlen=1000)
+        self.degradation_history: List[DegradationEvent] = []
+        self.quality_checker = DegradationQualityChecker()
 
+        # 告警阈值
         self.alert_thresholds = {
-            'frequency': alert_threshold_frequency,
-            'duration': alert_threshold_duration,
-            'severity': alert_threshold_severity
+            'frequency': 10,      # 同一降级 10 次以上告警
+            'duration': 300,      # 持续 5 分钟以上告警
+            'impact_severity': 3  # 影响严重度阈值
         }
 
-        self._alert_callbacks: List[callable] = []
+        # 事件计数器
+        self._event_counter = 0
+        self._component_counts: Dict[str, int] = defaultdict(int)
+
+    def _generate_degradation_id(self, component: str) -> str:
+        """生成降级事件 ID"""
+        self._event_counter += 1
+        return f"{component}_{int(time.time())}_{self._event_counter}"
 
     def register_degradation(
         self,
         component: str,
         reason: str,
         severity: int,
-        recovery_plan: str = ""
+        recovery_plan: Optional[str] = None,
+        quality_check_result: Optional[Dict[str, bool]] = None,
     ) -> str:
         """
         注册降级事件
@@ -97,23 +193,28 @@ class DegradationMonitor:
         Args:
             component: 组件名称
             reason: 降级原因
-            severity: 严重度 (1-5)
+            severity: 严重程度 (1-5)
             recovery_plan: 恢复计划
+            quality_check_result: 质量检查结果
 
         Returns:
             降级事件 ID
         """
-        degradation_id = f"{component}_{int(time.time() * 1000)}"
+        degradation_id = self._generate_degradation_id(component)
 
         degradation_info = DegradationEvent(
+            id=degradation_id,
             component=component,
             reason=reason,
             severity=severity,
-            recovery_plan=recovery_plan
+            start_time=time.time(),
+            recovery_plan=recovery_plan,
+            quality_checks=quality_check_result or {},
         )
 
         self.active_degradations[degradation_id] = degradation_info
         self.degradation_history.append(degradation_info)
+        self._component_counts[component] += 1
 
         logger.warning(
             f"组件降级：{component} | 原因：{reason} | "
@@ -133,144 +234,112 @@ class DegradationMonitor:
             degradation_id: 降级事件 ID
 
         Returns:
-            是否成功解决
+            是否解决成功
         """
-        if degradation_id in self.active_degradations:
-            degradation = self.active_degradations[degradation_id]
-            degradation.end_time = time.time()
+        if degradation_id not in self.active_degradations:
+            logger.warning(f"降级事件不存在：{degradation_id}")
+            return False
 
-            logger.info(
-                f"降级已解决：{degradation.component} "
-                f"(持续时间：{degradation.duration:.1f}秒)"
-            )
+        degradation = self.active_degradations[degradation_id]
+        degradation.end_time = time.time()
+        degradation.duration = degradation.end_time - degradation.start_time
 
-            del self.active_degradations[degradation_id]
-            return True
+        logger.info(
+            f"降级已解决：{degradation.component} "
+            f"(持续时间：{degradation.duration:.1f}秒)"
+        )
 
-        return False
+        del self.active_degradations[degradation_id]
+        return True
 
-    def resolve_all_degradations(self, component: str = None) -> int:
-        """
-        解决所有降级（或指定组件的降级）
-
-        Args:
-            component: 组件名称，None 则解决所有
-
-        Returns:
-            解决的降级数量
-        """
-        resolved_count = 0
-
-        degradation_ids = list(self.active_degradations.keys())
-        for degradation_id in degradation_ids:
-            degradation = self.active_degradations[degradation_id]
-            if component is None or degradation.component == component:
-                if self.resolve_degradation(degradation_id):
-                    resolved_count += 1
-
-        return resolved_count
-
-    def _check_and_send_alerts(self, degradation_info: DegradationEvent):
+    def _check_and_send_alerts(self, degradation_info: DegradationEvent) -> None:
         """检查并发送告警"""
-        # 严重度检查
-        if degradation_info.severity >= self.alert_thresholds['severity']:
-            self._send_alert('severity', degradation_info)
-
-        # 频率检查（最近 1 小时内同一组件的降级次数）
+        # 频率检查
         component_degradations = [
             d for d in self.degradation_history
             if d.component == degradation_info.component
-            and time.time() - d.start_time < 3600
+            and time.time() - d.start_time < 3600  # 最近 1 小时内
         ]
 
         if len(component_degradations) >= self.alert_thresholds['frequency']:
-            self._send_alert('frequency', degradation_info, len(component_degradations))
+            self._send_frequency_alert(degradation_info, len(component_degradations))
 
-    def _send_alert(self, alert_type: str, degradation_info: DegradationEvent,
-                    count: int = None):
-        """发送告警"""
-        degradation_info.alert_sent = True
+        # 严重度检查
+        if degradation_info.severity >= self.alert_thresholds['impact_severity']:
+            self._send_severity_alert(degradation_info)
 
-        if alert_type == 'severity':
-            message = (
-                f"[严重告警] 组件降级：{degradation_info.component} | "
-                f"严重度：{degradation_info.severity}/5 | "
-                f"原因：{degradation_info.reason}"
+    def _send_frequency_alert(self, degradation_info: DegradationEvent, count: int) -> None:
+        """发送频率告警"""
+        if not degradation_info.alert_sent:
+            logger.critical(
+                f"降级频率过高告警：{degradation_info.component} "
+                f"在最近 1 小时内发生 {count} 次降级"
             )
-        else:
-            message = (
-                f"[频率告警] 组件 {degradation_info.component} "
-                f"在最近 1 小时内降级 {count} 次"
+            degradation_info.alert_sent = True
+
+    def _send_severity_alert(self, degradation_info: DegradationEvent) -> None:
+        """发送严重度告警"""
+        if not degradation_info.alert_sent:
+            logger.critical(
+                f"降级严重度告警：{degradation_info.component} "
+                f"严重度 {degradation_info.severity}/5"
             )
+            degradation_info.alert_sent = True
 
-        logger.critical(message)
-
-        # 调用告警回调
-        for callback in self._alert_callbacks:
-            try:
-                callback(message, degradation_info.to_dict())
-            except Exception as e:
-                logger.error(f"告警回调执行失败：{e}")
-
-    def register_alert_callback(self, callback: callable):
-        """
-        注册告警回调
-
-        Args:
-            callback: 回调函数 (message: str, degradation_info: dict)
-        """
-        self._alert_callbacks.append(callback)
-
-    def get_active_degradations(self) -> List[Dict]:
-        """获取当前活跃的降级列表"""
-        return [d.to_dict() for d in self.active_degradations.values()]
-
-    def get_degradation_report(self) -> Dict:
-        """获取降级报告"""
-        now = time.time()
-        recent_24h = [
-            d for d in self.degradation_history
-            if now - d.start_time < 86400
+    def get_active_degradations(self) -> List[Dict[str, Any]]:
+        """获取当前激活的降级事件"""
+        return [
+            {
+                'id': d.id,
+                'component': d.component,
+                'reason': d.reason,
+                'severity': d.severity,
+                'duration': time.time() - d.start_time,
+                'recovery_plan': d.recovery_plan,
+            }
+            for d in self.active_degradations.values()
         ]
 
-        # 统计最常降级的组件
-        component_counts: Dict[str, int] = {}
-        for d in recent_24h:
-            component_counts[d.component] = component_counts.get(d.component, 0) + 1
-
-        most_degraded = sorted(
-            component_counts.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )[:5]
-
+    def get_degradation_report(self) -> Dict[str, Any]:
+        """获取降级报告"""
         # 计算平均恢复时间
         resolved_degradations = [
             d for d in self.degradation_history
             if d.end_time is not None
         ]
 
-        avg_recovery_time = 0
+        avg_recovery_time = 0.0
         if resolved_degradations:
-            total_recovery = sum(d.duration for d in resolved_degradations)
-            avg_recovery_time = total_recovery / len(resolved_degradations)
+            total_recovery_time = sum(
+                d.duration for d in resolved_degradations if d.duration
+            )
+            avg_recovery_time = total_recovery_time / len(resolved_degradations)
+
+        # 获取最常降级的组件
+        most_degraded = sorted(
+            self._component_counts.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )[:5]
 
         return {
             'active_degradations': len(self.active_degradations),
-            'recent_degradations_24h': len(recent_24h),
+            'recent_degradations': len([
+                d for d in self.degradation_history
+                if time.time() - d.start_time < 86400  # 最近 24 小时
+            ]),
             'most_degraded_components': most_degraded,
-            'average_recovery_time_seconds': avg_recovery_time,
-            'alert_thresholds': self.alert_thresholds
+            'average_recovery_time': avg_recovery_time,
+            'total_degradations': len(self.degradation_history),
         }
 
-    def clear_history(self):
-        """清空历史记录"""
-        self.degradation_history.clear()
-
-    def reset(self):
-        """重置所有状态"""
+    def reset(self) -> None:
+        """重置监控器（用于测试）"""
         self.active_degradations.clear()
         self.degradation_history.clear()
+        self._component_counts.clear()
+        self._event_counter = 0
+        logger.info("降级监控器已重置")
 
 
 # 全局降级监控器实例

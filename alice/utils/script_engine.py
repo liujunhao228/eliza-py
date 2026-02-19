@@ -38,6 +38,7 @@ class ScriptMatch:
     components: List[str]
     responses: List[str]
     reassembly_rules: Optional[List[str]] = None
+    keyword_only: bool = False  # 新增：仅关键词匹配，不进行代词替换
 
 
 class ScriptEngine:
@@ -167,7 +168,7 @@ class ScriptEngine:
                 match_result = self._match_pattern(text, pattern)
                 if match_result is not None:
                     components = list(match_result.groups()) if match_result.groups() else [text]
-                    
+
                     return ScriptMatch(
                         script_id=script_id,
                         script_name=script.get('name', script_id),
@@ -175,7 +176,8 @@ class ScriptEngine:
                         matched_pattern=pattern,
                         components=components,
                         responses=script.get('responses', []),
-                        reassembly_rules=script.get('reassembly_rules')
+                        reassembly_rules=script.get('reassembly_rules'),
+                        keyword_only=script.get('keyword_only', False)  # 新增：读取 keyword_only 配置
                     )
         
         # 无匹配时，检查是否有 fallback 脚本
@@ -189,7 +191,8 @@ class ScriptEngine:
                 matched_pattern='__fallback__',
                 components=[text],
                 responses=script.get('responses', []),
-                reassembly_rules=script.get('reassembly_rules')
+                reassembly_rules=script.get('reassembly_rules'),
+                keyword_only=script.get('keyword_only', False)
             )
         
         return None

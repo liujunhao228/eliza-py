@@ -12,6 +12,7 @@ from typing import List, Dict, Optional
 from dataclasses import dataclass
 
 from alice.nlp.base import SyntaxStructure, NlpEngine
+from alice.utils.degradation_monitor import degradation_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -114,12 +115,28 @@ class LtpEngine(NlpEngine):
         """分析文本（完整 NLP 分析）"""
         from alice.nlp.base import NlpResult, Entity
 
-        # 降级处理
-        if not self.is_available or not self._should_use_ltp(text):
+        # 降级处理 - LTP 库未安装
+        if not LTP_AVAILABLE:
+            degradation_monitor.register_degradation(
+                component='ltp_engine',
+                reason='LTP 库未安装',
+                severity=2,
+                recovery_plan='安装 ltp 库：pip install ltp>=4.2.10'
+            )
+            return self._simple_analyze(text)
+
+        # 降级处理 - 句子过短或无标点，不需要 LTP
+        if not self._should_use_ltp(text):
             return self._simple_analyze(text)
 
         # 确保 LTP 已初始化
         if not self._ensure_initialized():
+            degradation_monitor.register_degradation(
+                component='ltp_engine',
+                reason='LTP 模型初始化失败',
+                severity=3,
+                recovery_plan='检查 LTP 模型文件或重新安装 LTP'
+            )
             return self._simple_analyze(text)
 
         try:
@@ -142,6 +159,12 @@ class LtpEngine(NlpEngine):
 
         except Exception as e:
             logger.warning(f"LTP 分析失败，降级处理：{e}")
+            degradation_monitor.register_degradation(
+                component='ltp_syntax_analysis',
+                reason=f'LTP 分析异常：{type(e).__name__}',
+                severity=2,
+                recovery_plan='检查输入文本格式或重启服务'
+            )
             return self._simple_analyze(text)
 
     def _simple_analyze(self, text: str) -> 'NlpResult':

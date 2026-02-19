@@ -27,11 +27,11 @@ ALICE_DIR = Path(__file__).parent
 # 脚本配置文件目录
 SCRIPTS_DIR = ALICE_DIR / "scripts"
 
-# 默认脚本文件路径
-DEFAULT_SCRIPT_FILE = SCRIPTS_DIR / "curiosity_scripts.json"
+# 默认脚本文件路径（YAML 格式）
+DEFAULT_SCRIPT_FILE = SCRIPTS_DIR / "curiosity_scripts.yaml"
 
 # LTP 脚本文件路径
-LTP_SCRIPT_FILE = SCRIPTS_DIR / "curiosity_scripts_ltp.json"
+LTP_SCRIPT_FILE = SCRIPTS_DIR / "curiosity_scripts_ltp.yaml"
 
 # 默认反射规则文件路径
 DEFAULT_RULES_FILE = SCRIPTS_DIR / "reflection_rules.json"

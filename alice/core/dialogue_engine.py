@@ -15,6 +15,14 @@ from alice.managers import ContextManager
 from alice.core.intent_matcher import IntentMatcher
 from alice.core.response_generator import ResponseGenerator
 from alice.nlp import LtpEngine
+from alice.exceptions import (
+    DialogueError,
+    InputValidationError,
+    ScriptMatchingError,
+    ResponseGenerationError,
+    TextProcessingError,
+)
+from alice.utils.degradation_monitor import degradation_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -142,34 +150,42 @@ class DialogueEngine:
     def respond(self, user_input: str) -> str:
         """
         生成响应
-        
+
         Args:
             user_input: 用户输入
-            
+
         Returns:
             机器人响应
         """
         if not self._initialized:
             logger.warning("对话引擎未初始化")
             return "系统未初始化，请稍后再试"
-        
+
+        # 1. 文本预处理
         try:
-            # 1. 文本预处理
             standardized_text = self.preprocessor.standardize_text(user_input)
-            
-            # 2. 语义分析
+        except Exception as e:
+            logger.error(f"文本预处理失败：{e}", exc_info=True)
+            raise TextProcessingError(f"文本预处理失败：{type(e).__name__}") from e
+
+        # 2. 语义分析
+        try:
             semantic_info = self.analyzer.analyze(standardized_text)
-            
-            # 3. 意图匹配
-            intent = semantic_info["intent"]
-            
-            # 4. 插件处理
-            plugin_response = self._process_with_plugins(
-                standardized_text,
-                semantic_info,
-            )
-            
-            # 5. 生成响应
+        except Exception as e:
+            logger.error(f"语义分析失败：{e}", exc_info=True)
+            raise TextProcessingError(f"语义分析失败：{type(e).__name__}") from e
+
+        # 3. 意图匹配
+        intent = semantic_info.get("intent", "general")
+
+        # 4. 插件处理
+        plugin_response = self._process_with_plugins(
+            standardized_text,
+            semantic_info,
+        )
+
+        # 5. 生成响应
+        try:
             if plugin_response and plugin_response.success:
                 response = plugin_response.response
             else:
@@ -178,8 +194,12 @@ class DialogueEngine:
                     semantic_info=semantic_info,
                     intent=intent,
                 )
-            
-            # 6. 更新上下文
+        except Exception as e:
+            logger.error(f"响应生成失败：{e}", exc_info=True)
+            raise ResponseGenerationError(f"响应生成失败：{type(e).__name__}") from e
+
+        # 6. 更新上下文
+        try:
             self.context_manager.update(
                 user_input=user_input,
                 bot_response=response,
@@ -187,12 +207,12 @@ class DialogueEngine:
                 sentiment=semantic_info.get("sentiment", 0.0),
                 intent=intent,
             )
-            
-            return response
-            
         except Exception as e:
-            logger.error(f"对话处理失败：{e}", exc_info=True)
-            return "抱歉，我走神了，能再说一遍吗？"
+            # 上下文更新失败不影响响应返回，但需要记录错误
+            logger.error(f"上下文更新失败：{e}", exc_info=True)
+            # 不抛出异常，因为响应已经生成
+
+        return response
 
     def _process_with_plugins(
         self,

@@ -19,6 +19,12 @@ from alice.managers import ConfigManager
 from alice.utils.monitor import UnifiedMonitor, DialogueLogger
 from alice.cache import IntelligentCache
 from alice.processors import TextPreprocessor
+from alice.exceptions import (
+    InputValidationError,
+    ScriptMatchingError,
+    ResponseGenerationError,
+    TextProcessingError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +63,14 @@ class AliceBot:
         """
         # 配置管理器
         self.config_manager = ConfigManager()
+
+        # 使用默认配置（如果未指定）
+        from alice.config import DEFAULT_SCRIPT_FILE, DEFAULT_RULES_FILE
+        
+        if script_file is None:
+            script_file = str(DEFAULT_SCRIPT_FILE)
+        if rules_file is None:
+            rules_file = str(DEFAULT_RULES_FILE)
 
         # 对话引擎
         self.dialogue_engine = DialogueEngine(
@@ -106,32 +120,32 @@ class AliceBot:
     def respond(self, user_input: str) -> str:
         """
         生成响应
-        
+
         Args:
             user_input: 用户输入
-            
+
         Returns:
             机器人响应
         """
         if not self._initialized:
             return "系统未初始化，请稍后再试"
-        
-        # 输入验证
+
+        # 输入验证 - 空输入返回友好提示（非核心验证，可降级）
         if not user_input or not user_input.strip():
             return "请输入一些内容吧？"
-        
+
         # 检查缓存
         cached_response = self.cache.get(user_input)
         if cached_response:
             logger.debug(f"使用缓存响应：{user_input[:20]}...")
             return cached_response
-        
+
         start_time = time.time()
-        
+
         try:
             # 使用对话引擎生成响应
             response = self.dialogue_engine.respond(user_input)
-            
+
             # 记录性能
             duration = time.time() - start_time
             self.monitor.record_interaction(
@@ -140,26 +154,46 @@ class AliceBot:
                 success=True,
                 metadata={"input_length": len(user_input)},
             )
-            
+
             # 记录日志
             if self.enable_logging and self.dialogue_logger:
                 self.dialogue_logger.log_dialogue(user_input, response)
                 self.dialogue_logger.log_performance("respond", duration * 1000)
-            
+
             # 缓存响应
             self.cache.set(user_input, response, ttl=3600)
-            
+
             return response
-            
+
+        except (InputValidationError, ScriptMatchingError) as e:
+            # 业务异常 - 记录并返回友好提示
+            logger.warning(f"对话处理异常：{e}", extra={
+                'user_input': user_input[:100],
+                'error_type': type(e).__name__
+            })
+            return "我暂时无法理解这个消息，能换种方式说吗？"
+        except ResponseGenerationError as e:
+            # 响应生成错误 - 记录错误并返回系统提示
+            logger.error(f"响应生成失败：{e}", extra={
+                'user_input': user_input[:100],
+                'error_type': type(e).__name__
+            }, exc_info=True)
+            return "系统出现故障，请稍后再试"
+        except TextProcessingError as e:
+            # 文本处理错误
+            logger.warning(f"文本处理失败：{e}", extra={
+                'user_input': user_input[:100]
+            })
+            return "我无法处理这个消息，请简化一下内容"
         except Exception as e:
-            # 记录错误
-            self.monitor.log_error("respond", e, {"input": user_input})
-            
-            if self.enable_logging and self.dialogue_logger:
-                self.dialogue_logger.log_performance("respond", (time.time() - start_time) * 1000, success=False)
-            
-            logger.error(f"响应生成失败：{e}", exc_info=True)
-            return "抱歉，我走神了，能再说一遍吗？"
+            # 未预期的错误 - 记录详细错误但不降级，让上层处理
+            logger.critical(f"未预期的对话处理错误：{e}", extra={
+                'user_input': user_input[:100],
+                'error_type': type(e).__name__,
+                'error_message': str(e)
+            }, exc_info=True)
+            # 不降级，重新抛出供上层（main.py）处理
+            raise ResponseGenerationError(f"响应生成失败：{type(e).__name__}") from e
 
     def get_conversation_summary(self) -> Dict[str, Any]:
         """获取对话摘要"""

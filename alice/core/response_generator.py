@@ -108,12 +108,12 @@ class ResponseGenerator:
     ) -> str:
         """
         生成响应
-        
+
         Args:
             user_input: 用户输入
             semantic_info: 语义分析结果
             intent: 意图类型
-            
+
         Returns:
             生成的响应
         """
@@ -121,14 +121,19 @@ class ResponseGenerator:
         response = self._select_by_intent(intent, user_input)
         if response:
             return response
-        
-        # 2. 尝试使用重组规则
+
+        # 2. 对于问候、告别、感谢等 keyword_only 意图，不使用重组规则
+        # 直接返回回退响应，避免代词替换
+        if intent in ("greeting", "farewell", "thanks"):
+            return self._get_fallback_response()
+
+        # 3. 尝试使用重组规则（仅适用于非 keyword_only 意图）
         if semantic_info.get("tokens"):
             response = self._try_reassembly(user_input, semantic_info)
             if response:
                 return response
-        
-        # 3. 使用回退响应
+
+        # 4. 使用回退响应
         return self._get_fallback_response()
 
     def _select_by_intent(self, intent: str, user_input: str) -> Optional[str]:

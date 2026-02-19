@@ -159,10 +159,12 @@
 
 # =============================================================================
 # 模块六：问候与告别
+# 注意：这些模板使用 keyword_only: true，避免代词替换导致错误转换
 # =============================================================================
 
 - intent: greeting
   priority: 100
+  keyword_only: true
   condition:
     keywords: ["你好", "嗨", "早上好", "晚上好"]
   templates:
@@ -172,6 +174,7 @@
 
 - intent: farewell
   priority: 100
+  keyword_only: true
   condition:
     keywords: ["再见", "拜拜", "下次聊", "走了"]
   templates:
@@ -181,6 +184,7 @@
 
 - intent: thanks
   priority: 90
+  keyword_only: true
   condition:
     keywords: ["谢谢", "感谢", "thanks"]
   templates:

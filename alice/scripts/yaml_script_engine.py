@@ -20,13 +20,20 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 
+from alice.exceptions import (
+    InvalidConfigurationError,
+    MissingConfigurationError,
+    ConfigurationError,
+)
+
 # 尝试导入 yaml
 try:
     import yaml
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
-    logging.warning("PyYAML 未安装，YAML 脚本引擎将不可用")
+    logger = logging.getLogger(__name__)
+    logger.warning("PyYAML 未安装，YAML 脚本引擎将不可用")
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +47,9 @@ class ScriptIntent:
     templates: List[str] = field(default_factory=list)
     reassembly_rules: List[str] = field(default_factory=list)
     
+    # 新增：仅关键词匹配标志，设为 True 时不进行代词替换
+    keyword_only: bool = False
+
     # 统计信息
     usage_count: int = 0
     last_used: Optional[str] = None
@@ -66,7 +76,7 @@ class YAMLScriptEngine:
     def __init__(self, script_file: Optional[str] = None):
         """
         初始化 YAML 脚本引擎
-        
+
         Args:
             script_file: YAML 脚本文件路径
         """
@@ -77,137 +87,92 @@ class YAMLScriptEngine:
     def _load_scripts(self) -> None:
         """从 YAML 文件加载脚本"""
         if not YAML_AVAILABLE:
-            logger.warning("PyYAML 未安装，无法加载脚本")
-            return
-        
+            raise DependencyError("PyYAML 未安装，无法使用 YAML 脚本引擎")
+
         if not self.script_file:
-            logger.warning("未指定脚本文件路径")
-            return
-        
+            raise MissingConfigurationError("未指定 YAML 脚本文件路径")
+
         script_path = Path(self.script_file)
         if not script_path.exists():
-            logger.warning(f"脚本文件不存在：{script_path}")
-            # 尝试创建默认脚本
-            self._create_default_scripts()
-            return
-        
+            raise MissingConfigurationError(f"脚本文件不存在：{script_path}")
+
         try:
             with open(script_path, "r", encoding="utf-8") as f:
                 scripts_data = yaml.safe_load(f)
-                
-            if not scripts_data:
-                logger.warning("脚本文件为空")
-                return
-            
-            self._parse_scripts(scripts_data)
-            logger.info(f"成功加载 {len(self.intents)} 个脚本意图")
-            
-        except yaml.YAMLError as e:
-            logger.error(f"YAML 解析错误：{e}")
-            self._create_default_scripts()
-        except IOError as e:
-            logger.error(f"无法读取脚本文件：{e}")
-            self._create_default_scripts()
 
-    def _parse_scripts(self, scripts_data: List[Dict[str, Any]]) -> None:
+            if not scripts_data:
+                raise InvalidConfigurationError(f"脚本文件为空：{script_path}")
+
+            self._parse_scripts(scripts_data, script_path)
+            logger.info(f"成功加载 {len(self.intents)} 个脚本意图")
+
+        except yaml.YAMLError as e:
+            logger.error(f"YAML 解析错误 [{script_path}]: {e}", exc_info=True)
+            raise InvalidConfigurationError(f"YAML 脚本格式错误：{script_path}") from e
+        except IOError as e:
+            logger.error(f"无法读取脚本文件 [{script_path}]: {e}", exc_info=True)
+            raise ConfigurationError(f"无法读取 YAML 脚本文件：{script_path}") from e
+
+    def _parse_scripts(self, scripts_data: Any, script_path: Path) -> None:
         """
         解析脚本数据
-        
+
         Args:
             scripts_data: 脚本数据列表
+            script_path: 脚本文件路径（用于错误报告）
+
+        Raises:
+            InvalidConfigurationError: 当脚本格式无效时
         """
-        for script_data in scripts_data:
+        if not isinstance(scripts_data, list):
+            raise InvalidConfigurationError(
+                f"脚本格式错误：期望列表格式，实际为 {type(scripts_data).__name__} [{script_path}]"
+            )
+
+        for idx, script_data in enumerate(scripts_data):
+            if not isinstance(script_data, dict):
+                raise InvalidConfigurationError(
+                    f"脚本格式错误：索引 {idx} 处的条目应为字典 [{script_path}]"
+                )
+
+            # 验证必需字段
+            if "intent" not in script_data:
+                raise InvalidConfigurationError(
+                    f"脚本缺少必需字段 'intent' (索引：{idx}) [{script_path}]"
+                )
+
+            if "templates" not in script_data:
+                raise InvalidConfigurationError(
+                    f"脚本缺少必需字段 'templates' (意图：{script_data.get('intent', 'unknown')}) [{script_path}]"
+                )
+
+            templates = script_data.get("templates", [])
+            if not isinstance(templates, list) or len(templates) == 0:
+                raise InvalidConfigurationError(
+                    f"脚本 'templates' 必须是非空列表 (意图：{script_data.get('intent', 'unknown')}) [{script_path}]"
+                )
+
             intent_name = script_data.get("intent", f"intent_{len(self.intents)}")
-            
+
             intent = ScriptIntent(
                 name=intent_name,
                 priority=script_data.get("priority", 50),
                 condition=script_data.get("condition"),
                 templates=script_data.get("templates", []),
                 reassembly_rules=script_data.get("reassembly_rules", []),
+                keyword_only=script_data.get("keyword_only", False),
             )
-            
-            self.intents[intent_name] = intent
 
-    def _create_default_scripts(self) -> None:
-        """创建默认脚本（用于回退）"""
-        default_scripts = [
-            {
-                "intent": "narrative_continuation",
-                "priority": 50,
-                "condition": {"pos_tags": ["VERB"]},
-                "templates": [
-                    "后来呢？",
-                    "那之后发生了什么让你意想不到的事吗？",
-                    "然后呢？",
-                ],
-            },
-            {
-                "intent": "person_interest",
-                "priority": 70,
-                "condition": {"entities": ["PERSON"]},
-                "templates": [
-                    "你提到的这个{PERSON}，ta 平时是个怎样的人呀？",
-                    "听起来你对{PERSON}挺关注的，能多跟我说说 ta 吗？",
-                    "诶，{PERSON}在你的故事里扮演了什么样的角色呢？",
-                ],
-            },
-            {
-                "intent": "emotion_mirror",
-                "priority": 90,
-                "condition": {"sentiment": "negative"},
-                "templates": [
-                    "听起来那阵子你挺不容易的，那种感觉现在还在吗？",
-                    "我能理解你的感受，能多说说吗？",
-                ],
-            },
-            {
-                "intent": "cognitive_probe",
-                "priority": 60,
-                "condition": {"keywords": ["觉得", "认为", "我想"]},
-                "templates": [
-                    "你为什么会产生这样的想法呢？",
-                    "如果换一个角度看这件事，你觉得会发生什么？",
-                ],
-            },
-            {
-                "intent": "meta_conversation",
-                "priority": 80,
-                "condition": {"keywords": ["你是谁", "你觉得呢"]},
-                "templates": [
-                    "我只是一个对你的故事充满好奇的朋友呀。",
-                    "我的看法并不重要，重要的是这件事对你的意义，不是吗？",
-                ],
-            },
-            {
-                "intent": "fallback",
-                "priority": 10,
-                "condition": None,
-                "templates": [
-                    "原来是这样啊。",
-                    "唔，我在听。",
-                    "能再多说一些吗？",
-                ],
-            },
-        ]
-        
-        for script_data in default_scripts:
-            intent = ScriptIntent(
-                name=script_data["intent"],
-                priority=script_data.get("priority", 50),
-                condition=script_data.get("condition"),
-                templates=script_data.get("templates", []),
-            )
-            self.intents[script_data["intent"]] = intent
+            self.intents[intent_name] = intent
 
     def match(self, text: str, context: Optional[Dict[str, Any]] = None) -> Optional[ScriptIntent]:
         """
         匹配脚本
-        
+
         Args:
             text: 输入文本
             context: 上下文信息（包含 entities, sentiment 等）
-            
+
         Returns:
             匹配的脚本意图
         """
@@ -289,24 +254,71 @@ class YAMLScriptEngine:
     ) -> str:
         """
         生成响应
-        
+
         Args:
             intent: 脚本意图
             context: 上下文信息
-            
+
         Returns:
             生成的响应
         """
         if not intent.templates:
             return ""
-        
+
         # 选择一个模板（避免重复）
         template = self._select_template(intent)
-        
+
         # 填充实体占位符
         if context:
             template = self._fill_placeholders(template, context)
-        
+
+        return template
+
+    def generate_response_with_reassembly(
+        self,
+        intent: ScriptIntent,
+        context: Optional[Dict[str, Any]] = None,
+        user_input: Optional[str] = None,
+        reassembly_engine: Optional[Any] = None,
+    ) -> str:
+        """
+        生成响应（支持代词替换）
+
+        Args:
+            intent: 脚本意图
+            context: 上下文信息
+            user_input: 用户输入
+            reassembly_engine: 句法重组引擎
+
+        Returns:
+            生成的响应
+        """
+        if not intent.templates:
+            return ""
+
+        # 选择一个模板（避免重复）
+        template = self._select_template(intent)
+
+        # 如果是 keyword_only 模板，仅填充实体占位符，不进行代词替换
+        if intent.keyword_only:
+            if context:
+                template = self._fill_placeholders(template, context)
+            return template
+
+        # 非 keyword_only 模板，使用重组引擎进行代词替换
+        if reassembly_engine and user_input:
+            template = self._fill_placeholders(template, context or {})
+            # 使用重组引擎应用代词映射
+            response = reassembly_engine.reassemble(
+                components=[user_input],
+                reassembly_rule=template,
+                apply_pronoun_mapping=True,
+            )
+            return response
+
+        # 无重组引擎时，仅填充实体占位符
+        if context:
+            template = self._fill_placeholders(template, context)
         return template
 
     def _select_template(self, intent: ScriptIntent) -> str:
