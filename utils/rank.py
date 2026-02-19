@@ -1,118 +1,118 @@
 import re
 
 def rank(sentences, script, substitutions):
-    """Rank keywords according to a script.
-    Only returns the sentence with the highest ranked keyword.
+    """根据脚本对关键字进行排名。
+    仅返回具有最高等级关键字的句子。
 
-    Parameters
+    参数
     ----------
     sentences : str[]
-        Array of sentences.
+        句子数组。
 
     script : dict[]
-        JSON object containing ranks of different keywords.
+        包含不同关键字等级的 JSON 对象。
 
     substitutions : dict
-        Key-value pairs where key = word to substitute, value = new word.
+        键值对，其中键 = 要替换的单词，值 = 新单词。
 
-    Returns
+    返回
     -------
     sentences[max_index] : str
-        Sentence with highest ranked keyword in `sentences`.
+        `sentences` 中具有最高等级关键字的句子。
     sorted_keywords : str[]
-        Words in `sentences[max_index]` sorted in descending order based on their rank.
+        `sentences[max_index]` 中的单词根据其等级按降序排序。
 
     """
     all_keywords = []
     all_ranks = []
     maximums = []
 
-    # Iterating using index so that sentences in the list can be modified directly
+    # 使用索引遍历，以便可以直接修改列表中的句子
     for i in range(0, len(sentences)):
-        # Remove all punctuation
+        # 移除所有标点符号
         sentences[i] = re.sub(r'[#$%&()*+,-./:;<=>?@[\]^_{|}~]', '', sentences[i])
-        # Substitute keywords
+        # 替换关键字
         sentences[i] = substitute(sentences[i], substitutions)
 
-        # Check if sentence is not empty at this point
+        # 检查此时句子是否为空
         if sentences[i]:
             keywords = sentences[i].lower().split()
             all_keywords.append(keywords)
-            
-            # Get ranks for this sentence
+
+            # 获取此句子的等级
             ranks = get_ranks(keywords, script)
 
-            # Append maximum rank in this sentence
+            # 追加此句子中的最高等级
             maximums.append(max(ranks))
 
             all_ranks.append(ranks)
-        
-    # Return earliest sentence with highest keyword rank
+
+    # 返回具有最高关键字等级的最早句子
     max_rank = max(maximums)
     max_index = maximums.index(max_rank)
-    
+
     keywords = all_keywords[max_index]
     ranks = all_ranks[max_index]
 
-    # Sort list of keywords according to list of ranks
+    # 根据等级列表对关键字列表进行排序
     sorted_keywords = [x for _,x in sorted(zip(ranks, keywords), reverse=True)]
 
     return sentences[max_index], sorted_keywords
 
 def get_ranks(keywords, script):
-    """Return ranks of queried keyword in a given script.
+    """返回给定脚本中查询关键字的等级。
 
-    Parameters
+    参数
     ----------
     keywords : str[]
-        Array of keywords to search in the script.
+        要在脚本中搜索的关键字数组。
     script : dict[]
-        JSON object containing ranks of different keywords.
-    
-    Returns
+        包含不同关键字等级的 JSON 对象。
+
+    返回
     -------
     ranks : int[]
-        Array of integers in the same order as their respective keywords
-    
+        整数数组，顺序与其各自的关键字相同。
+
     """
     ranks = []
 
-    # Populate list of ranks
+    # 填充等级列表
     for keyword in keywords:
         for d in script:
             if d['keyword'] == keyword:
                 ranks.append(d['rank'])
                 break
-        # If no rank has been specified for a word, set its rank to 0
+        # 如果没有为单词指定等级，则将其等级设置为 0
         else:
             ranks.append(0)
-    
+
     return ranks
 
 def substitute(in_str, substitutions):
-    """Substitute words in a string according to a dict.
+    """根据字典替换字符串中的单词。
 
-    Parameters
+    参数
     ----------
     in_str : str
-        String to apply substitutions to.
+        要应用替换的字符串。
     substitutions : dict
-        Key-value pairs where key = word to substitute, value = new word.
+        键值对，其中键 = 要替换的单词，值 = 新单词。
 
-    Returns
+    返回
     -------
     out_str : str
-        String with relevant substitutions applied.
+        应用了相关替换的字符串。
 
     """
     out_str = ''
 
-    # Cycle through all words in string
+    # 遍历字符串中的所有单词
     for word in in_str.split():
-        # If substitutions specifies a substitution for this word, substitute it
+        # 如果 substitutions 为此单词指定了替换，则替换它
         if word.lower() in substitutions:
             out_str += substitutions[word.lower()] + ' '
-        # Otherwise carry over the same word
+        # 否则保留相同的单词
         else:
             out_str += word + ' '
 

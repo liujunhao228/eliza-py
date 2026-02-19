@@ -1,40 +1,40 @@
 import re
 
 def decompose(keyword, in_str, script):
-    """Find matching decomposition rule for a given keyword and string, if possible.
+    """为给定关键字和字符串查找匹配的分解规则（如果可能）。
 
-    Parameters
+    参数
     ----------
     keyword : str
-        Keyword used to query the script for decomposition rules.
+        用于从脚本查询分解规则的关键字。
     in_str : str
-        String used as input to the decomposition rules.
+        用作分解规则输入的字符串。
     script : dict[]
-        JSON object containing decomposition rules for various keywords.
+        包含各种关键字分解规则的 JSON 对象。
 
-    Returns
+    返回
     -------
     comps : str[]
-        List of components decomposed according to the matching decomposition rule.
-        Empty if no matching decomposition rule is found.
+        根据匹配的分解规则分解的组件列表。
+        如果未找到匹配的分解规则则为空。
     reassembly_rule : str
-        Reassembly rule that must be used to reassemble comps.
-        Empty if no matching decomposition rule is found.
+        必须用于重组 comps 的重组规则。
+        如果未找到匹配的分解规则则为空。
 
     """
 
     comps = []
     reassembly_rule = ''
 
-    # Cycle through elements in script
-    for d in script: 
+    # 遍历脚本中的元素
+    for d in script:
         if d['keyword'] == keyword:
-            # Cycle through decomp rules for that keyword
+            # 遍历该关键字的所有分解规则
             for rule in d['rules']:
                 m = re.match(rule['decomp'], in_str, re.IGNORECASE)
-                # If decomp rule matches
+                # 如果分解规则匹配
                 if m:
-                    # Decompose string according to decomposition rule
+                    # 根据分解规则分解字符串
                     comps = list(m.groups())
                     reassembly_rule = get_reassembly_rule(rule)
                     break
@@ -43,104 +43,104 @@ def decompose(keyword, in_str, script):
     return comps, reassembly_rule
 
 def reassemble(components, reassembly_rule):
-    """Reassemble a list of strings given a reassembly rule.
-    Note: reassembly rules are 1-indexed, according to the original paper.
-    
-    Parameters
+    """给定重组规则重组字符串列表。
+    注意：根据原始论文，重组规则是 1 索引的。
+
+    参数
     ----------
     components : str[]
-        Components to be assembled according to `reassembly_rule`.
+        要根据 `reassembly_rule` 组装的组件。
     reassembly_rule : str
-        Rule stating how to reassemble `components`.
+        说明如何重组 `components` 的规则。
 
-    Returns
+    返回
     -------
     response : str
-        Reassembled components.
+        重组后的组件。
 
     """
 
     response = 'Eliza: '
 
-    # Split reassembly rule into its components
-    reassembly_rule = reassembly_rule.split() 
+    # 将重组规则拆分为其组件
+    reassembly_rule = reassembly_rule.split()
 
     for comp in reassembly_rule:
-        # If comp is a number, then place the component at that index
+        # 如果 comp 是数字，则放置该索引处的组件
         if comp.isnumeric():
-            # int(comp)-1 due to the fact that 
-            # reassembly rules in Weizenbaum notation are 1-indexed
+            # int(comp)-1 是因为
+            # Weizenbaum 表示法中的重组规则是 1 索引的
             response += components[int(comp)-1] + ' '
-        # Otherwise, place the word itself
+        # 否则，放置单词本身
         else:
             response += comp + ' '
 
-    # Remove trailing space
+    # 移除尾部空格
     response = response[:-1]
 
     return response
 
 def process_decomp_rules(script, tags):
-    """Processes decomposition rules in a script from Weizenbaum notation to regex.
+    """将脚本中的分解规则从 Weizenbaum 表示法处理为正则表达式。
 
-    Parameters
+    参数
     ----------
     script : dict[]
-        JSON object containing decomposition rules in Weizenbaum notation.
+        包含 Weizenbaum 表示法分解规则的 JSON 对象。
     tags : dict[]
-        Array of tags, where each tag is an array of words within the same semantic field.
+        标签数组，每个标签是同一语义场内的单词数组。
 
-    Returns
+    返回
     -------
     script : dict[]
-        JSON object containing decomposition rules in regex. 
+        包含正则表达式分解规则的 JSON 对象。
 
     """
-    # Cycle through each dict in the JSON script
+    # 遍历 JSON 脚本中的每个字典
     for d in script:
-        # Cycle through all the rules in each dict
+        # 遍历每个字典中的所有规则
         for rule in d['rules']:
-            # Convert decomposition rule from Weizenbaum notation to regex
-            rule['decomp'] = decomp_to_regex(rule['decomp'], tags) 
+            # 将分解规则从 Weizenbaum 表示法转换为正则表达式
+            rule['decomp'] = decomp_to_regex(rule['decomp'], tags)
     return script
 
 def preprocess_decomp_rule(in_str):
-    """Preprocess a decomposition rule before converting to regex.
+    """在转换为正则表达式之前预处理分解规则。
 
-    Parameters
+    参数
     ----------
     in_str : str
-        String representing a decomposition rule.
+        表示分解规则的字符串。
 
-    Returns
+    返回
     -------
     in_str: str[]
-        List of components in decomposition rule.
+        分解规则中的组件列表。
     """
-    # The input is of the form: e.g. (0 YOU 0)
-    # Strip parenthesis
+    # 输入形式如下：例如 (0 YOU 0)
+    # 去掉括号
     in_str = re.sub('[()]', '', in_str)
 
-    # Split string into space separated list
+    # 将字符串拆分为空格分隔的列表
     return in_str.split()
 
 
 def decomp_to_regex(in_str, tags):
-    """Convert decomposition rules from Weizenbaum notation to regex.
-    An example of Weizenbaum notation is: (0 KEYWORD1 0 KEYWORD2 0).
+    """将分解规则从 Weizenbaum 表示法转换为正则表达式。
+    Weizenbaum 表示法的一个示例是：(0 KEYWORD1 0 KEYWORD2 0)。
 
-    Parameters
+    参数
     ----------
     in_str : str
-        Decomposition rule in Weizenbaum notation to convert to regex.
+        要转换为正则表达式的 Weizenbaum 表示法分解规则。
     tags : dict
-        Tags to consider when converting to regex.
+        转换为正则表达式时要考虑的标签。
 
-    Returns
+    返回
     -------
     out_str : str
-        Decomposition rule converted to regex form.
-        
+        转换为正则表达式形式的分解规则。
+
     """
     out_str = ''
 
@@ -148,96 +148,96 @@ def decomp_to_regex(in_str, tags):
 
     for w in in_str:
         w = regexify(w, tags)
-        # Parentheses are needed to properly divide sentence into components
-        # \s* matches zero or more whitespace characters 
-        out_str += '(' + w + r')\s*' 
+        # 需要括号以便正确地将句子划分为组件
+        # \s* 匹配零个或多个空白字符
+        out_str += '(' + w + r')\s*'
 
     return out_str
 
 def regexify(w, tags):
-    """Convert a single component of a decomposition rule
-    from Weizenbaum notation to regex.
+    """将分解规则的单个组件
+    从 Weizenbaum 表示法转换为正则表达式。
 
-    Parameters
+    参数
     ----------
     w : str
-        Component of a decomposition rule.
+        分解规则的组件。
     tags : dict
-        Tags to consider when converting to regex.
+        转换为正则表达式时要考虑的标签。
 
-    Returns
+    返回
     -------
     w : str
-        Component of a decomposition rule converted to regex form.
-    
+        转换为正则表达式形式的分解规则组件。
+
     """
-    # 0 means "an indefinite number of words"
-    if w == '0': 
+    # 0 表示"任意数量的单词"
+    if w == '0':
         w = '.*'
-    # A positive non-zero integer means "this specific amount of words"
+    # 正的非零整数表示"这个特定数量的单词"
     elif w.isnumeric() and int(w) > 0:
         w = r'(?:\b\w+\b[\s\r\n]*){' + w + '}'
-    # A word starting with @ signifies a tag
+    # 以 @ 开头的单词表示标签
     elif w[0] == "@":
-        # Get tag name
+        # 获取标签名称
         tag_name = w[1:].lower()
         w = tag_to_regex(tag_name, tags)
     else:
-        # Add word boundaries to match on a whole word basis
+        # 添加单词边界以在整体单词基础上匹配
         w = r'\b' + w + r'\b'
     return w
 
 def tag_to_regex(tag_name, tags):
-    """Convert a decomposition rule tag into regex notation.
-    
-    Parameters
+    """将分解规则标签转换为正则表达式表示法。
+
+    参数
     ----------
     tag_name : str
-        Tag to convert to regex notation.
+        要转换为正则表达式的标签。
     tags : dict
-        Tags to consider when converting to regex.
+        转换为正则表达式时要考虑的标签。
 
-    Returns
+    返回
     -------
     w : str
-        Tag converted to regex notation. Empty if `tag_name` is not in `tags`.
+        转换为正则表达式表示法的标签。如果 `tag_name` 不在 `tags` 中则为空。
     """
     w = ''
     if tag_name in tags:
-        # Make a regex separating each option with OR operator (e.g. x|y|z)
+        # 创建一个正则表达式，用 OR 运算符分隔每个选项（例如 x|y|z）
         w = r'\b(' + '|'.join(tags[tag_name]) + r')\b'
     return w
 
 def update_last_used_reassembly_rule(rule):
-    """Update the `last_used_reassembly_rule` ID for a given decomposition `rule`.
-    Cycle back to 0 if all reassembly rules for the respective decomposition rule have been used.
+    """更新给定分解 `rule` 的 `last_used_reassembly_rule` ID。
+    如果相应分解规则的所有重组规则都已使用，则循环回到 0。
 
-    Parameters
+    参数
     ----------
     rule : dict
-        Rule containing a decomposition rule, 
-        one or more reassembly rules and a `last_used_reassembly_rule` counter.
+        包含分解规则的规则，
+        一个或多个重组规则和 `last_used_reassembly_rule` 计数器。
 
-    Returns
+    返回
     -------
     next_id : int
-        Value to assign to `last_used_reassembly_rule` for the input `rule`.
+        要为输入 `rule` 的 `last_used_reassembly_rule` 分配的值。
     """
 
-    # Update last used reassembly rule ID
+    # 更新最后使用的重组规则 ID
     next_id = rule['last_used_reassembly_rule']+1
-    # If all reassembly rules have been used, start over
+    # 如果所有重组规则都已使用，则重新开始
     if next_id >= len(rule['reassembly']):
         next_id = 0
     rule['last_used_reassembly_rule'] = next_id
 
 def reset_all_last_used_reassembly_rule(script):
-    """Reset all `last_used_reassembly_rule` in a script to 0.
+    """将脚本中的所有 `last_used_reassembly_rule` 重置为 0。
 
-    Parameters
+    参数
     ----------
     script : dict[]
-        JSON object with keywords and associated rules.
+        包含关键字和相关规则的 JSON 对象。
     """
 
     for d in script:
@@ -245,19 +245,19 @@ def reset_all_last_used_reassembly_rule(script):
             rule['last_used_reassembly_rule'] = 0
 
 def get_reassembly_rule(rule):
-    """Return reassembly rule for a given decomposition rule.
+    """返回给定分解规则的重组规则。
 
-    Parameters
+    参数
     ----------
     rule : dict
-        Rule containing a decomposition rule, 
-        one or more reassembly rules and a `last_used_reassembly_rule` counter.
+        包含分解规则的规则，
+        一个或多个重组规则和 `last_used_reassembly_rule` 计数器。
 
-    Returns
+    返回
     -------
     reassembly_rule : str
-        Reassembly rule used to assemble a response for the user.
-    """   
+        用于为用户组装响应的重组规则。
+    """
     reassembly_rule = rule['reassembly'][rule['last_used_reassembly_rule']]
     update_last_used_reassembly_rule(rule)
     return reassembly_rule

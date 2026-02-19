@@ -3,45 +3,45 @@ import json
 from utils.rules import process_decomp_rules
 
 def setup(general_script_path, script_path):
-    """Set up the program, loading the JSON scripts.
-    
-    Returns
+    """设置程序，加载 JSON 脚本。
+
+    返回
     -------
     general_script : dict
-        General script, containing information about language and tags.
+        通用脚本，包含有关语言和标签的信息。
     script : dict[]
-        Custom script, containing keywords, ranks, decomposition and reassembly rules.
+        自定义脚本，包含关键字、等级、分解和重组规则。
     memory_inputs : str[]
-        Array of keywords that prompt the generation of an additional response added to the memory stack.
+        提示生成添加到内存堆栈的额外响应的关键字数组。
     exit_inputs : str[]
-        array of keywords that can be used to quit the program
+        可用于退出程序的关键字数组。
 
     """
-    # Load scripts
+    # 加载脚本
     general_script = load_script(general_script_path)
     script = load_script(script_path)
-    
-    # Process decomposition rules in custom script
+
+    # 处理自定义脚本中的分解规则
     script = process_decomp_rules(script, general_script['tags'])
-    
-    # Get information needed for program execution
+
+    # 获取程序执行所需的信息
     memory_inputs = general_script['memory_inputs']
     exit_inputs = general_script['exit_inputs']
 
     return general_script, script, memory_inputs, exit_inputs
 
 def load_script(script_path):
-    """Load script from a JSON file.
-    
-    Parameters
+    """从 JSON 文件加载脚本。
+
+    参数
     ----------
     script_path : str
-        Path to JSON file.
+        JSON 文件的路径。
 
-    Returns
+    返回
     -------
     script : dict or dict[]
-        Loaded JSON object.
+        加载的 JSON 对象。
 
     """
     with open(script_path) as f:

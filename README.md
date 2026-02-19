@@ -1,42 +1,42 @@
 # eliza.py
-**ELIZA** is a natural language processing program developed from 1964 to 1966 by Joseph Weizenbaum, 
-originally implemented in MAD-SLIP. 
-You can read the 1966 paper [here](https://dl.acm.org/doi/10.1145/365153.365168). 
+**ELIZA** 是一个自然语言处理程序，由 Joseph Weizenbaum 于 1964 年至 1966 年间开发，
+最初使用 MAD-SLIP 实现。
+你可以 [这里](https://dl.acm.org/doi/10.1145/365153.365168) 阅读 1966 年的论文。
 
-ELIZA uses pattern matching, decomposition and reassembly rules 
-to emulate a Rogerian psychotherapist.
+ELIZA 使用模式匹配、分解和重组规则
+来模拟罗杰式心理治疗师。
 
-![Demo](./demo.svg)
-(Inputs taken from [Weizenbaum's 1966 paper, pp.1-2.](https://dl.acm.org/doi/10.1145/365153.365168))
+![演示](./demo.svg)
+（输入取自 [Weizenbaum 1966 年的论文，第 1-2 页。](https://dl.acm.org/doi/10.1145/365153.365168)）
 
-# Program flow
+# 程序流程
 
-![Flowchart](./flowchart.svg)
+![流程图](./flowchart.svg)
 
-# Download
-## Requirements
-- Python 3.x 
-(should work with Python 2 by adjusting back the syntax of some commands)
+# 下载
+## 依赖要求
+- Python 3.x
+（通过调整某些命令的语法，应该也可以与 Python 2 一起使用）
 
-## Via command-line
+## 通过命令行
 ```bash
-# Clone the repository
+# 克隆仓库
 $ git clone https://github.com/rdimaio/eliza-py
 ```
 
-# Usage
-## Starting the program
+# 使用方法
+## 启动程序
 ```bash
-# Go into the project folder
+# 进入项目文件夹
 $ cd eliza-py
 
-# Execute the file
+# 执行文件
 $ python eliza.py
-Eliza: Hi.
-You: [type something]
+Eliza: 你好。
+You: [输入一些内容]
 ```
 
-## Example conversation (using the same inputs as the original paper, pp. 1-2)
+## 对话示例（使用与原始论文相同的输入，第 1-2 页）
 ```
 You: Men are all alike.
 Eliza: In what way?
@@ -54,94 +54,94 @@ You: Perhaps I could learn to get along with my mother.
 Eliza: Tell me more about your family.
 ```
 
-## Exiting the program
+## 退出程序
 ```bash
-# You can type bye, goodbye, done, quit or exit. Or use CTRL+C, if you want to be rude about it...
+# 你可以输入 bye、goodbye、done、quit 或 exit。或者使用 CTRL+C，如果你想粗鲁一点的话……
 You: bye
-Eliza: Goodbye.
+Eliza: 再见。
 ```
 
-# Script structure
+# 脚本结构
 
 ## `scripts/general.json`
-This script handles general English language information that is not necessarily tied into the other script the program uses,
-as well as useful inputs for the program.
+此脚本处理通用英语语言信息，这些信息不一定与其他脚本相关联，
+以及程序有用的输入。
 
-- `substitutions`: specifies which keywords should be substituted before applying a custom script
-- `tags`: specifies keywords within the same semantic field
-- `memory_inputs`: array of keywords that prompt the generation of an additional response added to the memory stack
-- `exit_inputs`: array of keywords that can be used to quit the program
+- `substitutions`：指定在应用自定义脚本之前应替换哪些关键字
+- `tags`：指定同一语义场内的关键字
+- `memory_inputs`：关键字数组，提示生成添加到内存堆栈的额外响应
+- `exit_inputs`：可用于退出程序的关键字数组
 
 ## `scripts/doctor.json`
-This script simulates a **Rogerian psychotherapist**.
-It has been filled according to the appendix in the original paper (p. 9), including ranks.
-An additional great reference is the script file from [Charles Hayen's Java implementation of ELIZA](http://chayden.net/eliza/Eliza.html).
-Some small additions have been made to make the program feel a bit nicer (e.g. the program responds to greetings).
+此脚本模拟**罗杰式心理治疗师**。
+它已根据原始论文附录（第 9 页）填充，包括等级。
+另一个很好的参考资料是 [Charles Hayen 的 ELIZA Java 实现](http://chayden.net/eliza/Eliza.html) 的脚本文件。
+为了使程序感觉更友好，做了一些小的补充（例如，程序会回应问候语）。
 
-Each element in the JSON file follows this structure:
-- `keyword`: keyword that the program looks for in the user's input (**after substitution**, like in the original implementation)
-    - Two special keywords exist:
-        - `$`: specifies that a generic answer should be given
-        - `^`: specifies that an answer from the memory stack should be given
-- `rank`: rank of that keyword
-- `rules`: Array of decomposition rules and matching reassembly rules in the form:
-    - `decomp`: Decomposition rule (using the same syntax as the original 1966 paper)
-    - `reassembly`: Array of reassembly rules to be used with the decomposition rule specified in `decomp`
-        - Reassembly rules use 1-indexing like in the original paper;
-        note that when a `tag` in a decomposition rule is equivalent
-        to two components in its reassembly rules instead of one
-        (to be able to use regex)
-    - `last_used_reassembly_rule`: ID of last used reassembly rule for this decomposition rule (0-indexed);
-    it is incremented everytime the decomposition rule is matched and it cycles back to the beginning
-    when the last reassembly rule in the array is used.
+JSON 文件中的每个元素都遵循以下结构：
+- `keyword`：程序在用户输入中查找的关键字（**替换后**，与原始实现相同）
+    - 存在两个特殊关键字：
+        - `$`：指定应给出通用答案
+        - `^`：指定应给出内存堆栈中的答案
+- `rank`：该关键字的等级
+- `rules`：分解规则和匹配重组规则的数组，形式为：
+    - `decomp`：分解规则（使用与 1966 年原始论文相同的语法）
+    - `reassembly`：要与 `decomp` 中指定的分解规则一起使用的重组规则数组
+        - 重组规则使用与原始论文相同的 1 索引；
+        注意，当分解规则中的 `tag` 等同于
+        其重组规则中的两个组件而不是一个
+        （以便能够使用正则表达式）
+    - `last_used_reassembly_rule`：此分解规则最后使用的重组规则的 ID（0 索引）；
+        每次匹配分解规则时都会递增，
+        当使用完数组中的最后一个重组规则时会循环回到开头。
 
 
-# FAQ
+# 常见问题
 
-## Differences from original implementation
+## 与原始实现的差异
 
-- **Keyword ranking**:
-    - Original implementation: keywords are not guaranteed to be ranked in descending order;
-    as seen in Fig. 2 on p. 4 of the original paper, a keyword is placed on top of the keystack
-    if its rank is higher than the highest rank encountered in the sentence so far,
-    otherwise it is placed on the bottom of the keystack.
-    - This implementation: keywords are guaranteed to be ranked in descending order.
-- **Sentence tokenization**:
-    - Original implementation: if a comma/period is encountered and a keyword has already been found,
-    all subsequent text is deleted (p. 2). 
-    - This implementation: sentences are split based on punctuation (—,.:;-),
-    and the sentence with the highest ranked keyword is chosen to be decomposed.
-    - Main reasons:
-        - The emphasis of the user's input may not necessarily be in the first section of the sentence
-        - The section with the highest ranked keyword has a higher chance of having decomposition rules
-        for that keyword, as it has a rank in the first place
-- **Tags**:
-    - Original implementation: `DLIST` is used to indicate tags.
-    - This implementation: `tag` is used to indicate tags.
-    - The functionality is the same.
-- **Memory stack**:
-    - Original implementation: the keyword `my` is associated with the memory stack (p. 6);
-    - This implementation: the memory stack is called when no matching decomposition rule is found.
+- **关键字排名**：
+    - 原始实现：关键字不保证按降序排列；
+    如原始论文第 4 页图 2 所示，如果关键字的等级高于
+    到目前为止句子中遇到的最高等级，则将其放置在关键字堆栈的顶部，
+    否则将其放置在关键字堆栈的底部。
+    - 此实现：关键字保证按降序排列。
+- **句子分词**：
+    - 原始实现：如果遇到逗号/句号且已找到关键字，
+    则所有后续文本都会被删除（第 2 页）。
+    - 此实现：句子根据标点符号（—,.:;-）拆分，
+    并选择具有最高等级关键字的句子进行分解。
+    - 主要原因：
+        - 用户输入的重点不一定在句子的第一部分
+        - 具有最高等级关键字的部分更有可能具有该关键字的分解规则，
+        因为它首先具有等级
+- **标签**：
+    - 原始实现：使用 `DLIST` 表示标签。
+    - 此实现：使用 `tag` 表示标签。
+    - 功能相同。
+- **内存堆栈**：
+    - 原始实现：关键字 `my` 与内存堆栈关联（第 6 页）；
+    - 此实现：当找不到匹配的分解规则时调用内存堆栈。
 
-## Why are scripts stored in JSON and not CSV?
-In the `doctor` script, each keyword has a **variable** amount of decomposition rules,
-and each decomposition rule has a **variable** amount of reassembly rules.
-I think JSON can store this information structure in a much more intuitive way.
+## 为什么脚本存储在 JSON 中而不是 CSV？
+在 `doctor` 脚本中，每个关键字都有**可变数量**的分解规则，
+每个分解规则都有**可变数量**的重组规则。
+我认为 JSON 可以以更直观的方式存储此信息结构。
 
-The `general` script could be stored in `.csv` as there is no nesting,
-but I preferred to use JSON again to remain consistent with the other script.
+`general` 脚本可以存储在 `.csv` 中，因为没有嵌套，
+但我更喜欢再次使用 JSON 以与另一个脚本保持一致。
 
-# Future work
-- Allow the user to edit the script during a session by typing "edit" as in the original implementation (p. 7 of the paper)
-- Translate to other languages (Italian, Spanish..)
-- Consider including a randomized delay before the program responds, strengthening the human-like feel of the conversation
+# 未来工作
+- 允许用户在会话期间通过输入"edit"来编辑脚本，如原始实现中所述（论文第 7 页）
+- 翻译成其他语言（意大利语、西班牙语……）
+- 考虑在程序响应之前包含随机延迟，增强对话的拟人感
 
-# References
-- J. Weizenbaum, “ELIZA-a computer program for the study of natural language communication between man and machine,” Communications of the ACM, vol. 9, no. 1, pp. 36–45, Jan. 1966. [Link](https://dl.acm.org/doi/10.1145/365153.365168)
+# 参考资料
+- J. Weizenbaum, "ELIZA-a computer program for the study of natural language communication between man and machine," Communications of the ACM, vol. 9, no. 1, pp. 36–45, Jan. 1966. [链接](https://dl.acm.org/doi/10.1145/365153.365168)
 
-- The script file from [Charles Hayen's Java implementation of ELIZA](http://chayden.net/eliza/Eliza.html)
+- [Charles Hayen 的 ELIZA Java 实现](http://chayden.net/eliza/Eliza.html) 的脚本文件
 
-## Tools
+## 工具
 
-- **Demo animation**: [asciinema](https://github.com/asciinema/asciinema) and [termtosvg](https://github.com/nbedos/termtosvg)
-- **Flowchart**: [draw.io](draw.io)
+- **演示动画**：[asciinema](https://github.com/asciinema/asciinema) 和 [termtosvg](https://github.com/nbedos/termtosvg)
+- **流程图**：[draw.io](draw.io)
