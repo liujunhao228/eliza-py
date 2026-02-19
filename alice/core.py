@@ -12,7 +12,6 @@ import random
 import time
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
-from collections import deque
 
 try:
     import jieba
@@ -23,37 +22,25 @@ except ImportError:
 
 # 导入日志和性能监控模块
 try:
-    from .utils.logger import DialogueLogger
-    from .utils.performance import PerformanceMonitor
+    from alice.utils.logger import DialogueLogger
+    from alice.utils.performance import PerformanceMonitor
     LOGGING_AVAILABLE = True
 except ImportError:
     LOGGING_AVAILABLE = False
 
 # 导入重组引擎模块
 try:
-    from .utils.reassembly import ReassemblyEngine, DecompositionMatcher, ReassemblyRuleSelector
+    from alice.utils.reassembly import ReassemblyEngine, DecompositionMatcher, ReassemblyRuleSelector
     REASSEMBLY_AVAILABLE = True
 except ImportError:
     REASSEMBLY_AVAILABLE = False
-    print("提示：未找到重组引擎模块，将使用基础响应模式")
+    print("提示：未找到重组引擎模块，部分功能可能不可用")
+
+# 导入通用脚本引擎模块（必需）
+from alice.utils.script_engine import ScriptEngine, ScriptMatch
 
 
-@dataclass
-class DialogueContext:
-    """对话上下文"""
-    entities: deque  # 最近提及的实体
-    last_intent: str = ""
-    conversation_turns: int = 0
-
-    def add_entity(self, entity: str, entity_type: str = "unknown"):
-        """添加实体到上下文"""
-        if len(self.entities) >= 3:  # 限制记忆长度
-            self.entities.popleft()
-        self.entities.append((entity, entity_type))
-
-    def get_recent_entities(self) -> List[Tuple[str, str]]:
-        """获取最近的实体"""
-        return list(self.entities)
+from alice.utils.context import ContextManager, ConversationHistory
 
 
 class TextPreprocessor:
@@ -180,46 +167,28 @@ class ReflectionEngine:
         self._load_rules(rules_file)
 
     def _load_rules(self, rules_file: Optional[str]):
-        """从配置文件加载规则"""
-        if rules_file and os.path.exists(rules_file):
-            try:
-                with open(rules_file, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                    self.pronoun_mapping = config.get('pronoun_mapping', {})
-                    self.transformation_rules = [
-                        (pattern, replacement)
-                        for pattern, replacement in config.get('transformation_rules', [])
-                    ]
-                return
-            except (json.JSONDecodeError, IOError) as e:
-                print(f"加载规则文件失败：{e}，使用默认规则")
+        """从配置文件加载规则
 
-        # 默认规则
-        self.pronoun_mapping = {
-            '我': '你',
-            '我的': '你的',
-            '我们': '你们',
-            '我自己': '你自己',
-            '我妈': '你妈',
-            '我爸': '你爸',
-            '我老婆': '你老婆',
-            '我老公': '你老公',
-            '我朋友': '你朋友',
-            '我同事': '你同事',
-            '我同学': '你同学',
-            '我老板': '你老板',
-            '我老师': '你老师',
-        }
-
-        self.transformation_rules = [
-            (r'我觉得 (.*)', r'你为什么觉得\1 呢？'),
-            (r'我不 (.*)', r'为什么不\1 呢？'),
-            (r'我想 (.*)', r'为什么想\1 呢？'),
-            (r'我喜欢 (.*)', r'你喜欢\1 什么地方？'),
-            (r'我讨厌 (.*)', r'为什么讨厌\1 呢？'),
-            (r'我害怕 (.*)', r'\1 让你感到害怕吗？'),
-            (r'我希望 (.*)', r'为什么希望\1 呢？'),
-        ]
+        严禁回退：规则文件必须存在且有效，否则抛出异常。
+        """
+        if not rules_file:
+            raise RuntimeError("错误：规则文件路径不能为空")
+        
+        if not os.path.exists(rules_file):
+            raise RuntimeError(f"错误：规则文件不存在：{rules_file}")
+        
+        try:
+            with open(rules_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                self.pronoun_mapping = config.get('pronoun_mapping', {})
+                self.transformation_rules = [
+                    (pattern, replacement)
+                    for pattern, replacement in config.get('transformation_rules', [])
+                ]
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"错误：规则文件 JSON 格式无效：{rules_file} - {e}")
+        except IOError as e:
+            raise RuntimeError(f"错误：无法读取规则文件：{rules_file} - {e}")
 
     def transform(self, text: str, semantic_info: Optional[Dict] = None) -> str:
         """执行反射转换"""
@@ -239,7 +208,7 @@ class ReflectionEngine:
 
         return transformed
 
-    def transform_with_reassembly(self, text: str, components: List[str], 
+    def transform_with_reassembly(self, text: str, components: List[str],
                                    reassembly_rule: str) -> str:
         """
         使用重组规则执行反射转换
@@ -279,162 +248,178 @@ class ReflectionEngine:
 
 
 class CuriosityScriptEngine:
-    """好奇心脚本引擎（增强版 - 支持重组规则）"""
+    """
+    好奇心脚本引擎 - 基于通用 ScriptEngine 的封装
 
-    def __init__(self, script_file: Optional[str] = None, 
+    内部使用通用的 ScriptEngine 模块。
+    严禁回退：脚本引擎模块必须存在，否则启动时抛出异常。
+    """
+
+    def __init__(self, script_file: Optional[str] = None,
                  rules_file: Optional[str] = None):
-        self.scripts = self._load_scripts(script_file)
+        """
+        初始化好奇心脚本引擎
+
+        参数:
+            script_file: 脚本配置文件路径
+            rules_file: 反射规则文件路径（用于代词映射）
+        """
+        self.script_file = script_file
+        self.rules_file = rules_file
+
+        # 脚本引擎是必需模块，直接初始化
+        self.engine = ScriptEngine(script_file=script_file)
+
         self.script_history: Dict[str, int] = {}
         self.last_used_responses: Dict[str, str] = {}
-        
-        # 重组规则选择器
-        self.reassembly_selectors: Dict[str, ReassemblyRuleSelector] = {}
-        self._init_reassembly_selectors()
-        
-        # 反射引擎用于重组
-        self.reassembly_engine = ReassemblyEngine(rules_file) if REASSEMBLY_AVAILABLE else None
 
-    def _init_reassembly_selectors(self):
-        """为每个脚本初始化重组规则选择器"""
-        for script_name, script_config in self.scripts.items():
-            rules = script_config.get('reassembly_rules', [])
-            if rules:
-                self.reassembly_selectors[script_name] = ReassemblyRuleSelector(rules)
-
-    def _load_scripts(self, script_file: Optional[str]) -> Dict:
-        """加载脚本配置"""
-        if script_file and os.path.exists(script_file):
-            try:
-                with open(script_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except (json.JSONDecodeError, IOError) as e:
-                print(f"加载脚本文件失败：{e}，使用默认脚本")
-
-        # 默认好奇心脚本（优化版）
-        return {
-            "greeting": {
-                "patterns": [r".*你好.*", r".*嗨.*", r".*哈喽.*", r".*早上好.*", r".*下午好.*", r".*晚上好.*"],
-                "responses": [
-                    "你好！很高兴和你聊天。",
-                    "嗨！今天过得怎么样？",
-                    "你好呀！有什么想聊的吗？",
-                    "嘿！我在这儿，想聊点什么？"
-                ],
-                "priority": 6
-            },
-            "narrative_continuation": {
-                "patterns": [
-                    r".*去.*了.*", r".*做.*了.*", r".*看.*了.*", r".*买.*了.*",
-                    r".*发生.*了.*", r".*吃.*了.*", r".*喝.*了.*", r".*玩.*了.*",
-                    r".*说.*了.*", r".*走.*了.*"
-                ],
-                "responses": [
-                    "后来呢？发生了什么让你印象深刻的事吗？",
-                    "那之后你做了什么？",
-                    "听起来很有意思，能详细说说吗？",
-                    "然后呢？我很好奇接下来发生了什么。",
-                    "哇，那一定很有趣吧？继续说说看！"
-                ],
-                "priority": 5
-            },
-            "person_focus": {
-                "patterns": [
-                    r".*朋友.*", r".*家人.*", r".*同事.*", r".*同学.*",
-                    r".*老板.*", r".*老师.*", r".*他.*", r".*她.*"
-                ],
-                "responses": [
-                    "你提到的这个人，平时是个怎样的人？",
-                    "听起来你对 ta 很关注，能多说说 ta 吗？",
-                    "你们之间的关系怎么样？",
-                    "ta 是怎么看待这件事的？",
-                    "你觉得 ta 为什么会这样做呢？"
-                ],
-                "priority": 4
-            },
-            "emotional_expression": {
-                "patterns": [
-                    r".*难过.*", r".*开心.*", r".*生气.*", r".*焦虑.*",
-                    r".*累.*", r".*烦.*", r".*害怕.*", r".*失望.*",
-                    r".*喜欢.*", r".*讨厌.*", r".*压力.*", r".*郁闷.*"
-                ],
-                "responses": [
-                    "听起来你现在感受很复杂，能跟我说说具体是什么让你有这样的感受吗？",
-                    "这种感受你以前也经历过吗？",
-                    "我理解你的感受，愿意多聊聊吗？",
-                    "是什么让你产生了这样的情绪呢？",
-                    "你希望这种感觉如何改变呢？"
-                ],
-                "priority": 5
-            },
-            "opinion_question": {
-                "patterns": [r".*为什么.*", r".*怎么.*", r".*如何.*", r".*什么.*", r".*哪里.*"],
-                "responses": [
-                    "这个问题很有意思，你是怎么想到的？",
-                    "对于这个问题，你自己有什么想法吗？",
-                    "这确实值得思考，你觉得呢？",
-                    "不同的人可能有不同的答案，你的看法是什么？"
-                ],
-                "priority": 3
-            },
-            "self_thought": {
-                "patterns": [r".*我觉得.*", r".*我认为.*", r".*我想.*", r".*我感觉.*"],
-                "responses": [
-                    "你为什么会有这样的想法呢？",
-                    "这种想法是从什么时候开始的？",
-                    "这个想法对你的生活有什么影响？",
-                    "你是怎么形成这样的看法的？"
-                ],
-                "priority": 5
-            },
-            "default": {
-                "patterns": [r".*"],
-                "responses": [
-                    "嗯，我明白了。能再多跟我聊聊吗？",
-                    "有意思，然后呢？",
-                    "真的吗？我很好奇更多细节。",
-                    "原来是这样啊，接下来发生了什么？",
-                    "这听起来很有趣，继续说说看。",
-                    "诶？能再多讲讲吗？",
-                    "我在这儿听着呢，继续说吧。",
-                    "嗯嗯，然后呢？"
-                ],
-                "priority": 1
-            }
-        }
+        # 重组引擎（必需）
+        if rules_file:
+            self.reassembly_engine = ReassemblyEngine(rules_file)
+        else:
+            self.reassembly_engine = ReassemblyEngine()
 
     def match_script(self, text: str, semantic_info: Dict) -> Optional[str]:
         """
-        匹配合适的脚本并生成响应（仅使用重组规则引擎）
-        
-        已禁用固定 responses 词库，直接使用重组规则进行动态响应
+        匹配合适的脚本并生成响应
+
+        匹配流程:
+        1. 使用 ScriptEngine 匹配脚本
+        2. 优先使用重组规则生成响应（利用分解组件）
+        3. 如果重组失败，使用预定义响应
+
+        参数:
+            text: 待匹配的文本
+            semantic_info: 语义分析结果（用于情感分析和上下文集成）
+
+        返回:
+            生成的响应，无匹配返回 None
         """
-        for script_name, script_config in self.scripts.items():
-            priority = script_config.get('priority', 1)
+        # 1. 使用通用脚本引擎匹配
+        match = self.engine.match(text)
+        if not match:
+            return None
 
-            for pattern in script_config.get('patterns', []):
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    # 检查是否有重组规则
-                    if script_name in self.reassembly_selectors and self.reassembly_engine:
-                        # 使用重组规则生成响应
-                        components = match.groups()
-                        selector = self.reassembly_selectors[script_name]
-                        rule = selector.select(avoid_repeats=True)
-                        if rule:
-                            response = self.reassembly_engine.reassemble(components, rule)
-                            self.script_history[script_name] = self.script_history.get(script_name, 0) + 1
-                            return response
-                    
-                    # 没有重组规则时，返回 None 让反射引擎处理
-                    return None
+        # 2. 生成响应：优先使用重组规则
+        response = self._generate_response(match, semantic_info)
 
-        return None
+        # 3. 更新历史记录
+        self.script_history = self.engine.get_usage_statistics()
+        if match.script_id and response:
+            self.last_used_responses[match.script_id] = response
+
+        return response
+
+    def _generate_response(self, match, semantic_info: Dict) -> Optional[str]:
+        """
+        生成响应：优先使用重组规则
+
+        参数:
+            match: 脚本匹配结果
+            semantic_info: 语义分析结果
+
+        返回:
+            生成的响应
+        """
+        response = None
+
+        # 尝试使用重组规则
+        if match.reassembly_rules and match.components:
+            response = self._apply_reassembly(match)
+
+        # 如果重组失败，使用预定义响应
+        if response is None and match.responses:
+            response = self._select_response(match)
+
+        return response
+
+    def _apply_reassembly(self, match) -> Optional[str]:
+        """
+        应用重组规则生成响应
+
+        参数:
+            match: 脚本匹配结果
+
+        返回:
+            重组后的响应
+        """
+        if not self.reassembly_engine:
+            return None
+
+        # 选择重组规则（避免重复）
+        rules = match.reassembly_rules
+        selected_rule = self._select_reassembly_rule(rules, match.script_id)
+        if not selected_rule:
+            return None
+
+        # 使用重组引擎生成响应
+        response = self.reassembly_engine.reassemble(
+            components=match.components,
+            reassembly_rule=selected_rule,
+            apply_pronoun_mapping=True
+        )
+
+        return response.strip() if response else None
+
+    def _select_reassembly_rule(self, rules: List[str], script_id: str) -> Optional[str]:
+        """
+        选择重组规则（避免重复）
+
+        参数:
+            rules: 重组规则列表
+            script_id: 脚本 ID
+
+        返回:
+            选中的规则
+        """
+        if not rules:
+            return None
+
+        last_rule = self.last_used_responses.get(f"{script_id}_rule", '')
+        available_rules = [r for r in rules if r != last_rule]
+
+        if available_rules:
+            selected = random.choice(available_rules)
+        else:
+            selected = random.choice(rules)
+
+        self.last_used_responses[f"{script_id}_rule"] = selected
+        return selected
+
+    def _select_response(self, match) -> Optional[str]:
+        """
+        从预定义响应中选择
+
+        参数:
+            match: 脚本匹配结果
+
+        返回:
+            选中的响应
+        """
+        if not match.responses:
+            return None
+
+        last_response = self.last_used_responses.get(match.script_id, '')
+        available_responses = [r for r in match.responses if r != last_response]
+
+        if available_responses:
+            selected = random.choice(available_responses)
+        else:
+            selected = random.choice(match.responses)
+
+        return selected
+
+    def reset(self) -> None:
+        """重置引擎状态"""
+        self.engine.reset()
+        self.script_history.clear()
+        self.last_used_responses.clear()
 
 
 class AliceBot:
     """Alice 聊天机器人"""
 
-    def __init__(self, script_file: Optional[str] = None, 
+    def __init__(self, script_file: Optional[str] = None,
                  rules_file: Optional[str] = None,
                  enable_logging: bool = False):
         # 确定规则文件路径
@@ -446,13 +431,15 @@ class AliceBot:
             )
             if os.path.exists(default_rules):
                 rules_file = default_rules
-        
+
         self.preprocessor = TextPreprocessor()
         self.analyzer = SemanticAnalyzer()
         self.reflection_engine = ReflectionEngine(rules_file)
         self.script_engine = CuriosityScriptEngine(script_file, rules_file)
-        self.context = DialogueContext(entities=deque())
-        self.conversation_history: List[Tuple[str, str]] = []
+        
+        # 使用 ContextManager 替代简化的 DialogueContext
+        self.context_manager = ContextManager(max_items=10)
+        self.conversation_history = ConversationHistory(max_turns=20)
 
         # 日志和性能监控（可选）
         self.enable_logging = enable_logging
@@ -474,23 +461,18 @@ class AliceBot:
             # 2. 语义分析
             semantic_info = self.analyzer.analyze(standardized_text)
 
-            # 3. 更新上下文
-            self._update_context(semantic_info)
+            # 3. 更新上下文（包含情感分析和话题追踪）
+            self.context_manager.update_context(semantic_info, user_input)
 
-            # 4. 尝试脚本匹配（重组规则引擎）
+            # 4. 脚本匹配（必须匹配，无回退逻辑）
             script_response = self.script_engine.match_script(standardized_text, semantic_info)
             if script_response:
                 final_response = script_response
             else:
-                # 5. 反射转换作为备选
-                reflected_response = self.reflection_engine.transform(standardized_text, semantic_info)
-                # 只有当反射引擎实际转换了文本时才使用
-                if reflected_response and reflected_response != standardized_text:
-                    final_response = f"{reflected_response}？"
-                else:
-                    # 6. 回退到默认响应（使用重组规则引擎的 default 脚本）
-                    final_response = self._generic_response(standardized_text, semantic_info)
+                # 严禁回退：脚本匹配失败直接抛出异常
+                raise RuntimeError(f"错误：无法为输入 '{user_input}' 生成响应 - 无匹配的脚本规则")
 
+            # 5. 记录对话
             self._record_conversation(user_input, final_response)
 
             # 记录日志和性能
@@ -502,69 +484,44 @@ class AliceBot:
             # 错误处理
             if self.enable_logging and self.dialogue_logger:
                 self.dialogue_logger.log_error(e, {'user_input': user_input})
-            return "抱歉，出了点问题。能换个说法吗？"
-    
+            raise  # 重新抛出异常，严禁降级处理
+
     def _log_interaction(self, user_input: str, response: str, start_time: float):
         """记录交互日志和性能"""
         duration = (time.time() - start_time) * 1000
-        
+
         if self.enable_logging and self.dialogue_logger:
             self.dialogue_logger.log_dialogue(user_input, response)
             self.dialogue_logger.log_performance("respond", duration)
-        
+
         if self.perf_monitor:
             self.perf_monitor.start_timer("respond")
             self.perf_monitor.stop_timer("respond", duration_ms=duration)
 
-    def _update_context(self, semantic_info: Dict):
-        """更新对话上下文"""
-        entities = semantic_info.get('entities', [])
-        for entity_type, entity_name in entities:
-            self.context.add_entity(entity_name, entity_type)
-
-    def _generic_response(self, text: str, semantic_info: Dict) -> str:
-        """
-        生成通用回应（仅从default.responses词库获取）
-        
-        参数:
-            text: 标准化后的文本
-            semantic_info: 语义分析结果
-        """
-        # 从脚本引擎中获取default脚本的responses词库
-        default_config = self.script_engine.scripts.get("default", {})
-        generic_responses = default_config.get('responses', [])
-        
-        # 如果没有找到responses词库，抛出异常
-        if not generic_responses:
-            raise ValueError("未找到default.responses词库，请检查脚本配置文件")
-        
-        return random.choice(generic_responses)
-
     def _record_conversation(self, user_input: str, response: str):
         """记录对话历史"""
-        self.conversation_history.append(('user', user_input))
-        self.conversation_history.append(('alice', response))
-        # 限制历史记录长度
-        if len(self.conversation_history) > 20:
-            self.conversation_history = self.conversation_history[-20:]
+        self.conversation_history.add_turn(user_input, response)
 
     def get_conversation_summary(self) -> Dict:
         """获取对话摘要"""
+        context_state = self.context_manager.get_context_state()
         return {
-            'turns': len(self.conversation_history) // 2,
-            'recent_entities': self.context.get_recent_entities(),
-            'script_usage': self.script_engine.script_history
+            'turns': len(self.conversation_history.history),
+            'recent_entities': self.context_manager.get_recent_persons(limit=3),
+            'current_topic': context_state.get('current_topic', ''),
+            'emotion_trend': context_state.get('emotion_trend', 'neutral'),
+            'script_usage': self.script_engine.script_history,
+            'recent_events': self.context_manager.get_recent_events(limit=2),
         }
 
     def reset(self):
         """重置对话状态"""
-        self.context = DialogueContext(entities=deque())
-        self.conversation_history = []
+        self.context_manager.reset()
+        self.conversation_history.clear()
         self.script_engine.script_history = {}
         self.script_engine.last_used_responses = {}
-        # 重置重组规则选择器
-        for selector in self.script_engine.reassembly_selectors.values():
-            selector.reset()
+        # 重置脚本引擎
+        self.script_engine.reset()
 
 
 # 主程序入口
@@ -590,5 +547,10 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             print("\nAlice: 再见！")
             break
+        except RuntimeError as e:
+            # 严禁回退：运行时错误直接抛出
+            print(f"Alice: {e}")
+            break
         except Exception as e:
-            print(f"Alice: 抱歉，出了点问题。能换个说法吗？")
+            # 其他异常也抛出
+            raise

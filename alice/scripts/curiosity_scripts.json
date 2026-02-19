@@ -305,9 +305,7 @@
       "id": "default",
       "name": "默认回应",
       "description": "当没有匹配到其他脚本时的默认回应",
-      "patterns": [
-        ".*"
-      ],
+      "patterns": [],
       "responses": [
         "嗯，我明白了。能再多跟我聊聊吗？",
         "有意思，然后呢？",
@@ -322,7 +320,8 @@
         "嗯嗯，然后呢？",
         "这确实很有意思，能详细说说吗？"
       ],
-      "priority": 1
+      "priority": 0,
+      "is_fallback": true
     }
   }
 }
