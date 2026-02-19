@@ -103,10 +103,13 @@ class ScriptEngine:
         for field in required_fields:
             if field not in script_data:
                 raise ValueError(f"脚本 '{script_id}' 缺少必需字段：{field}")
-        
-        if not isinstance(script_data['patterns'], list) or len(script_data['patterns']) == 0:
-            raise ValueError(f"脚本 '{script_id}' 的 patterns 必须是非空列表")
-        
+
+        # fallback 脚本允许 patterns 为空（作为默认响应）
+        is_fallback = script_data.get('is_fallback', False)
+        if not is_fallback:
+            if not isinstance(script_data['patterns'], list) or len(script_data['patterns']) == 0:
+                raise ValueError(f"脚本 '{script_id}' 的 patterns 必须是非空列表")
+
         if not isinstance(script_data['responses'], list) or len(script_data['responses']) == 0:
             raise ValueError(f"脚本 '{script_id}' 的 responses 必须是非空列表")
 

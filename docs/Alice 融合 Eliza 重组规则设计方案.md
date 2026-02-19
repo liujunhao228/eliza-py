@@ -128,7 +128,7 @@ class ReassemblyEngine:
         return response
 ```
 
-#### 2.2 修改：CuriosityScriptEngine
+#### 2.2 修改：ScriptEngine
 
 **脚本格式扩展**:
 ```json
@@ -339,7 +339,7 @@ alice/
 ### Phase 1: 核心功能（1 周）
 - [ ] 实现 `ReassemblyEngine` 类
 - [ ] 扩展脚本格式支持 `reassembly_rules`
-- [ ] 更新 `CuriosityScriptEngine` 匹配逻辑
+- [ ] 更新 `ScriptEngine` 匹配逻辑
 
 ### Phase 2: 配置化（3 天）
 - [ ] 创建 `reflection_rules.json`

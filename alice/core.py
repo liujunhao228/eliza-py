@@ -422,6 +422,15 @@ class AliceBot:
     def __init__(self, script_file: Optional[str] = None,
                  rules_file: Optional[str] = None,
                  enable_logging: bool = False):
+        # 确定脚本文件路径
+        if script_file is None:
+            default_scripts = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                'scripts', 'curiosity_scripts.json'
+            )
+            if os.path.exists(default_scripts):
+                script_file = default_scripts
+
         # 确定规则文件路径
         if rules_file is None:
             # 使用默认路径
@@ -435,7 +444,7 @@ class AliceBot:
         self.preprocessor = TextPreprocessor()
         self.analyzer = SemanticAnalyzer()
         self.reflection_engine = ReflectionEngine(rules_file)
-        self.script_engine = CuriosityScriptEngine(script_file, rules_file)
+        self.script_engine = ScriptEngine(script_file, rules_file)
         
         # 使用 ContextManager 替代简化的 DialogueContext
         self.context_manager = ContextManager(max_items=10)
