@@ -528,7 +528,7 @@ class AliceBot:
 if __name__ == "__main__":
     alice = AliceBot()
 
-    print("Alice: 你好！我是 Alice，你的好奇朋友。有什么想聊的吗？")
+    print("Alice: 你好！我是 Alice。有什么想聊的吗？")
     print("Alice: 输入 'quit' 或 '再见' 结束对话。\n")
 
     while True:

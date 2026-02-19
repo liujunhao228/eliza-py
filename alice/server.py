@@ -6,11 +6,6 @@ Alice Web 界面
 """
 
 import os
-import sys
-
-# 添加项目根目录到路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from flask import Flask, request, jsonify, render_template_string
 from alice.core import AliceBot
 
@@ -198,7 +193,7 @@ HTML_TEMPLATE = """
             <div class="message bot">
                 <div>
                     <div class="message-label">Alice</div>
-                    <div class="message-content">你好！我是 Alice，你的好奇朋友。有什么想聊的吗？</div>
+                    <div class="message-content">你好！我是 Alice。有什么想聊的吗？</div>
                 </div>
             </div>
             <div class="typing-indicator" id="typingIndicator">
