@@ -9,14 +9,28 @@ Alice 聊天机器人 - 主入口文件
 """
 
 import argparse
+import logging
 import sys
+
+logger = logging.getLogger(__name__)
 
 
 def run_cli():
     """命令行交互模式"""
     from alice.core import AliceBot
+    from alice.exceptions import (
+        InputValidationError,
+        ScriptMatchingError,
+        ResponseGenerationError,
+        ConfigurationError,
+        InitializationError,
+    )
 
-    alice = AliceBot()
+    try:
+        alice = AliceBot()
+    except (ConfigurationError, InitializationError) as e:
+        print(f"启动失败：{e}")
+        sys.exit(1)
 
     print("🤖 Alice - 好奇的朋友")
     print("=" * 50)
@@ -36,14 +50,25 @@ def run_cli():
             response = alice.respond(user_input)
             print(f"Alice: {response}")
 
+        except (InputValidationError, ScriptMatchingError) as e:
+            # 业务异常，显示友好提示
+            print(f"Alice: {e}")
+        except ResponseGenerationError as e:
+            # 响应生成错误
+            print(f"Alice: 系统出现故障，请稍后再试")
+            logger.error(f"响应生成错误：{e}")
         except KeyboardInterrupt:
             print("\nAlice: 再见！")
             break
-        except RuntimeError as e:
-            print(f"Alice: {e}")
-            break
+        except (ConfigurationError, InitializationError) as e:
+            # 配置或初始化错误，终止程序
+            print(f"系统错误：{e}")
+            logger.critical(f"系统错误：{e}")
+            sys.exit(1)
         except Exception as e:
-            print(f"错误：{e}")
+            # 未预期的错误
+            print("Alice: 系统出现未知错误，请稍后再试")
+            logger.critical(f"未预期的错误：{e}", exc_info=True)
             sys.exit(1)
 
 

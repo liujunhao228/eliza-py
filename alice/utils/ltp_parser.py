@@ -15,11 +15,18 @@ LTP 依存句法分析器模块（优化版 - 按需加载）
 - ltp>=4.2.10 (可选，未安装时自动降级到简化模式)
 """
 
+import logging
 import os
 import json
 import re
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass, field
+
+# 导入自定义异常
+from alice.exceptions import LTPError, ExternalLibraryError
+
+# 模块级 logger
+logger = logging.getLogger(__name__)
 
 # 尝试导入 LTP
 try:
@@ -27,7 +34,7 @@ try:
     LTP_AVAILABLE = True
 except ImportError:
     LTP_AVAILABLE = False
-    print("提示：未安装 LTP，将使用简化句法分析模式")
+    logger.warning("未安装 LTP，将使用简化句法分析模式")
 
 
 @dataclass
@@ -78,7 +85,7 @@ class LazyLTPWrapper:
         """初始化 LTP 模型（按需）"""
         if self._ltp_model is not None:
             return True
-            
+
         try:
             from ltp import LTP
             if model_path and os.path.exists(model_path):
@@ -86,10 +93,10 @@ class LazyLTPWrapper:
             else:
                 # 使用默认模型（自动下载）
                 self._ltp_model = LTP()
-            print("LTP 模型加载成功")
+            logger.info("LTP 模型加载成功")
             return True
         except Exception as e:
-            print(f"LTP 模型加载失败：{e}")
+            logger.error(f"LTP 模型加载失败：{e}")
             self._ltp_model = None
             return False
     
@@ -297,7 +304,15 @@ class OptimizedLTPParser:
             return structure
 
         except Exception as e:
-            print(f"LTP 分析失败：{type(e).__name__}: {e}，降级到简化模式")
+            logger.warning(f"LTP 分析失败：{type(e).__name__}: {e}，降级到简化模式")
+            # 注册降级事件
+            from alice.utils.degradation_monitor import degradation_monitor
+            degradation_monitor.register_degradation(
+                component='ltp_parse',
+                reason=f'{type(e).__name__}: {e}',
+                severity=2,
+                recovery_plan='使用简化句法分析模式'
+            )
             return self._parse_simple(text)
 
     def _parse_simple(self, text: str) -> SentenceStructure:

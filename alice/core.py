@@ -1,10 +1,12 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Alice - 好奇的朋友聊天机器人核心模块
 基于 ELIZA 原理，采用轻量化设计实现中文对话
 """
 
+import logging
+import os
 import re
 import json
 import random
@@ -26,14 +28,37 @@ from alice.config import (
     ENABLE_NER_BY_DEFAULT,
     NER_USE_LTP_BY_DEFAULT,
     ENABLE_LOGGING_BY_DEFAULT,
+    MAX_INPUT_LENGTH,
 )
+
+# 导入自定义异常类
+from alice.exceptions import (
+    ConfigurationError,
+    MissingConfigurationError,
+    InvalidConfigurationError,
+    InitializationError,
+    DependencyError,
+    DialogueError,
+    InputValidationError,
+    ScriptMatchingError,
+    ResponseGenerationError,
+    TextProcessingError,
+    ExternalLibraryError,
+    LTPError,
+    JiebaError,
+)
+
+# 导入降级监控器
+from alice.utils.degradation_monitor import degradation_monitor
 
 try:
     import jieba
     JIEBA_AVAILABLE = True
 except ImportError:
     JIEBA_AVAILABLE = False
-    print("提示：未安装 jieba，将使用基础分词模式")
+    # 使用 logger 而非 print
+    logger = logging.getLogger(__name__)
+    logger.warning("jieba 未安装，将使用基础分词模式")
 
 # 导入日志和性能监控模块
 try:
@@ -42,6 +67,8 @@ try:
     LOGGING_AVAILABLE = True
 except ImportError:
     LOGGING_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("日志模块未安装，将禁用日志功能")
 
 # 导入重组引擎模块
 try:
@@ -49,7 +76,14 @@ try:
     REASSEMBLY_AVAILABLE = True
 except ImportError:
     REASSEMBLY_AVAILABLE = False
-    print("提示：未找到重组引擎模块，部分功能可能不可用")
+    logger = logging.getLogger(__name__)
+    logger.warning("重组引擎模块未找到，部分功能可能不可用")
+    degradation_monitor.register_degradation(
+        component='reassembly_engine',
+        reason='模块导入失败',
+        severity=2,
+        recovery_plan='使用基础响应模式'
+    )
 
 # 导入 LTP 句法分析器模块
 try:
@@ -57,7 +91,14 @@ try:
     LTP_AVAILABLE = True
 except ImportError:
     LTP_AVAILABLE = False
-    print("提示：未安装 LTP 模块，将使用简化句法分析模式")
+    logger = logging.getLogger(__name__)
+    logger.warning("LTP 模块未安装，将使用简化句法分析模式")
+    degradation_monitor.register_degradation(
+        component='ltp_parser',
+        reason='模块导入失败',
+        severity=2,
+        recovery_plan='使用简化句法分析模式'
+    )
 
 # 导入通用脚本引擎模块（必需）
 from alice.utils.script_engine import ScriptEngine, ScriptMatch
@@ -79,7 +120,17 @@ try:
     NER_AVAILABLE = True
 except ImportError:
     NER_AVAILABLE = False
-    print("提示：未找到 NER 模块，将使用基础实体提取")
+    logger = logging.getLogger(__name__)
+    logger.warning("NER 模块未找到，将使用基础实体提取")
+    degradation_monitor.register_degradation(
+        component='ner_module',
+        reason='模块导入失败',
+        severity=2,
+        recovery_plan='使用基础实体提取'
+    )
+
+# 模块级 logger
+logger = logging.getLogger(__name__)
 
 
 class TextPreprocessor:
@@ -261,11 +312,11 @@ class ReflectionEngine:
         严禁回退：规则文件必须存在且有效，否则抛出异常。
         """
         if not rules_file:
-            raise RuntimeError("错误：规则文件路径不能为空")
-        
+            raise MissingConfigurationError("规则文件路径不能为空")
+
         if not os.path.exists(rules_file):
-            raise RuntimeError(f"错误：规则文件不存在：{rules_file}")
-        
+            raise MissingConfigurationError(f"规则文件不存在：{rules_file}")
+
         try:
             with open(rules_file, 'r', encoding='utf-8') as f:
                 config = json.load(f)
@@ -275,9 +326,9 @@ class ReflectionEngine:
                     for pattern, replacement in config.get('transformation_rules', [])
                 ]
         except json.JSONDecodeError as e:
-            raise RuntimeError(f"错误：规则文件 JSON 格式无效：{rules_file} - {e}")
+            raise InvalidConfigurationError(f"规则文件 JSON 格式无效：{rules_file} - {e}") from e
         except IOError as e:
-            raise RuntimeError(f"错误：无法读取规则文件：{rules_file} - {e}")
+            raise ConfigurationError(f"无法读取规则文件：{rules_file}") from e
 
     def transform(self, text: str, semantic_info: Optional[Dict] = None) -> str:
         """执行反射转换"""
@@ -405,10 +456,17 @@ class CuriosityScriptEngine:
             self.ltp_parser = OptimizedLTPParser(lazy_load=True)
             self.syntax_reassembly_engine = SyntaxBasedReassemblyEngine(self.ltp_parser)
             self.ltp_initialized = True
-            print("LTP 模型按需加载成功")
+            logger.info("LTP 模型按需加载成功")
             return True
         except Exception as e:
-            print(f"LTP 初始化失败：{e}")
+            logger.error(f"LTP 初始化失败：{e}")
+            # 注册降级事件
+            degradation_monitor.register_degradation(
+                component='ltp_init',
+                reason=str(e),
+                severity=3,
+                recovery_plan='使用简化句法分析模式'
+            )
             self.ltp_parser = None
             self.syntax_reassembly_engine = None
             self.ltp_initialized = True
@@ -784,40 +842,74 @@ class AliceBot:
         self.ner_enabled = enable_ner and NER_AVAILABLE
 
     def respond(self, user_input: str) -> str:
-        """生成回复"""
+        """
+        生成回复
+
+        Args:
+            user_input: 用户输入
+
+        Returns:
+            机器人回复
+
+        Raises:
+            InputValidationError: 输入验证失败
+            ScriptMatchingError: 脚本匹配失败
+            ResponseGenerationError: 响应生成失败
+        """
+        # 1. 输入验证（禁止降级）
+        if not user_input or not user_input.strip():
+            raise InputValidationError("输入不能为空")
+
+        if len(user_input) > MAX_INPUT_LENGTH:
+            raise InputValidationError(
+                f"输入过长（最大{MAX_INPUT_LENGTH}字符，当前{len(user_input)}字符）"
+            )
+
         start_time = time.time()
 
         try:
-            # 1. 预处理
+            # 2. 预处理
             standardized_text = self.preprocessor.standardize_text(user_input)
 
-            # 2. 语义分析
+            # 3. 语义分析
             semantic_info = self.analyzer.analyze(standardized_text)
 
-            # 3. 更新上下文（包含情感分析和话题追踪）
+            # 4. 更新上下文（包含情感分析和话题追踪）
             self.context_manager.update_context(semantic_info, user_input)
 
-            # 4. 脚本匹配（必须匹配，无回退逻辑）
+            # 5. 脚本匹配（必须匹配，无回退逻辑）
             script_response = self.script_engine.match_script(standardized_text, semantic_info)
             if script_response:
                 final_response = script_response
             else:
                 # 严禁回退：脚本匹配失败直接抛出异常
-                raise RuntimeError(f"错误：无法为输入 '{user_input}' 生成响应 - 无匹配的脚本规则")
+                logger.warning(f"脚本匹配失败：'{user_input[:50]}...'")
+                raise ScriptMatchingError(
+                    f"无匹配脚本：'{user_input[:50]}...'"
+                )
 
-            # 5. 记录对话
+            # 6. 记录对话
             self._record_conversation(user_input, final_response)
 
-            # 记录日志和性能
+            # 7. 记录日志和性能
             self._log_interaction(user_input, final_response, start_time)
 
             return final_response
 
+        except (InputValidationError, ScriptMatchingError):
+            # 业务异常直接抛出
+            raise
         except Exception as e:
-            # 错误处理
-            if self.enable_logging and self.dialogue_logger:
-                self.dialogue_logger.log_error(e, {'user_input': user_input})
-            raise  # 重新抛出异常，严禁降级处理
+            # 系统异常记录日志后抛出
+            logger.error(f"响应生成失败：{e}", exc_info=True)
+            # 注册降级事件
+            degradation_monitor.register_degradation(
+                component='respond',
+                reason=str(e),
+                severity=3,
+                recovery_plan='请检查系统配置和依赖'
+            )
+            raise ResponseGenerationError("响应生成失败，请稍后再试") from e
 
     def _log_interaction(self, user_input: str, response: str, start_time: float):
         """记录交互日志和性能"""

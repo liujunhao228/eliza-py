@@ -5,10 +5,14 @@
 支持多种实体类型的识别和追踪
 """
 
+import logging
 import re
 from typing import List, Dict, Tuple, Optional, Set
 from dataclasses import dataclass, field
 from enum import Enum
+
+# 模块级 logger
+logger = logging.getLogger(__name__)
 
 
 class EntityType(Enum):
@@ -538,9 +542,10 @@ class LTPBasedNER(RuleBasedNER):
             from alice.utils.ltp_parser import LTPParser
             self.ltp_parser = LTPParser()
             self._ltp_available = True
+            logger.info("LTP 初始化成功")
             return True
         except Exception as e:
-            print(f"LTP 初始化失败：{e}，将使用规则-based NER")
+            logger.warning(f"LTP 初始化失败：{e}，将使用规则-based NER")
             return False
 
     def extract(self, text: str, use_ltp: bool = True) -> List[Entity]:
@@ -581,7 +586,7 @@ class LTPBasedNER(RuleBasedNER):
                         confidence=0.95
                     ))
         except Exception as e:
-            print(f"LTP 实体提取失败：{e}")
+            logger.warning(f"LTP 实体提取失败：{e}")
         return entities
 
     def _map_ltp_type(self, ltp_type: str) -> EntityType:

@@ -10,6 +10,7 @@
 - 支持响应轮换和去重
 """
 
+import logging
 import json
 import re
 import random
@@ -19,6 +20,12 @@ from dataclasses import dataclass
 
 # 导入统一配置
 from alice.config import PRONOUN_MAPPING
+
+# 导入自定义异常
+from alice.exceptions import MissingConfigurationError, InvalidConfigurationError
+
+# 模块级 logger
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -72,23 +79,28 @@ class ScriptEngine:
             script_file: 脚本文件路径
 
         异常:
-            FileNotFoundError: 文件不存在
-            json.JSONDecodeError: JSON 格式无效
+            MissingConfigurationError: 文件不存在
+            InvalidConfigurationError: JSON 格式无效
         """
         script_path = Path(script_file)
         if not script_path.exists():
-            raise FileNotFoundError(f"脚本文件不存在：{script_file}")
+            raise MissingConfigurationError(f"脚本文件不存在：{script_file}")
 
-        with open(script_file, 'r', encoding='utf-8') as f:
-            config = json.load(f)
+        try:
+            with open(script_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+        except json.JSONDecodeError as e:
+            raise InvalidConfigurationError(f"脚本文件 JSON 格式无效：{script_file}") from e
+        except IOError as e:
+            raise MissingConfigurationError(f"无法读取脚本文件：{script_file}") from e
 
         scripts_data = config.get('scripts', {})
-        
+
         # 验证并加载每个脚本
         for script_id, script_data in scripts_data.items():
             self._validate_script(script_id, script_data)
             self.scripts[script_id] = script_data
-        
+
         # 按优先级排序（优先级高的先匹配）
         self._sort_scripts_by_priority()
 
@@ -101,21 +113,21 @@ class ScriptEngine:
             script_data: 脚本数据
 
         异常:
-            ValueError: 脚本配置无效
+            InvalidConfigurationError: 脚本配置无效
         """
         required_fields = ['patterns', 'responses']
         for field in required_fields:
             if field not in script_data:
-                raise ValueError(f"脚本 '{script_id}' 缺少必需字段：{field}")
+                raise InvalidConfigurationError(f"脚本 '{script_id}' 缺少必需字段：{field}")
 
         # fallback 脚本允许 patterns 为空（作为默认响应）
         is_fallback = script_data.get('is_fallback', False)
         if not is_fallback:
             if not isinstance(script_data['patterns'], list) or len(script_data['patterns']) == 0:
-                raise ValueError(f"脚本 '{script_id}' 的 patterns 必须是非空列表")
+                raise InvalidConfigurationError(f"脚本 '{script_id}' 的 patterns 必须是非空列表")
 
         if not isinstance(script_data['responses'], list) or len(script_data['responses']) == 0:
-            raise ValueError(f"脚本 '{script_id}' 的 responses 必须是非空列表")
+            raise InvalidConfigurationError(f"脚本 '{script_id}' 的 responses 必须是非空列表")
 
     def _sort_scripts_by_priority(self):
         """按优先级对脚本进行排序（优先级高的在前）"""
