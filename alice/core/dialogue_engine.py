@@ -14,6 +14,7 @@ from alice.processors import TextPreprocessor, SemanticAnalyzer
 from alice.managers import ContextManager
 from alice.core.intent_matcher import IntentMatcher
 from alice.core.response_generator import ResponseGenerator
+from alice.nlp import LtpEngine
 
 logger = logging.getLogger(__name__)
 
@@ -42,35 +43,49 @@ class DialogueEngine:
         script_file: Optional[str] = None,
         rules_file: Optional[str] = None,
         enable_plugins: bool = True,
+        use_ltp: bool = False,
     ):
         """
         初始化对话引擎
-        
+
         Args:
             script_file: 脚本文件路径
             rules_file: 反射规则文件路径
             enable_plugins: 是否启用插件系统
+            use_ltp: 是否使用 LTP 增强
         """
         self.enable_plugins = enable_plugins
-        
+        self.use_ltp = use_ltp
+
         # 初始化核心组件
         self.preprocessor = TextPreprocessor()
-        self.analyzer = SemanticAnalyzer()
+
+        # LTP 引擎（可选）
+        self.ltp_engine: Optional[LtpEngine] = None
+        if use_ltp:
+            self.ltp_engine = LtpEngine(lazy_load=True)
+
+        # 语义分析器（可选 LTP 增强）
+        self.analyzer = SemanticAnalyzer(
+            use_ltp=use_ltp,
+            ltp_engine=self.ltp_engine,
+        )
+
         self.context_manager = ContextManager()
-        
+
         # 意图匹配器
         self.intent_matcher = IntentMatcher()
-        
+
         # 响应生成器
         self.response_generator = ResponseGenerator(
             rules_file=rules_file,
         )
-        
+
         # 插件管理器
         self.plugin_manager = PluginManager()
         if enable_plugins:
             self._initialize_plugins(script_file, rules_file)
-        
+
         # 状态
         self._initialized = False
 
@@ -220,12 +235,13 @@ class DialogueEngine:
         stats = {
             "initialized": self._initialized,
             "plugins_enabled": self.enable_plugins,
+            "ltp_enabled": self.use_ltp,
             "context": self.context_manager.get_stats(),
         }
-        
+
         if self.enable_plugins:
             stats["plugins"] = self.plugin_manager.get_stats()
-        
+
         return stats
 
     def reset(self) -> None:

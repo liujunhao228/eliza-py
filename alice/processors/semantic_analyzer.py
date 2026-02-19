@@ -3,11 +3,12 @@
 """
 轻量级语义分析器模块
 
-替代重型 LTP 模型，基于规则和轻量级统计实现语义分析。
+基于规则和轻量级统计实现语义分析。
+可选使用 LTP 增强模式进行更精确的分析。
 """
 
 import logging
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 from collections import defaultdict
 
 from alice.processors.text_processor import TextPreprocessor
@@ -17,30 +18,37 @@ logger = logging.getLogger(__name__)
 
 class SemanticAnalyzer:
     """
-    轻量级语义分析器
-    
+    语义分析器
+
     功能:
     - 情感分析（基于词典）
     - 意图检测（基于关键词）
-    - 实体提取（基于规则）
+    - 实体提取（基于规则或 LTP）
     - 话题识别
-    
+
     设计原则:
     - 规则优先：基于规则的处理优于统计
-    - 轻量化：不依赖重型模型
-    - 可扩展：支持自定义词库和规则
+    - 轻量化：默认不依赖重型模型
+    - 可扩展：支持 LTP 增强模式
+    - 降级处理：LTP 不可用时自动降级
     """
 
-    def __init__(self, use_ner: bool = True):
+    def __init__(
+        self,
+        use_ltp: bool = False,
+        ltp_engine: Optional[Any] = None,
+    ):
         """
         初始化语义分析器
-        
+
         Args:
-            use_ner: 是否使用 NER 模块
+            use_ltp: 是否使用 LTP 增强
+            ltp_engine: LTP 引擎实例（可选）
         """
         self.preprocessor = TextPreprocessor()
-        self.use_ner = use_ner
-        
+        self.use_ltp = use_ltp
+        self.ltp_engine = ltp_engine
+
         # 情感词库
         self.positive_words = {
             "好", "棒", "喜欢", "开心", "高兴", "快乐", "幸福", "满意",
@@ -54,7 +62,7 @@ class SemanticAnalyzer:
             "委屈", "害怕", "恐惧", "紧张", "担心", "不安", "慌乱",
             "疲惫", "疲倦", "压抑", "孤独", "寂寞", "无助",
         }
-        
+
         # 意图关键词映射
         self.intent_keywords = {
             "narrative": ["去", "做", "看", "买", "发生", "出现", "开始", "结束"],
@@ -65,11 +73,11 @@ class SemanticAnalyzer:
             "belief": ["认为", "相信", "以为", "猜想"],
             "desire": ["想", "想要", "希望", "渴望", "期待", "需要"],
         }
-        
+
         # 实体提取规则
         self.pronouns = ["我", "你", "他", "她", "它", "我们", "你们", "他们", "她们"]
         self.time_words = ["今天", "昨天", "明天", "刚才", "最近", "上周", "下周", "现在", "当时"]
-        
+
         # 人称代词到实体的映射
         self.pronoun_entity_map = {
             "我": "user",
@@ -86,17 +94,22 @@ class SemanticAnalyzer:
     def analyze(self, text: str) -> Dict:
         """
         分析文本语义
-        
+
         Args:
             text: 待分析的文本
-            
+
         Returns:
             分析结果字典
         """
         # 文本预处理
         standardized_text = self.preprocessor.standardize_text(text)
         words = self.preprocessor.segment_text(standardized_text)
-        
+
+        # LTP 增强分析
+        if self.use_ltp and self.ltp_engine and self.ltp_engine.is_available:
+            return self._analyze_with_ltp(text, standardized_text, words)
+
+        # 轻量级分析
         analysis = {
             "tokens": words,
             "sentiment": self._analyze_sentiment(words),
@@ -105,8 +118,46 @@ class SemanticAnalyzer:
             "original_text": text,
             "standardized_text": standardized_text,
         }
-        
+
         return analysis
+
+    def _analyze_with_ltp(self, text: str, standardized_text: str, words: List[str]) -> Dict:
+        """
+        使用 LTP 增强分析
+
+        Args:
+            text: 原始文本
+            standardized_text: 标准化文本
+            words: 分词结果
+
+        Returns:
+            分析结果字典
+        """
+        try:
+            # 使用 LTP 引擎进行完整分析
+            ltp_result = self.ltp_engine.analyze(text)
+
+            # 融合 LTP 结果和轻量级分析
+            ltp_entities = [(e.entity_type.value, e.text) for e in ltp_result.entities]
+            rule_entities = self._extract_entities(words, text)
+
+            # 合并实体（去重）
+            all_entities = list(set(rule_entities + ltp_entities))
+
+            return {
+                "tokens": ltp_result.tokens or words,
+                "sentiment": self._analyze_sentiment(words),
+                "intent": self._detect_intent(words),
+                "entities": all_entities,
+                "syntax": ltp_result.syntax.to_dict() if ltp_result.syntax else None,
+                "original_text": text,
+                "standardized_text": standardized_text,
+                "use_ltp": True,
+            }
+
+        except Exception as e:
+            logger.warning(f"LTP 增强分析失败，降级到轻量级模式：{e}")
+            return self.analyze(text)
 
     def _analyze_sentiment(self, tokens: List[str]) -> float:
         """

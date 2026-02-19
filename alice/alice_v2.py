@@ -42,25 +42,28 @@ class AliceBot:
         enable_logging: bool = True,
         enable_plugins: bool = True,
         cache_size: int = 100,
+        use_ltp: bool = False,
     ):
         """
         初始化 Alice 机器人
-        
+
         Args:
             script_file: 脚本文件路径
             rules_file: 反射规则文件路径
             enable_logging: 是否启用日志
             enable_plugins: 是否启用插件系统
             cache_size: 缓存大小
+            use_ltp: 是否使用 LTP 增强（默认 False）
         """
         # 配置管理器
         self.config_manager = ConfigManager()
-        
+
         # 对话引擎
         self.dialogue_engine = DialogueEngine(
             script_file=script_file,
             rules_file=rules_file,
             enable_plugins=enable_plugins,
+            use_ltp=use_ltp,
         )
         
         # 监控器

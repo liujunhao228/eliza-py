@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from alice.plugins.base_plugin import BasePlugin, PluginResult
 from alice.utils.script_engine import ScriptEngine
-from alice.utils.reassembly import ReassemblyEngine
+from alice.nlp.syntax_reassembly import SyntaxReassembly
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +44,12 @@ class CuriosityPlugin(BasePlugin):
             "rules_file": None,
         }
         config = config or default_config
-        
+
         super().__init__(config)
         self.priority = self.config.get("priority", 50)
-        
+
         self.script_engine: Optional[ScriptEngine] = None
-        self.reassembly_engine: Optional[ReassemblyEngine] = None
+        self.reassembly_engine: Optional[SyntaxReassembly] = None
         self.script_history: Dict[str, int] = {}
         self.last_used_responses: Dict[str, str] = {}
 
@@ -58,10 +58,10 @@ class CuriosityPlugin(BasePlugin):
         try:
             script_file = self.config.get("script_file")
             rules_file = self.config.get("rules_file")
-            
+
             self.script_engine = ScriptEngine(script_file=script_file)
-            self.reassembly_engine = ReassemblyEngine(rules_file=rules_file)
-            
+            self.reassembly_engine = SyntaxReassembly(rules_file=rules_file)
+
             logger.info("好奇心插件初始化成功")
             return True
             

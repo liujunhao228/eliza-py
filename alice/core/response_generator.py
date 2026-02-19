@@ -10,7 +10,7 @@ import logging
 import random
 from typing import Any, Dict, List, Optional
 
-from alice.utils.reassembly import ReassemblyEngine
+from alice.nlp.syntax_reassembly import SyntaxReassembly
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +29,12 @@ class ResponseGenerator:
     def __init__(self, rules_file: Optional[str] = None):
         """
         初始化响应生成器
-        
+
         Args:
             rules_file: 反射规则文件路径
         """
-        self.reassembly_engine = ReassemblyEngine(rules_file=rules_file)
-        
+        self.reassembly_engine = SyntaxReassembly(rules_file=rules_file)
+
         # 预定义响应库
         self._init_response_pools()
 
