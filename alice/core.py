@@ -5,13 +5,28 @@ Alice - 好奇的朋友聊天机器人核心模块
 基于 ELIZA 原理，采用轻量化设计实现中文对话
 """
 
-import os
 import re
 import json
 import random
 import time
+from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
+
+# 导入统一配置
+from alice.config import (
+    PRONOUN_MAPPING,
+    TRANSFORMATION_RULES,
+    CONTEXT_MAX_ITEMS,
+    CONVERSATION_HISTORY_MAX_TURNS,
+    DEFAULT_SCRIPT_FILE,
+    DEFAULT_RULES_FILE,
+    LTP_SCRIPT_FILE,
+    ENABLE_LTP_BY_DEFAULT,
+    ENABLE_NER_BY_DEFAULT,
+    NER_USE_LTP_BY_DEFAULT,
+    ENABLE_LOGGING_BY_DEFAULT,
+)
 
 try:
     import jieba
@@ -36,11 +51,35 @@ except ImportError:
     REASSEMBLY_AVAILABLE = False
     print("提示：未找到重组引擎模块，部分功能可能不可用")
 
+# 导入 LTP 句法分析器模块
+try:
+    from alice.utils.ltp_parser import LTPParser, SyntaxBasedReassemblyEngine
+    LTP_AVAILABLE = True
+except ImportError:
+    LTP_AVAILABLE = False
+    print("提示：未安装 LTP 模块，将使用简化句法分析模式")
+
 # 导入通用脚本引擎模块（必需）
 from alice.utils.script_engine import ScriptEngine, ScriptMatch
 
 
 from alice.utils.context import ContextManager, ConversationHistory
+
+# 导入 NER 模块
+try:
+    from alice.utils.ner import (
+        RuleBasedNER,
+        LTPBasedNER,
+        extract_entities,
+        extract_entities_as_tuples,
+        extract_entities_as_dict,
+        Entity,
+        EntityType
+    )
+    NER_AVAILABLE = True
+except ImportError:
+    NER_AVAILABLE = False
+    print("提示：未找到 NER 模块，将使用基础实体提取")
 
 
 class TextPreprocessor:
@@ -82,9 +121,16 @@ class TextPreprocessor:
 
 
 class SemanticAnalyzer:
-    """语义分析器（轻量化版本）"""
+    """语义分析器（增强版 - 集成 NER）"""
 
-    def __init__(self):
+    def __init__(self, use_ner: bool = True, use_ltp: bool = False):
+        """
+        初始化语义分析器
+
+        Args:
+            use_ner: 是否使用 NER 模块
+            use_ltp: 是否使用 LTP 增强 NER
+        """
         self.preprocessor = TextPreprocessor()
         # 情感词库（简化版）
         self.positive_words = {
@@ -103,6 +149,21 @@ class SemanticAnalyzer:
             'relationship': ['关系', '相处', '吵架', '矛盾', '误会'],
             'question': ['为什么', '怎么', '如何', '什么', '哪里', '何时']
         }
+
+        # NER 模块
+        self.use_ner = use_ner and NER_AVAILABLE
+        self.use_ltp = use_ltp
+        self.ner = None
+        if self.use_ner:
+            try:
+                if self.use_ltp:
+                    self.ner = LTPBasedNER()
+                    self.ner.initialize_ltp()
+                else:
+                    self.ner = RuleBasedNER()
+            except Exception as e:
+                print(f"NER 初始化失败：{e}，将使用基础实体提取")
+                self.use_ner = False
 
     def analyze(self, text: str) -> Dict:
         """分析文本语义"""
@@ -139,8 +200,36 @@ class SemanticAnalyzer:
             return max(intent_scores, key=intent_scores.get)
         return 'general'
 
-    def _extract_entities(self, tokens: List[str], text: str) -> List[str]:
-        """提取关键实体（简化版）"""
+    def _extract_entities(self, tokens: List[str], text: str) -> List[Tuple[str, str]]:
+        """
+        提取关键实体（增强版 - 使用 NER）
+
+        Args:
+            tokens: 分词结果
+            text: 原始文本
+
+        Returns:
+            实体列表 [(类型，文本), ...]
+        """
+        if self.use_ner and self.ner:
+            # 使用 NER 模块提取实体
+            entities = self.ner.extract(text)
+            return [e.to_tuple() for e in entities]
+        else:
+            # 回退到基础实体提取
+            return self._extract_entities_basic(tokens, text)
+
+    def _extract_entities_basic(self, tokens: List[str], text: str) -> List[Tuple[str, str]]:
+        """
+        基础实体提取（回退方案）
+
+        Args:
+            tokens: 分词结果
+            text: 原始文本
+
+        Returns:
+            实体列表
+        """
         entities = []
         # 人称代词
         pronouns = ['我', '你', '他', '她', '它', '我们', '你们', '他们', '她们']
@@ -161,8 +250,8 @@ class ReflectionEngine:
     """反射转换引擎（增强版 - 支持重组规则）"""
 
     def __init__(self, rules_file: Optional[str] = None):
-        # 代词映射表
-        self.pronoun_mapping = {}
+        # 代词映射表（从统一配置加载）
+        self.pronoun_mapping = dict(PRONOUN_MAPPING)
         self.transformation_rules = []
         self._load_rules(rules_file)
 
@@ -249,23 +338,28 @@ class ReflectionEngine:
 
 class CuriosityScriptEngine:
     """
-    好奇心脚本引擎 - 基于通用 ScriptEngine 的封装
+    好奇心脚本引擎 - 基于通用 ScriptEngine 的封装（优化版 - 按需使用LTP）
 
-    内部使用通用的 ScriptEngine 模块。
-    严禁回退：脚本引擎模块必须存在，否则启动时抛出异常。
+    新增特性：
+    - LTP按需加载：只在检测到需要句法分析时才初始化LTP
+    - 性能监控：跟踪LTP使用频率和性能影响
+    - 智能降级：LTP不可用时无缝切换到简化模式
     """
 
     def __init__(self, script_file: Optional[str] = None,
-                 rules_file: Optional[str] = None):
+                 rules_file: Optional[str] = None,
+                 enable_ltp: bool = False):
         """
         初始化好奇心脚本引擎
 
         参数:
             script_file: 脚本配置文件路径
             rules_file: 反射规则文件路径（用于代词映射）
+            enable_ltp: 是否启用 LTP 句法分析（按需模式）
         """
         self.script_file = script_file
         self.rules_file = rules_file
+        self.enable_ltp = enable_ltp
 
         # 脚本引擎是必需模块，直接初始化
         self.engine = ScriptEngine(script_file=script_file)
@@ -279,18 +373,96 @@ class CuriosityScriptEngine:
         else:
             self.reassembly_engine = ReassemblyEngine()
 
+        # LTP 相关组件（按需初始化）
+        self.ltp_parser = None
+        self.syntax_reassembly_engine = None
+        self.ltp_initialized = False
+        self.ltp_usage_stats = {
+            'attempts': 0,
+            'successes': 0,
+            'failures': 0,
+            'fallback_to_simple': 0,
+            'skipped_for_simple': 0
+        }
+
+    def _initialize_ltp_if_needed(self) -> bool:
+        """
+        按需初始化 LTP 模型
+        
+        返回:
+            是否成功初始化 LTP
+        """
+        if self.ltp_initialized:
+            return self.ltp_parser is not None
+            
+        if not self.enable_ltp or not LTP_AVAILABLE:
+            self.ltp_initialized = True
+            return False
+
+        try:
+            # 使用优化版LTP解析器
+            from alice.utils.ltp_parser import OptimizedLTPParser
+            self.ltp_parser = OptimizedLTPParser(lazy_load=True)
+            self.syntax_reassembly_engine = SyntaxBasedReassemblyEngine(self.ltp_parser)
+            self.ltp_initialized = True
+            print("LTP 模型按需加载成功")
+            return True
+        except Exception as e:
+            print(f"LTP 初始化失败：{e}")
+            self.ltp_parser = None
+            self.syntax_reassembly_engine = None
+            self.ltp_initialized = True
+            return False
+
+    def _should_use_syntax_analysis(self, match, text: str) -> bool:
+        """
+        判断是否需要使用句法分析
+        
+        参数:
+            match: 脚本匹配结果
+            text: 原始文本
+            
+        返回:
+            是否需要句法分析
+        """
+        if not self.enable_ltp:
+            return False
+            
+        # 首先检查内容复杂度
+        if self.ltp_parser and not self.ltp_parser.should_use_ltp(text):
+            self.ltp_usage_stats['skipped_for_simple'] += 1
+            return False
+            
+        # 检查脚本是否包含句法相关配置
+        script_data = self.engine.scripts.get(match.script_id, {})
+        
+        # 有句法触发规则
+        if script_data.get('syntax_triggers'):
+            return True
+            
+        # 有句法重组规则（包含 {SUBJ}, {PRED}, {OBJ} 等占位符）
+        reassembly_rules = match.reassembly_rules or []
+        syntax_placeholders = ['{SUBJ}', '{PRED}', '{OBJ}', '{ATT}', '{ADV}']
+        for rule in reassembly_rules:
+            if any(placeholder in rule for placeholder in syntax_placeholders):
+                return True
+                
+        return False
+
     def match_script(self, text: str, semantic_info: Dict) -> Optional[str]:
         """
         匹配合适的脚本并生成响应
 
         匹配流程:
         1. 使用 ScriptEngine 匹配脚本
-        2. 优先使用重组规则生成响应（利用分解组件）
-        3. 如果重组失败，使用预定义响应
+        2. 检查是否需要句法分析
+        3. 如需要则按需初始化 LTP
+        4. 优先使用重组规则生成响应
+        5. 如果重组失败，使用预定义响应
 
         参数:
             text: 待匹配的文本
-            semantic_info: 语义分析结果（用于情感分析和上下文集成）
+            semantic_info: 语义分析结果
 
         返回:
             生成的响应，无匹配返回 None
@@ -300,31 +472,55 @@ class CuriosityScriptEngine:
         if not match:
             return None
 
-        # 2. 生成响应：优先使用重组规则
-        response = self._generate_response(match, semantic_info)
+        # 2. 判断是否需要句法分析
+        needs_syntax = self._should_use_syntax_analysis(match, text)
+        
+        # 3. 如需要则按需初始化 LTP
+        if needs_syntax:
+            self.ltp_usage_stats['attempts'] += 1
+            ltp_available = self._initialize_ltp_if_needed()
+            if not ltp_available:
+                self.ltp_usage_stats['fallback_to_simple'] += 1
 
-        # 3. 更新历史记录
+        # 4. 生成响应：优先使用重组规则
+        response = self._generate_response(match, semantic_info, needs_syntax)
+
+        # 5. 更新历史记录
         self.script_history = self.engine.get_usage_statistics()
         if match.script_id and response:
             self.last_used_responses[match.script_id] = response
 
         return response
 
-    def _generate_response(self, match, semantic_info: Dict) -> Optional[str]:
+    def _generate_response(self, match, semantic_info: Dict, needs_syntax: bool) -> Optional[str]:
         """
-        生成响应：优先使用重组规则
+        生成响应：优先使用重组规则，支持按需 LTP 句法分析
 
         参数:
             match: 脚本匹配结果
             semantic_info: 语义分析结果
+            needs_syntax: 是否需要句法分析
 
         返回:
             生成的响应
         """
         response = None
 
-        # 尝试使用重组规则
-        if match.reassembly_rules and match.components:
+        # 如果需要句法分析且 LTP 可用，尝试使用句法重组
+        if needs_syntax and self.ltp_parser and self.syntax_reassembly_engine:
+            try:
+                response = self._apply_syntax_reassembly(match, semantic_info)
+                if response:
+                    self.ltp_usage_stats['successes'] += 1
+                else:
+                    self.ltp_usage_stats['failures'] += 1
+            except Exception as e:
+                print(f"LTP 句法分析失败：{e}")
+                self.ltp_usage_stats['failures'] += 1
+                response = None
+
+        # 如果句法重组失败或不需要句法分析，使用普通重组规则
+        if response is None and match.reassembly_rules and match.components:
             response = self._apply_reassembly(match)
 
         # 如果重组失败，使用预定义响应
@@ -332,6 +528,96 @@ class CuriosityScriptEngine:
             response = self._select_response(match)
 
         return response
+
+    def _apply_syntax_reassembly(self, match, semantic_info: Dict) -> Optional[str]:
+        """
+        应用 LTP 句法分析进行重组
+
+        参数:
+            match: 脚本匹配结果
+            semantic_info: 语义分析结果
+
+        返回:
+            重组后的响应
+        """
+        if not self.syntax_reassembly_engine:
+            return None
+
+        # 获取句法分析结果
+        text = semantic_info.get('original_text', '')
+        syntax_structure = self.ltp_parser.get_main_structure(text) if text else {}
+
+        # 检查脚本是否有句法触发规则
+        script_data = self.engine.scripts.get(match.script_id, {})
+        syntax_triggers = script_data.get('syntax_triggers', {}).get('rules', [])
+
+        # 如果有句法触发规则，检查是否满足条件
+        if syntax_triggers:
+            for trigger in syntax_triggers:
+                if self._check_syntax_trigger(syntax_structure, trigger):
+                    templates = trigger.get('response_templates', [])
+                    if templates:
+                        import random
+                        template = random.choice(templates)
+                        response = self.syntax_reassembly_engine.reassemble_with_syntax(
+                            text, template
+                        )
+                        if response and response.strip():
+                            return response
+
+        # 如果没有句法触发或触发失败，尝试使用普通句法重组
+        if match.reassembly_rules:
+            for rule in match.reassembly_rules:
+                response = self.syntax_reassembly_engine.reassemble_with_syntax(text, rule)
+                if response and response.strip():
+                    return response
+
+        return None
+
+    def _check_syntax_trigger(self, syntax_structure: Dict, trigger: Dict) -> bool:
+        """
+        检查句法触发条件是否满足
+
+        参数:
+            syntax_structure: 句法分析结果
+            trigger: 触发条件
+
+        返回:
+            是否满足触发条件
+        """
+        if not syntax_structure or not trigger:
+            return False
+
+        # 检查谓语触发
+        if 'predicate' in trigger:
+            pred_list = trigger['predicate']
+            if syntax_structure.get('predicate', '') not in pred_list:
+                return False
+
+        # 检查主语人称触发
+        if trigger.get('subject_person', False):
+            subj = syntax_structure.get('subject', '')
+            if not any(p in subj for p in ['他', '她', '我', '你', '朋友', '同事', '家人']):
+                return False
+
+        # 检查情感谓语触发
+        if 'predicate_emotion' in trigger:
+            pred = syntax_structure.get('predicate', '')
+            if pred not in trigger['predicate_emotion']:
+                return False
+
+        # 检查情感宾语触发
+        if 'object_emotion' in trigger:
+            obj = syntax_structure.get('object', '')
+            if not any(e in obj for e in trigger['object_emotion']):
+                return False
+
+        # 检查程度副词触发
+        if 'adverbial_degree' in trigger:
+            # 需要从完整句法结构中获取状语
+            pass  # 简化处理，暂时跳过
+
+        return True
 
     def _apply_reassembly(self, match) -> Optional[str]:
         """
@@ -409,46 +695,81 @@ class CuriosityScriptEngine:
 
         return selected
 
+    def get_ltp_stats(self) -> Dict:
+        """获取 LTP 使用统计信息"""
+        stats = self.ltp_usage_stats.copy()
+        if self.ltp_parser:
+            cache_stats = self.ltp_parser.get_cache_stats()
+            stats.update(cache_stats)
+        return stats
+
     def reset(self) -> None:
         """重置引擎状态"""
         self.engine.reset()
         self.script_history.clear()
         self.last_used_responses.clear()
+        self.ltp_usage_stats = {
+            'attempts': 0,
+            'successes': 0,
+            'failures': 0,
+            'fallback_to_simple': 0,
+            'skipped_for_simple': 0
+        }
+        # 清空LTP缓存
+        if self.ltp_parser:
+            self.ltp_parser.clear_cache()
 
 
 class AliceBot:
-    """Alice 聊天机器人"""
+    """Alice 聊天机器人（支持 LTP 依存句法分析和 NER 实体识别）"""
 
     def __init__(self, script_file: Optional[str] = None,
                  rules_file: Optional[str] = None,
-                 enable_logging: bool = False):
+                 enable_logging: bool = False,
+                 enable_ltp: bool = False,
+                 enable_ner: bool = True,
+                 ner_use_ltp: bool = False):
+        """
+        初始化 Alice 机器人
+
+        参数:
+            script_file: 脚本配置文件路径
+            rules_file: 反射规则文件路径
+            enable_logging: 是否启用日志
+            enable_ltp: 是否启用 LTP 句法分析
+            enable_ner: 是否启用 NER 实体识别
+            ner_use_ltp: NER 是否使用 LTP 增强
+        """
         # 确定脚本文件路径
         if script_file is None:
-            default_scripts = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                'scripts', 'curiosity_scripts.json'
-            )
-            if os.path.exists(default_scripts):
-                script_file = default_scripts
+            default_scripts = DEFAULT_SCRIPT_FILE
+            if default_scripts.exists():
+                script_file = str(default_scripts)
 
         # 确定规则文件路径
         if rules_file is None:
             # 使用默认路径
-            default_rules = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                'scripts', 'reflection_rules.json'
-            )
-            if os.path.exists(default_rules):
-                rules_file = default_rules
+            default_rules = DEFAULT_RULES_FILE
+            if default_rules.exists():
+                rules_file = str(default_rules)
 
         self.preprocessor = TextPreprocessor()
-        self.analyzer = SemanticAnalyzer()
+        self.analyzer = SemanticAnalyzer(use_ner=enable_ner, use_ltp=ner_use_ltp)
         self.reflection_engine = ReflectionEngine(rules_file)
-        self.script_engine = ScriptEngine(script_file, rules_file)
-        
+
+        # 根据是否启用 LTP 选择脚本引擎
+        if enable_ltp:
+            # 尝试使用 LTP 增强脚本
+            ltp_script_file = LTP_SCRIPT_FILE
+            if ltp_script_file.exists():
+                script_file = str(ltp_script_file)
+            self.script_engine = CuriosityScriptEngine(script_file, rules_file, enable_ltp=True)
+        else:
+            self.script_engine = CuriosityScriptEngine(script_file, rules_file, enable_ltp=False)
+
         # 使用 ContextManager 替代简化的 DialogueContext
-        self.context_manager = ContextManager(max_items=10)
-        self.conversation_history = ConversationHistory(max_turns=20)
+        self.context_manager = ContextManager(max_items=CONTEXT_MAX_ITEMS)
+        self.conversation_history = ConversationHistory(max_turns=CONVERSATION_HISTORY_MAX_TURNS)
 
         # 日志和性能监控（可选）
         self.enable_logging = enable_logging
@@ -458,6 +779,9 @@ class AliceBot:
         else:
             self.dialogue_logger = None
             self.perf_monitor = None
+
+        # NER 状态
+        self.ner_enabled = enable_ner and NER_AVAILABLE
 
     def respond(self, user_input: str) -> str:
         """生成回复"""
@@ -521,6 +845,7 @@ class AliceBot:
             'emotion_trend': context_state.get('emotion_trend', 'neutral'),
             'script_usage': self.script_engine.script_history,
             'recent_events': self.context_manager.get_recent_events(limit=2),
+            'ltp_stats': self.script_engine.get_ltp_stats() if hasattr(self.script_engine, 'get_ltp_stats') else {}
         }
 
     def reset(self):

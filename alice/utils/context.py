@@ -3,12 +3,37 @@
 """
 上下文管理模块 - 增强版
 提供对话上下文记忆和话题追踪功能
+集成命名实体识别（NER）支持
 """
 
 from collections import deque
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Set
 from dataclasses import dataclass, field
 from datetime import datetime
+import re
+
+
+@dataclass
+class EntityMention:
+    """实体提及记录"""
+    text: str                    # 实体文本
+    entity_type: str             # 实体类型
+    mention_time: datetime = field(default_factory=datetime.now)
+    frequency: int = 1           # 提及频率
+    last_mentioned: datetime = field(default_factory=datetime.now)
+    context: str = ""            # 提及的上下文
+    metadata: Dict = field(default_factory=dict)
+
+    def to_dict(self) -> Dict:
+        return {
+            'text': self.text,
+            'type': self.entity_type,
+            'first_mention': self.mention_time.isoformat(),
+            'last_mention': self.last_mentioned.isoformat(),
+            'frequency': self.frequency,
+            'context': self.context,
+            'metadata': self.metadata
+        }
 
 
 @dataclass
@@ -18,7 +43,7 @@ class MemoryItem:
     timestamp: datetime = field(default_factory=datetime.now)
     type: str = "general"  # 'person', 'event', 'topic', 'emotion'
     metadata: Dict = field(default_factory=dict)
-    
+
     def to_dict(self) -> Dict:
         return {
             'content': self.content,
@@ -29,12 +54,12 @@ class MemoryItem:
 
 
 class ContextManager:
-    """上下文管理器"""
-    
+    """上下文管理器（增强版 - 支持实体追踪）"""
+
     def __init__(self, max_items: int = 10):
         """
         初始化上下文管理器
-        
+
         Args:
             max_items: 最大记忆项数量
         """
@@ -43,29 +68,82 @@ class ContextManager:
         self.mentioned_persons = set()
         self.recent_events = deque(maxlen=5)
         self.emotion_history = deque(maxlen=5)
-        
+
+        # 实体追踪增强
+        self.entity_mentions: Dict[str, EntityMention] = {}  # 实体提及记录
+        self.person_chain: deque = deque(maxlen=10)  # 人物提及链
+        self.topic_chain: deque = deque(maxlen=10)   # 话题链
+        self.entity_relations: Dict[str, Set[str]] = {}  # 实体关系
+
     def update_context(self, analysis: Dict, user_input: str):
         """
         更新对话上下文
-        
+
         Args:
             analysis: 语义分析结果
             user_input: 用户输入
         """
         # 更新提及的人物
         self._update_persons(analysis, user_input)
-        
+
         # 更新话题
         self._update_topic(user_input)
-        
+
         # 记录事件
         self._record_events(analysis, user_input)
-        
+
         # 记录情感
         self._record_emotion(analysis)
-        
+
         # 添加到记忆队列
         self._add_to_memory(user_input, analysis)
+
+        # 【新增】更新实体追踪
+        self._update_entity_tracking(analysis, user_input)
+
+    def _update_entity_tracking(self, analysis: Dict, user_input: str):
+        """
+        更新实体追踪记录
+
+        Args:
+            analysis: 语义分析结果
+            user_input: 用户输入
+        """
+        entities = analysis.get('entities', [])
+        for entity_type, entity_text in entities:
+            # 创建或更新实体提及记录
+            entity_key = f"{entity_type}:{entity_text}"
+
+            if entity_key in self.entity_mentions:
+                # 更新现有实体
+                mention = self.entity_mentions[entity_key]
+                mention.frequency += 1
+                mention.last_mentioned = datetime.now()
+                mention.context = user_input
+            else:
+                # 创建新实体记录
+                mention = EntityMention(
+                    text=entity_text,
+                    entity_type=entity_type,
+                    context=user_input
+                )
+                self.entity_mentions[entity_key] = mention
+
+            # 更新人物链
+            if entity_type in ['person', 'title', 'pronoun']:
+                self.person_chain.append({
+                    'text': entity_text,
+                    'type': entity_type,
+                    'timestamp': datetime.now()
+                })
+
+            # 更新话题链
+            if entity_type in ['location', 'organization', 'time']:
+                self.topic_chain.append({
+                    'text': entity_text,
+                    'type': entity_type,
+                    'timestamp': datetime.now()
+                })
     
     def _update_persons(self, analysis: Dict, user_input: str):
         """更新提及的人物"""
@@ -181,7 +259,7 @@ class ContextManager:
     def get_context_state(self) -> Dict:
         """
         获取当前上下文状态
-        
+
         Returns:
             上下文状态字典
         """
@@ -192,8 +270,131 @@ class ContextManager:
             'memory_items': [item.to_dict() for item in self.memory],
             'has_recent_narrative': len(self.recent_events) > 0,
             'conversation_length': len(self.memory),
-            'emotion_trend': self._get_emotion_trend()
+            'emotion_trend': self._get_emotion_trend(),
+            # 新增实体追踪信息
+            'entity_mentions': {k: v.to_dict() for k, v in self.entity_mentions.items()},
+            'recent_person_chain': list(self.person_chain)[-5:],
+            'topic_chain': list(self.topic_chain)[-5:]
         }
+
+    def get_entity_mentions(self, entity_type: Optional[str] = None) -> List[EntityMention]:
+        """
+        获取实体提及记录
+
+        Args:
+            entity_type: 实体类型过滤，None 则返回所有
+
+        Returns:
+            实体提及列表
+        """
+        if entity_type is None:
+            return list(self.entity_mentions.values())
+
+        return [
+            mention for mention in self.entity_mentions.values()
+            if mention.entity_type == entity_type
+        ]
+
+    def get_person_chain(self, limit: int = 5) -> List[Dict]:
+        """
+        获取人物提及链
+
+        Args:
+            limit: 最大返回数量
+
+        Returns:
+            人物提及列表
+        """
+        return list(self.person_chain)[-limit:]
+
+    def get_topic_chain(self, limit: int = 5) -> List[Dict]:
+        """
+        获取话题链
+
+        Args:
+            limit: 最大返回数量
+
+        Returns:
+            话题列表
+        """
+        return list(self.topic_chain)[-limit:]
+
+    def get_most_mentioned_entity(self, entity_type: Optional[str] = None) -> Optional[EntityMention]:
+        """
+        获取提及频率最高的实体
+
+        Args:
+            entity_type: 实体类型过滤，None 则返回所有类型中频率最高的
+
+        Returns:
+            提及频率最高的实体
+        """
+        mentions = self.get_entity_mentions(entity_type)
+        if not mentions:
+            return None
+
+        return max(mentions, key=lambda m: m.frequency)
+
+    def get_entities_in_context(self, time_window_minutes: int = 5) -> List[EntityMention]:
+        """
+        获取指定时间窗口内的实体
+
+        Args:
+            time_window_minutes: 时间窗口（分钟）
+
+        Returns:
+            时间窗口内的实体列表
+        """
+        from datetime import timedelta
+        cutoff_time = datetime.now() - timedelta(minutes=time_window_minutes)
+
+        return [
+            mention for mention in self.entity_mentions.values()
+            if mention.last_mentioned > cutoff_time
+        ]
+
+    def find_entity_by_text(self, text: str) -> Optional[EntityMention]:
+        """
+        根据文本查找实体
+
+        Args:
+            text: 实体文本
+
+        Returns:
+            实体提及记录，不存在返回 None
+        """
+        for mention in self.entity_mentions.values():
+            if mention.text == text:
+                return mention
+        return None
+
+    def get_related_entities(self, entity_text: str) -> List[str]:
+        """
+        获取与指定实体相关的其他实体
+
+        Args:
+            entity_text: 实体文本
+
+        Returns:
+            相关实体文本列表
+        """
+        return list(self.entity_relations.get(entity_text, set()))
+
+    def add_entity_relation(self, entity1: str, entity2: str):
+        """
+        添加实体关系
+
+        Args:
+            entity1: 实体 1
+            entity2: 实体 2
+        """
+        if entity1 not in self.entity_relations:
+            self.entity_relations[entity1] = set()
+        self.entity_relations[entity1].add(entity2)
+
+        if entity2 not in self.entity_relations:
+            self.entity_relations[entity2] = set()
+        self.entity_relations[entity2].add(entity1)
     
     def _get_emotion_trend(self) -> str:
         """
@@ -276,6 +477,11 @@ class ContextManager:
         self.mentioned_persons.clear()
         self.recent_events.clear()
         self.emotion_history.clear()
+        # 重置实体追踪
+        self.entity_mentions.clear()
+        self.person_chain.clear()
+        self.topic_chain.clear()
+        self.entity_relations.clear()
 
 
 class ConversationHistory:

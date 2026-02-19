@@ -11,11 +11,14 @@
 """
 
 import json
-import os
 import re
 import random
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
+
+# 导入统一配置
+from alice.config import PRONOUN_MAPPING
 
 
 @dataclass
@@ -72,7 +75,8 @@ class ScriptEngine:
             FileNotFoundError: 文件不存在
             json.JSONDecodeError: JSON 格式无效
         """
-        if not os.path.exists(script_file):
+        script_path = Path(script_file)
+        if not script_path.exists():
             raise FileNotFoundError(f"脚本文件不存在：{script_file}")
 
         with open(script_file, 'r', encoding='utf-8') as f:
@@ -332,7 +336,7 @@ class ScriptEngine:
 
     def _apply_pronoun_mapping(self, text: str) -> str:
         """
-        应用代词映射
+        应用代词映射（从统一配置加载）
 
         参数:
             text: 原始文本
@@ -340,29 +344,13 @@ class ScriptEngine:
         返回:
             代词转换后的文本
         """
-        pronoun_mapping = {
-            '我': '你',
-            '我的': '你的',
-            '我们': '你们',
-            '我自己': '你自己',
-            '我妈': '你妈',
-            '我爸': '你爸',
-            '我老婆': '你老婆',
-            '我老公': '你老公',
-            '我朋友': '你朋友',
-            '我同事': '你同事',
-            '我同学': '你同学',
-            '我老板': '你老板',
-            '我老师': '你老师',
-        }
-        
         transformed = text
         # 按长度降序匹配，优先匹配长的代词
-        sorted_pronouns = sorted(pronoun_mapping.keys(), key=len, reverse=True)
+        sorted_pronouns = sorted(PRONOUN_MAPPING.keys(), key=len, reverse=True)
         for pronoun in sorted_pronouns:
-            replacement = pronoun_mapping[pronoun]
+            replacement = PRONOUN_MAPPING[pronoun]
             transformed = transformed.replace(pronoun, replacement)
-        
+
         return transformed
 
     def match_and_respond(self, text: str, 

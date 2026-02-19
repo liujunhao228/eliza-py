@@ -1,78 +1,64 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-重组引擎 - 支持 Eliza 风格的组件引用语法
+重组引擎 - 支持 Eliza 风格的组件引用语法和 LTP 依存句法分析
 
 功能:
 - 根据分解组件和重组规则生成动态响应
 - 支持 {1}, {2}, {3} 等组件引用语法
 - 支持代词映射转换
+- 支持 LTP 依存句法分析结果（{SUBJ}, {PRED}, {OBJ} 等）
 """
 
 import re
-import json
-import os
-from typing import List, Dict, Optional
+from pathlib import Path
+from typing import List, Dict, Optional, Any
+
+# 导入统一配置
+from alice.config import PRONOUN_MAPPING, TRANSFORMATION_RULES
 
 
 class ReassemblyEngine:
     """重组引擎 - 根据分解组件生成动态响应"""
 
-    def __init__(self, rules_file: Optional[str] = None):
+    def __init__(self, rules_file: Optional[str] = None,
+                 syntax_structure: Optional[Dict[str, str]] = None):
         """
         初始化重组引擎
 
         参数:
             rules_file: 反射规则配置文件路径，如 None 则使用默认规则
+            syntax_structure: 句法分析结果（包含 subject, predicate, object 等）
         """
-        self.pronoun_mapping = {}
-        self.transformation_rules = []
+        self.pronoun_mapping = dict(PRONOUN_MAPPING)
+        self.transformation_rules = list(TRANSFORMATION_RULES)
+        self.syntax_structure = syntax_structure or {}
         self._load_rules(rules_file)
 
     def _load_rules(self, rules_file: Optional[str]):
         """从配置文件加载规则"""
-        if rules_file and os.path.exists(rules_file):
+        if rules_file and Path(rules_file).exists():
             try:
+                import json
                 with open(rules_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                    self.pronoun_mapping = config.get('pronoun_mapping', {})
-                    self.transformation_rules = [
-                        (pattern, replacement)
-                        for pattern, replacement in config.get('transformation_rules', [])
-                    ]
+                    # 从配置文件加载的规则会覆盖默认配置
+                    pronoun_config = config.get('pronoun_mapping', {})
+                    if pronoun_config:
+                        self.pronoun_mapping = pronoun_config
+                    rules_config = config.get('transformation_rules', [])
+                    if rules_config:
+                        self.transformation_rules = [
+                            (pattern, replacement)
+                            for pattern, replacement in rules_config
+                        ]
                 return
             except (json.JSONDecodeError, IOError) as e:
-                print(f"加载规则文件失败：{e}，使用默认规则")
-
-        # 默认规则
-        self.pronoun_mapping = {
-            '我': '你',
-            '我的': '你的',
-            '我们': '你们',
-            '我自己': '你自己',
-            '我妈': '你妈',
-            '我爸': '你爸',
-            '我老婆': '你老婆',
-            '我老公': '你老公',
-            '我朋友': '你朋友',
-            '我同事': '你同事',
-            '我同学': '你同学',
-            '我老板': '你老板',
-            '我老师': '你老师',
-        }
-
-        self.transformation_rules = [
-            (r'我觉得 (.*)', r'你为什么觉得{1}呢？'),
-            (r'我不 (.*)', r'为什么不{1}呢？'),
-            (r'我想 (.*)', r'为什么想{1}呢？'),
-            (r'我喜欢 (.*)', r'你喜欢{1}什么地方？'),
-            (r'我讨厌 (.*)', r'为什么讨厌{1}呢？'),
-            (r'我害怕 (.*)', r'{1}让你感到害怕吗？'),
-            (r'我希望 (.*)', r'为什么希望{1}呢？'),
-        ]
+                print(f"加载规则文件失败：{e}，使用默认配置")
 
     def reassemble(self, components: List[str], reassembly_rule: str,
-                   apply_pronoun_mapping: bool = True) -> str:
+                   apply_pronoun_mapping: bool = True,
+                   syntax_structure: Optional[Dict[str, str]] = None) -> str:
         """
         根据重组规则组装响应
 
@@ -80,6 +66,7 @@ class ReassemblyEngine:
             components: 分解组件列表，如 ["", "难过"]
             reassembly_rule: 重组规则，如 "你为什么觉得{2}呢？"
             apply_pronoun_mapping: 是否应用代词映射
+            syntax_structure: 句法分析结果（包含 subject, predicate, object 等）
 
         返回:
             组装后的响应，如 "你为什么觉得难过呢？"
@@ -91,17 +78,24 @@ class ReassemblyEngine:
         """
         response = reassembly_rule
 
+        # 更新句法结构（如果提供）
+        if syntax_structure:
+            self.syntax_structure = syntax_structure
+
         # 替换组件引用 {1}, {2}, {3}...
         for i, comp in enumerate(components, 1):
             placeholder = f'{{{i}}}'
             # 清理组件中的多余空白
             cleaned_comp = ' '.join(comp.strip().split()) if comp else ''
-            
+
             # 应用代词映射
             if apply_pronoun_mapping and self.pronoun_mapping:
                 cleaned_comp = self._apply_pronoun_mapping_to_component(cleaned_comp)
-            
+
             response = response.replace(placeholder, cleaned_comp)
+
+        # 替换句法成分占位符 {SUBJ}, {PRED}, {OBJ} 等
+        response = self._replace_syntax_placeholders(response, apply_pronoun_mapping)
 
         # 处理未匹配的占位符（移除）
         response = re.sub(r'\{\d+\}', '', response)
@@ -125,6 +119,43 @@ class ReassemblyEngine:
             replacement = self.pronoun_mapping[pronoun]
             transformed = transformed.replace(pronoun, replacement)
         return transformed
+
+    def _replace_syntax_placeholders(self, text: str,
+                                      apply_pronoun_mapping: bool = True) -> str:
+        """
+        替换句法成分占位符
+
+        支持的占位符:
+            {SUBJ} - 主语
+            {PRED} - 谓语
+            {OBJ} - 宾语
+            {ATT} - 定语
+            {ADV} - 状语
+
+        参数:
+            text: 包含占位符的文本
+            apply_pronoun_mapping: 是否应用代词映射
+
+        返回:
+            替换后的文本
+        """
+        replacements = {
+            '{SUBJ}': self.syntax_structure.get('subject', ''),
+            '{PRED}': self.syntax_structure.get('predicate', ''),
+            '{OBJ}': self.syntax_structure.get('object', ''),
+            '{ATT}': self.syntax_structure.get('attribute', ''),
+            '{ADV}': self.syntax_structure.get('adverbial', ''),
+        }
+
+        for placeholder, value in replacements.items():
+            if value:
+                transformed_value = self._apply_pronoun_mapping_to_component(value) if apply_pronoun_mapping else value
+                text = text.replace(placeholder, transformed_value)
+            else:
+                # 移除未匹配的占位符
+                text = text.replace(placeholder, '')
+
+        return text
 
     def transform(self, text: str) -> str:
         """
