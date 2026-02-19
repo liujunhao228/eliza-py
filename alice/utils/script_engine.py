@@ -8,6 +8,9 @@
 - 根据正则表达式模式匹配用户输入
 - 支持重组规则生成动态响应
 - 支持响应轮换和去重
+
+配置说明:
+- 代词映射从 alice/scripts/mapping.yaml 加载
 """
 
 import logging
@@ -15,17 +18,44 @@ import json
 import re
 import random
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 
-# 导入统一配置
-from alice.config import PRONOUN_MAPPING
+# 尝试导入 yaml
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
 
 # 导入自定义异常
 from alice.exceptions import MissingConfigurationError, InvalidConfigurationError
 
 # 模块级 logger
 logger = logging.getLogger(__name__)
+
+
+def _load_pronoun_mapping_from_yaml() -> Dict[str, str]:
+    """从 YAML 配置文件加载代词映射"""
+    if not YAML_AVAILABLE:
+        return {}
+    
+    # 默认映射文件路径
+    from alice.config import SCRIPTS_DIR
+    mapping_file = SCRIPTS_DIR / "mapping.yaml"
+    
+    if not mapping_file.exists():
+        return {}
+    
+    try:
+        with open(mapping_file, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        if config and 'pronoun_mapping' in config:
+            return dict(config['pronoun_mapping'])
+    except Exception:
+        pass
+    
+    return {}
 
 
 @dataclass
@@ -351,7 +381,7 @@ class ScriptEngine:
 
     def _apply_pronoun_mapping(self, text: str) -> str:
         """
-        应用代词映射（从统一配置加载）
+        应用代词映射（从 YAML 配置文件加载）
 
         参数:
             text: 原始文本
@@ -359,11 +389,15 @@ class ScriptEngine:
         返回:
             代词转换后的文本
         """
+        # 懒加载代词映射
+        if not hasattr(self, '_pronoun_mapping'):
+            self._pronoun_mapping = _load_pronoun_mapping_from_yaml()
+        
         transformed = text
         # 按长度降序匹配，优先匹配长的代词
-        sorted_pronouns = sorted(PRONOUN_MAPPING.keys(), key=len, reverse=True)
+        sorted_pronouns = sorted(self._pronoun_mapping.keys(), key=len, reverse=True)
         for pronoun in sorted_pronouns:
-            replacement = PRONOUN_MAPPING[pronoun]
+            replacement = self._pronoun_mapping[pronoun]
             transformed = transformed.replace(pronoun, replacement)
 
         return transformed

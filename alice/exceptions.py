@@ -7,14 +7,64 @@ Alice 项目自定义异常类模块
 - 系统级异常：配置错误、初始化错误、依赖错误
 - 业务级异常：对话处理错误、数据处理错误
 - 外部依赖异常：第三方库调用错误
+
+使用示例:
+    # 带上下文的异常抛出
+    raise TextProcessingError(
+        "文本预处理失败",
+        context={
+            "input_length": len(text),
+            "component": "text_preprocessor",
+            "user_id": user_id
+        }
+    )
 """
+
+from typing import Any, Dict, Optional
+
+
+class AliceException(Exception):
+    """
+    Alice 项目异常基类
+
+    所有自定义异常都应该继承此类，以便统一处理和追踪
+    """
+
+    def __init__(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+        suggestion: Optional[str] = None,
+    ):
+        """
+        初始化异常
+
+        Args:
+            message: 异常消息
+            context: 上下文信息字典
+            suggestion: 解决建议
+        """
+        super().__init__(message)
+        self.message = message
+        self.context = context or {}
+        self.suggestion = suggestion
+
+    def __str__(self) -> str:
+        """返回格式化的异常信息"""
+        parts = [self.message]
+        if self.context:
+            context_str = ", ".join(f"{k}={v}" for k, v in self.context.items())
+            parts.append(f"上下文：{context_str}")
+        if self.suggestion:
+            parts.append(f"建议：{self.suggestion}")
+        return " | ".join(parts)
 
 
 # =============================================================================
 # 系统级异常
 # =============================================================================
 
-class ConfigurationError(Exception):
+class ConfigurationError(AliceException):
     """配置相关的异常基类"""
     pass
 
@@ -29,7 +79,7 @@ class MissingConfigurationError(ConfigurationError):
     pass
 
 
-class InitializationError(Exception):
+class InitializationError(AliceException):
     """系统初始化异常基类"""
     pass
 
@@ -48,7 +98,7 @@ class ResourceError(InitializationError):
 # 业务级异常
 # =============================================================================
 
-class DialogueError(Exception):
+class DialogueError(AliceException):
     """对话处理相关异常基类"""
     pass
 
@@ -68,7 +118,7 @@ class ResponseGenerationError(DialogueError):
     pass
 
 
-class DataProcessingError(Exception):
+class DataProcessingError(AliceException):
     """数据处理异常基类"""
     pass
 
@@ -87,7 +137,7 @@ class FormatError(DataProcessingError):
 # 外部依赖异常
 # =============================================================================
 
-class ExternalLibraryError(Exception):
+class ExternalLibraryError(AliceException):
     """外部库调用异常基类"""
     pass
 
@@ -106,7 +156,7 @@ class JiebaError(ExternalLibraryError):
 # 降级相关异常
 # =============================================================================
 
-class DegradationError(Exception):
+class DegradationError(AliceException):
     """降级相关异常"""
     pass
 

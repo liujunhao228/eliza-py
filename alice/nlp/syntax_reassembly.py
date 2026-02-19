@@ -10,9 +10,16 @@
 import logging
 import re
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 
 from alice.nlp.base import SyntaxStructure
+
+# 尝试导入 yaml
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -25,80 +32,81 @@ class SyntaxReassembly:
     - 支持 Eliza 风格的 {1}, {2}, {3} 组件引用
     - 支持 LTP 句法占位符 {SUBJ}, {PRED}, {OBJ}
     - 代词映射转换
+
+    配置说明:
+    - 从 YAML 文件加载代词映射和转换规则
+    - 配置文件格式参考 alice/scripts/mapping.yaml
     """
-
-    # 默认代词映射
-    DEFAULT_PRONOUN_MAPPING = {
-        '我': '你',
-        '你': '我',
-        '他': '你',
-        '她': '你',
-        '它': '你',
-        '我们': '你们',
-        '你们': '我们',
-        '他们': '你们',
-        '她们': '你们',
-    }
-
-    # 默认转换规则
-    DEFAULT_TRANSFORMATION_RULES = [
-        (r'我觉得', '你为什么觉得'),
-        (r'我认为', '你为什么认为'),
-        (r'我想', '你为什么想'),
-        (r'我喜欢', '你为什么喜欢'),
-        (r'我讨厌', '你为什么讨厌'),
-    ]
 
     def __init__(
         self,
         rules_file: Optional[str] = None,
         pronoun_mapping: Optional[Dict[str, str]] = None,
+        transformation_rules: Optional[List[Tuple[str, str]]] = None,
     ):
         """
         初始化句法重组引擎
 
         Args:
-            rules_file: 反射规则文件路径
-            pronoun_mapping: 代词映射配置
+            rules_file: YAML 规则文件路径（包含 pronoun_mapping 和 transformation_rules）
+            pronoun_mapping: 代词映射配置（可选，用于覆盖 YAML 配置）
+            transformation_rules: 转换规则（可选，用于覆盖 YAML 配置）
         """
-        self.pronoun_mapping = dict(self.DEFAULT_PRONOUN_MAPPING)
-        if pronoun_mapping:
-            self.pronoun_mapping.update(pronoun_mapping)
-
-        self.transformation_rules = list(self.DEFAULT_TRANSFORMATION_RULES)
+        self.pronoun_mapping: Dict[str, str] = {}
+        self.transformation_rules: List[Tuple[str, str]] = []
 
         if rules_file:
             self._load_rules(rules_file)
 
+        # 可选：覆盖配置
+        if pronoun_mapping:
+            self.pronoun_mapping.update(pronoun_mapping)
+        if transformation_rules:
+            self.transformation_rules.extend(transformation_rules)
+
     def _load_rules(self, rules_file: str) -> None:
-        """从配置文件加载规则"""
+        """
+        从 YAML 配置文件加载规则
+
+        Args:
+            rules_file: YAML 规则文件路径
+        """
+        if not YAML_AVAILABLE:
+            logger.warning("PyYAML 未安装，无法加载 YAML 规则文件")
+            return
+
         path = Path(rules_file)
         if not path.exists():
             logger.warning(f"规则文件不存在：{rules_file}")
             return
 
         try:
-            import json
             with open(path, 'r', encoding='utf-8') as f:
-                config = json.load(f)
+                config = yaml.safe_load(f)
+
+            if not config:
+                logger.warning(f"规则文件为空：{rules_file}")
+                return
 
             # 加载代词映射
             pronoun_config = config.get('pronoun_mapping', {})
             if pronoun_config:
-                self.pronoun_mapping.update(pronoun_config)
+                self.pronoun_mapping = dict(pronoun_config)
+                logger.info(f"已加载 {len(self.pronoun_mapping)} 条代词映射规则")
 
             # 加载转换规则
             rules_config = config.get('transformation_rules', [])
             if rules_config:
                 self.transformation_rules = [
-                    (pattern, replacement)
+                    (str(pattern), str(replacement))
                     for pattern, replacement in rules_config
                 ]
+                logger.info(f"已加载 {len(self.transformation_rules)} 条句式转换规则")
 
             logger.info(f"已从 {rules_file} 加载反射规则")
 
         except Exception as e:
-            logger.warning(f"加载规则文件失败：{e}，使用默认配置")
+            logger.warning(f"加载规则文件失败：{e}")
 
     def reassemble(
         self,

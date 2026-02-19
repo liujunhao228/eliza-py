@@ -17,6 +17,7 @@ from collections import defaultdict
 
 from alice.processors.text_processor import TextPreprocessor
 from alice.utils.degradation_monitor import degradation_monitor
+from alice.utils.sanitizer import sanitize_text
 
 logger = logging.getLogger(__name__)
 
@@ -151,12 +152,25 @@ class SemanticAnalyzer:
                     "keywords": result.keywords,
                 }
             except Exception as e:
-                logger.warning(f"情感分析引擎分析失败，使用降级方案：{e}")
+                # 使用结构化日志和脱敏处理
+                logger.warning(
+                    "情感分析引擎分析失败，使用降级方案",
+                    extra={
+                        'component': 'sentiment_engine',
+                        'error_type': type(e).__name__,
+                        'input_length': len(text),
+                        'input_preview': sanitize_text(text[:50]),
+                    },
+                    exc_info=True,
+                )
                 degradation_monitor.register_degradation(
                     component='sentiment_engine',
                     reason=f'情感分析引擎异常：{type(e).__name__}',
                     severity=2,
-                    recovery_plan='使用内置规则情感分析'
+                    recovery_plan='使用内置规则情感分析',
+                    original_functionality='基于外部引擎的情感分析',
+                    degraded_functionality='基于内置规则的情感分析',
+                    user_notification='使用基础情感分析模式'
                 )
         return None
 
@@ -208,12 +222,25 @@ class SemanticAnalyzer:
             }
 
         except Exception as e:
-            logger.warning(f"LTP 增强分析失败，降级到轻量级模式：{e}")
+            # 使用结构化日志和脱敏处理
+            logger.warning(
+                "LTP 增强分析失败，降级到轻量级模式",
+                extra={
+                    'component': 'semantic_analyzer',
+                    'error_type': type(e).__name__,
+                    'input_length': len(text),
+                    'input_preview': sanitize_text(text[:50]),
+                },
+                exc_info=True,
+            )
             degradation_monitor.register_degradation(
                 component='semantic_analyzer',
                 reason=f'LTP 增强分析失败：{type(e).__name__}',
                 severity=2,
-                recovery_plan='检查 LTP 引擎状态或使用轻量级模式'
+                recovery_plan='检查 LTP 引擎状态或使用轻量级模式',
+                original_functionality='基于 LTP 的深度语义分析',
+                degraded_functionality='基于规则的轻量级语义分析',
+                user_notification='使用简化分析模式'
             )
             # 降级到轻量级分析
             return self.analyze(text)

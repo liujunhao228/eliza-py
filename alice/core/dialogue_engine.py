@@ -23,6 +23,7 @@ from alice.exceptions import (
     TextProcessingError,
 )
 from alice.utils.degradation_monitor import degradation_monitor
+from alice.utils.sanitizer import sanitize_text
 
 logger = logging.getLogger(__name__)
 
@@ -165,15 +166,49 @@ class DialogueEngine:
         try:
             standardized_text = self.preprocessor.standardize_text(user_input)
         except Exception as e:
-            logger.error(f"文本预处理失败：{e}", exc_info=True)
-            raise TextProcessingError(f"文本预处理失败：{type(e).__name__}") from e
+            # 使用结构化日志和脱敏处理
+            logger.error(
+                "文本预处理失败",
+                extra={
+                    'component': 'dialogue_engine',
+                    'step': 'preprocessing',
+                    'error_type': type(e).__name__,
+                    'input_length': len(user_input),
+                    'input_preview': sanitize_text(user_input[:50]),
+                },
+                exc_info=True,
+            )
+            raise TextProcessingError(
+                f"文本预处理失败：{type(e).__name__}",
+                context={
+                    'input_length': len(user_input),
+                    'error_type': type(e).__name__,
+                }
+            ) from e
 
         # 2. 语义分析
         try:
             semantic_info = self.analyzer.analyze(standardized_text)
         except Exception as e:
-            logger.error(f"语义分析失败：{e}", exc_info=True)
-            raise TextProcessingError(f"语义分析失败：{type(e).__name__}") from e
+            # 使用结构化日志和脱敏处理
+            logger.error(
+                "语义分析失败",
+                extra={
+                    'component': 'dialogue_engine',
+                    'step': 'semantic_analysis',
+                    'error_type': type(e).__name__,
+                    'input_length': len(standardized_text),
+                    'input_preview': sanitize_text(standardized_text[:50]),
+                },
+                exc_info=True,
+            )
+            raise TextProcessingError(
+                f"语义分析失败：{type(e).__name__}",
+                context={
+                    'input_length': len(standardized_text),
+                    'error_type': type(e).__name__,
+                }
+            ) from e
 
         # 3. 意图匹配
         intent = semantic_info.get("intent", "general")
@@ -195,8 +230,25 @@ class DialogueEngine:
                     intent=intent,
                 )
         except Exception as e:
-            logger.error(f"响应生成失败：{e}", exc_info=True)
-            raise ResponseGenerationError(f"响应生成失败：{type(e).__name__}") from e
+            # 使用结构化日志和脱敏处理
+            logger.error(
+                "响应生成失败",
+                extra={
+                    'component': 'dialogue_engine',
+                    'step': 'response_generation',
+                    'error_type': type(e).__name__,
+                    'input_length': len(standardized_text),
+                    'input_preview': sanitize_text(standardized_text[:50]),
+                },
+                exc_info=True,
+            )
+            raise ResponseGenerationError(
+                f"响应生成失败：{type(e).__name__}",
+                context={
+                    'input_length': len(standardized_text),
+                    'error_type': type(e).__name__,
+                }
+            ) from e
 
         # 6. 更新上下文
         try:
@@ -209,7 +261,16 @@ class DialogueEngine:
             )
         except Exception as e:
             # 上下文更新失败不影响响应返回，但需要记录错误
-            logger.error(f"上下文更新失败：{e}", exc_info=True)
+            # 使用结构化日志
+            logger.error(
+                "上下文更新失败",
+                extra={
+                    'component': 'dialogue_engine',
+                    'step': 'context_update',
+                    'error_type': type(e).__name__,
+                },
+                exc_info=True,
+            )
             # 不抛出异常，因为响应已经生成
 
         return response

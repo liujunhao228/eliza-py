@@ -25,6 +25,7 @@ from alice.exceptions import (
     ResponseGenerationError,
     TextProcessingError,
 )
+from alice.utils.sanitizer import sanitize_text
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,15 @@ class AliceBot:
             return True
             
         except Exception as e:
-            logger.error(f"Alice 机器人初始化失败：{e}", exc_info=True)
+            # 使用结构化日志
+            logger.error(
+                "Alice 机器人初始化失败",
+                extra={
+                    'component': 'alice_bot',
+                    'error_type': type(e).__name__,
+                },
+                exc_info=True,
+            )
             return False
 
     def respond(self, user_input: str) -> str:
@@ -137,7 +146,14 @@ class AliceBot:
         # 检查缓存
         cached_response = self.cache.get(user_input)
         if cached_response:
-            logger.debug(f"使用缓存响应：{user_input[:20]}...")
+            logger.debug(
+                "使用缓存响应",
+                extra={
+                    'component': 'alice_bot',
+                    'action': 'cache_hit',
+                    'input_preview': sanitize_text(user_input[:20]),
+                }
+            )
             return cached_response
 
         start_time = time.time()
@@ -167,33 +183,58 @@ class AliceBot:
 
         except (InputValidationError, ScriptMatchingError) as e:
             # 业务异常 - 记录并返回友好提示
-            logger.warning(f"对话处理异常：{e}", extra={
-                'user_input': user_input[:100],
-                'error_type': type(e).__name__
-            })
+            logger.warning(
+                "对话处理异常",
+                extra={
+                    'component': 'alice_bot',
+                    'error_type': type(e).__name__,
+                    'input_preview': sanitize_text(user_input[:50]),
+                }
+            )
             return "我暂时无法理解这个消息，能换种方式说吗？"
         except ResponseGenerationError as e:
             # 响应生成错误 - 记录错误并返回系统提示
-            logger.error(f"响应生成失败：{e}", extra={
-                'user_input': user_input[:100],
-                'error_type': type(e).__name__
-            }, exc_info=True)
+            logger.error(
+                "响应生成失败",
+                extra={
+                    'component': 'alice_bot',
+                    'error_type': type(e).__name__,
+                    'input_preview': sanitize_text(user_input[:50]),
+                },
+                exc_info=True,
+            )
             return "系统出现故障，请稍后再试"
         except TextProcessingError as e:
             # 文本处理错误
-            logger.warning(f"文本处理失败：{e}", extra={
-                'user_input': user_input[:100]
-            })
+            logger.warning(
+                "文本处理失败",
+                extra={
+                    'component': 'alice_bot',
+                    'error_type': type(e).__name__,
+                    'input_preview': sanitize_text(user_input[:50]),
+                }
+            )
             return "我无法处理这个消息，请简化一下内容"
         except Exception as e:
             # 未预期的错误 - 记录详细错误但不降级，让上层处理
-            logger.critical(f"未预期的对话处理错误：{e}", extra={
-                'user_input': user_input[:100],
-                'error_type': type(e).__name__,
-                'error_message': str(e)
-            }, exc_info=True)
+            logger.critical(
+                "未预期的对话处理错误",
+                extra={
+                    'component': 'alice_bot',
+                    'error_type': type(e).__name__,
+                    'error_message': str(e),
+                    'input_preview': sanitize_text(user_input[:50]),
+                },
+                exc_info=True,
+            )
             # 不降级，重新抛出供上层（main.py）处理
-            raise ResponseGenerationError(f"响应生成失败：{type(e).__name__}") from e
+            raise ResponseGenerationError(
+                f"响应生成失败：{type(e).__name__}",
+                context={
+                    'error_type': type(e).__name__,
+                    'input_length': len(user_input),
+                }
+            ) from e
 
     def get_conversation_summary(self) -> Dict[str, Any]:
         """获取对话摘要"""
