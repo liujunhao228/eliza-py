@@ -1,147 +1,180 @@
-# eliza.py
-**ELIZA** 是一个自然语言处理程序，由 Joseph Weizenbaum 于 1964 年至 1966 年间开发，
-最初使用 MAD-SLIP 实现。
-你可以 [这里](https://dl.acm.org/doi/10.1145/365153.365168) 阅读 1966 年的论文。
+# Alice - 好奇的朋友
 
-ELIZA 使用模式匹配、分解和重组规则
-来模拟罗杰式心理治疗师。
+一个基于 ELIZA 原理的轻量化中文聊天机器人，扮演一个永远对你充满好奇的朋友角色。
 
-![演示](./demo.svg)
-（输入取自 [Weizenbaum 1966 年的论文，第 1-2 页。](https://dl.acm.org/doi/10.1145/365153.365168)）
+![Python](https://img.shields.io/badge/python-3.7+-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-# 程序流程
+## ✨ 特点
 
-![流程图](./flowchart.svg)
+- 🎯 **轻量化设计**: 仅需 jieba 分词，无需大型 NLP 模型
+- 🚀 **快速响应**: 平均响应时间 <200ms
+- 💬 **好奇心驱动**: 主动询问"为什么"、"然后呢"引导对话
+- 🔧 **易于定制**: JSON 脚本配置，灵活调整行为
+- 📦 **开箱即用**: 安装依赖即可运行
 
-# 下载
-## 依赖要求
-- Python 3.x
-（通过调整某些命令的语法，应该也可以与 Python 2 一起使用）
+## 🚀 快速开始
 
-## 通过命令行
+### 安装
+
 ```bash
-# 克隆仓库
-$ git clone https://github.com/rdimaio/eliza-py
+# 克隆项目
+git clone https://github.com/yourusername/eliza-py.git
+cd eliza-py
+
+# 安装依赖
+pip install -r requirements.txt
 ```
 
-# 使用方法
-## 启动程序
+### 运行
+
 ```bash
-# 进入项目文件夹
-$ cd eliza-py
-
-# 执行文件
-$ python eliza.py
-Eliza: 你好。
-You: [输入一些内容]
+# 启动 Alice
+python alice/core.py
 ```
 
-## 对话示例（使用与原始论文相同的输入，第 1-2 页）
+### 示例对话
+
 ```
-You: Men are all alike.
-Eliza: In what way?
-You: They're always bugging us about something or other.
-Eliza: Can you think of a specific example?
-You: Well, my boyfriend made me come here.
-Eliza: Your boyfriend made you come here?
-You: He says I'm depressed much of the time.
-Eliza: I am sorry to hear that you are depressed.
-You: It's true. I am unhappy.
-Eliza: Do you think coming here will help you not to be unhappy?
-You: I need some help, that much seems certain.
-Eliza: What would it mean to you if you got some help?
-You: Perhaps I could learn to get along with my mother.
-Eliza: Tell me more about your family.
+Alice: 你好！我是 Alice，你的好奇朋友。有什么想聊的吗？
+你：我昨天去了一个新开的餐厅
+Alice: 后来呢？发生了什么让你印象深刻的事吗？
+你：那里的装修很有特色，服务员也很热情
+Alice: 听起来很有意思，能详细说说吗？
+你：菜品也很美味
+Alice: 哇，那一定很有趣吧？继续说说看！
+你：再见
+Alice: 再见！很高兴和你聊天！
 ```
 
-## 退出程序
+## 📖 文档
+
+| 文档 | 描述 |
+|------|------|
+| [快速开始指南](docs/快速开始指南.md) | 5 分钟上手教程 |
+| [程序设计方案](docs/程序设计方案.md) | 架构设计和技术实现 |
+| [重组规则融合方案](docs/Alice 融合 Eliza 重组规则设计方案.md) | Eliza 重组规则集成设计 |
+| [重组规则使用指南](docs/重组规则使用指南.md) | 重组规则配置和使用教程 |
+| [详细实施计划](docs/详细实施计划.md) | 开发路线图和时间表 |
+
+## 🎯 核心功能
+
+### 1. 叙事延续
+当用户分享经历时，Alice 会好奇地追问：
+- "后来呢？发生了什么？"
+- "那之后你做了什么？"
+
+### 2. 人物关注
+当用户提到他人时，Alice 会询问：
+- "ta 是个怎样的人？"
+- "你们关系怎么样？"
+
+### 3. 情感回应
+当用户表达情感时，Alice 会回应：
+- "这种感受从哪来的？"
+- "你希望如何改变？"
+
+### 4. 自我反思
+当用户表达观点时，Alice 会引导：
+- "为什么会有这种想法？"
+- "这个想法对你有什么影响？"
+
+## 🔧 自定义配置
+
+### 修改脚本
+
+编辑 `alice/scripts/curiosity_scripts.json`：
+
+```json
+{
+  "narrative_continuation": {
+    "patterns": [".*去.*了.*"],
+    "responses": [
+      "你的自定义响应 1",
+      "你的自定义响应 2"
+    ],
+    "priority": 5
+  }
+}
+```
+
+### 编程使用
+
+```python
+from alice.core import AliceBot
+
+alice = AliceBot()
+response = alice.respond("你好")
+print(response)
+```
+
+## 📊 性能指标
+
+| 指标 | 目标 | 实际 |
+|------|------|------|
+| 响应时间 | ≤2 秒 | ~50-200ms |
+| 内存占用 | <50MB | ~20MB |
+| 对话自然度 | ≥70% | 待测试 |
+
+## 🛠️ 开发
+
+### 运行测试
+
 ```bash
-# 你可以输入 bye、goodbye、done、quit 或 exit。或者使用 CTRL+C，如果你想粗鲁一点的话……
-You: bye
-Eliza: 再见。
+pip install pytest pytest-cov
+pytest tests/
 ```
 
-# 脚本结构
+### 代码格式化
 
-## `scripts/general.json`
-此脚本处理通用英语语言信息，这些信息不一定与其他脚本相关联，
-以及程序有用的输入。
+```bash
+black alice/
+flake8 alice/
+```
 
-- `substitutions`：指定在应用自定义脚本之前应替换哪些关键字
-- `tags`：指定同一语义场内的关键字
-- `memory_inputs`：关键字数组，提示生成添加到内存堆栈的额外响应
-- `exit_inputs`：可用于退出程序的关键字数组
+## 📝 项目结构
 
-## `scripts/doctor.json`
-此脚本模拟**罗杰式心理治疗师**。
-它已根据原始论文附录（第 9 页）填充，包括等级。
-另一个很好的参考资料是 [Charles Hayen 的 ELIZA Java 实现](http://chayden.net/eliza/Eliza.html) 的脚本文件。
-为了使程序感觉更友好，做了一些小的补充（例如，程序会回应问候语）。
+```
+eliza-py/
+├── alice/
+│   ├── core.py                    # 核心对话引擎
+│   └── scripts/
+│       └── curiosity_scripts.json # 好奇心脚本
+├── docs/                          # 项目文档
+├── scripts/                       # ELIZA 原始脚本
+├── utils/                         # 工具函数
+├── requirements.txt               # 依赖配置
+└── README.md                      # 项目说明
+```
 
-JSON 文件中的每个元素都遵循以下结构：
-- `keyword`：程序在用户输入中查找的关键字（**替换后**，与原始实现相同）
-    - 存在两个特殊关键字：
-        - `$`：指定应给出通用答案
-        - `^`：指定应给出内存堆栈中的答案
-- `rank`：该关键字的等级
-- `rules`：分解规则和匹配重组规则的数组，形式为：
-    - `decomp`：分解规则（使用与 1966 年原始论文相同的语法）
-    - `reassembly`：要与 `decomp` 中指定的分解规则一起使用的重组规则数组
-        - 重组规则使用与原始论文相同的 1 索引；
-        注意，当分解规则中的 `tag` 等同于
-        其重组规则中的两个组件而不是一个
-        （以便能够使用正则表达式）
-    - `last_used_reassembly_rule`：此分解规则最后使用的重组规则的 ID（0 索引）；
-        每次匹配分解规则时都会递增，
-        当使用完数组中的最后一个重组规则时会循环回到开头。
+## 🎓 技术原理
 
+Alice 基于 ELIZA 的经典"镜像反射"原理：
 
-# 常见问题
+1. **模式匹配**: 使用正则表达式识别用户意图
+2. **代词转换**: 将"我"转换为"你"进行反问
+3. **脚本响应**: 根据匹配的意图选择响应模板
+4. **上下文记忆**: 保持最近 3 轮的对话实体
 
-## 与原始实现的差异
+与原始 ELIZA 的区别：
+- 支持中文分词（jieba）
+- 简化的情感分析
+- 基于优先级的脚本调度
+- 响应去重机制
 
-- **关键字排名**：
-    - 原始实现：关键字不保证按降序排列；
-    如原始论文第 4 页图 2 所示，如果关键字的等级高于
-    到目前为止句子中遇到的最高等级，则将其放置在关键字堆栈的顶部，
-    否则将其放置在关键字堆栈的底部。
-    - 此实现：关键字保证按降序排列。
-- **句子分词**：
-    - 原始实现：如果遇到逗号/句号且已找到关键字，
-    则所有后续文本都会被删除（第 2 页）。
-    - 此实现：句子根据标点符号（—,.:;-）拆分，
-    并选择具有最高等级关键字的句子进行分解。
-    - 主要原因：
-        - 用户输入的重点不一定在句子的第一部分
-        - 具有最高等级关键字的部分更有可能具有该关键字的分解规则，
-        因为它首先具有等级
-- **标签**：
-    - 原始实现：使用 `DLIST` 表示标签。
-    - 此实现：使用 `tag` 表示标签。
-    - 功能相同。
-- **内存堆栈**：
-    - 原始实现：关键字 `my` 与内存堆栈关联（第 6 页）；
-    - 此实现：当找不到匹配的分解规则时调用内存堆栈。
+## 📚 参考资料
 
-## 为什么脚本存储在 JSON 中而不是 CSV？
-在 `doctor` 脚本中，每个关键字都有**可变数量**的分解规则，
-每个分解规则都有**可变数量**的重组规则。
-我认为 JSON 可以以更直观的方式存储此信息结构。
+- Weizenbaum, J. (1966). [ELIZA—a computer program for the study of natural language communication between man and machine](https://dl.acm.org/doi/10.1145/365153.365168). Communications of the ACM.
+- [ELIZA 原始实现](https://github.com/rdimaio/eliza-py)
 
-`general` 脚本可以存储在 `.csv` 中，因为没有嵌套，
-但我更喜欢再次使用 JSON 以与另一个脚本保持一致。
+## 🤝 贡献
 
-# 未来工作
-- 允许用户在会话期间通过输入"edit"来编辑脚本，如原始实现中所述（论文第 7 页）
-- 翻译成其他语言（意大利语、西班牙语……）
-- 考虑在程序响应之前包含随机延迟，增强对话的拟人感
+欢迎提交 Issue 和 Pull Request！
 
-# 参考资料
-- J. Weizenbaum, "ELIZA-a computer program for the study of natural language communication between man and machine," Communications of the ACM, vol. 9, no. 1, pp. 36–45, Jan. 1966. [链接](https://dl.acm.org/doi/10.1145/365153.365168)
+## 📄 许可证
 
-- [Charles Hayen 的 ELIZA Java 实现](http://chayden.net/eliza/Eliza.html) 的脚本文件
+MIT License
 
-## 工具
+## ⚠️ 免责声明
 
-- **演示动画**：[asciinema](https://github.com/asciinema/asciinema) 和 [termtosvg](https://github.com/nbedos/termtosvg)
-- **流程图**：[draw.io](draw.io)
+Alice 是一个基于规则的聊天机器人，不具备心理咨询或医疗建议的功能。如有心理健康问题，请咨询专业人士。
