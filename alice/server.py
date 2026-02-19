@@ -7,7 +7,7 @@ Alice Web 界面
 
 import os
 from flask import Flask, request, jsonify, render_template_string
-from alice.core import AliceBot
+from alice.alice_v2 import AliceBot
 
 app = Flask(__name__)
 

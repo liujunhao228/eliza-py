@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def run_cli():
     """命令行交互模式"""
-    from alice.core import AliceBot
+    from alice.alice_v2 import AliceBot
     from alice.exceptions import (
         InputValidationError,
         ScriptMatchingError,
