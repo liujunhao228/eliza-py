@@ -31,10 +31,10 @@ ALICE_DIR = Path(__file__).parent
 SCRIPTS_DIR = ALICE_DIR / "scripts"
 
 # 默认脚本文件路径（YAML 格式）
-DEFAULT_SCRIPT_FILE = SCRIPTS_DIR / "curiosity_scripts.yaml"
+DEFAULT_SCRIPT_FILE = SCRIPTS_DIR / "demo.yaml"
 
 # 默认反射规则文件路径（YAML 格式，包含代词映射和句式转换规则）
-DEFAULT_RULES_FILE = SCRIPTS_DIR / "mapping.yaml"
+DEFAULT_RULES_FILE = SCRIPTS_DIR / "rules" / "mapping.yaml"
 
 # 语义标签文件
 SEMANTIC_TAGS_FILE = SCRIPTS_DIR / "semantic_tags.yaml"
@@ -80,6 +80,15 @@ ENABLE_LOGGING_BY_DEFAULT = True
 # NER 是否使用 LTP 增强
 NER_USE_LTP_BY_DEFAULT = True
 
+# 是否默认启用热重载
+ENABLE_HOT_RELOAD_BY_DEFAULT = False
+
+# 热重载模式 ("auto" 或 "manual")
+HOT_RELOAD_MODE = "auto"
+
+# 热重载轮询间隔（秒），仅 auto 模式有效
+HOT_RELOAD_POLL_INTERVAL = 2.0
+
 
 # =============================================================================
 # LTP 任务启用开关
@@ -110,18 +119,12 @@ LTP_ENABLE_SRL = False
 
 # 无匹配时的默认响应
 FALLBACK_RESPONSES = [
-    "嗯，我明白了。",
-    "能再多说一些吗？",
-    "这很有趣，继续说。",
-    "我理解你的感受。",
-    "为什么会这样呢？",
+    "嗯，我明白了。这里是默认回答。",
 ]
 
 # 问候语响应
 GREETING_RESPONSES = [
-    "你好！有什么可以帮你的吗？",
-    "嗨！今天过得怎么样？",
-    "你好！想聊些什么呢？",
+    "你好！这里是默认回答",
 ]
 
 

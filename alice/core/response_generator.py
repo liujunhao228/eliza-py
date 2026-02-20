@@ -65,8 +65,13 @@ class ResponseGenerator:
         Returns:
             回退响应列表
         """
+        # 内置默认回退响应
+        default_fallbacks = [
+            "这里是默认应答。",
+        ]
+
         if not fallback_file:
-            return []
+            return default_fallbacks
 
         # 尝试从文件加载
         try:
@@ -74,11 +79,11 @@ class ResponseGenerator:
             with open(fallback_file, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
                 if isinstance(data, list):
-                    return data
+                    return data if data else default_fallbacks
         except Exception as e:
             logger.warning(f"无法加载回退响应文件：{e}")
 
-        return []
+        return default_fallbacks
 
     def generate(
         self,

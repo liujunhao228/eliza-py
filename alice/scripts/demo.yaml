@@ -1,0 +1,7 @@
+- intent: person_interest
+  priority: 70
+  condition:
+    entities: ["PERSON", "TITLE"]  # 匹配人名或称谓
+  templates:
+    - "你提到的{PERSON}，ta 平时是个怎样的人呀？"
+    - "{TITLE}对你来说很重要吗？"

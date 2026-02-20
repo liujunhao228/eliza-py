@@ -1,0 +1,1299 @@
+# Alice 脚本编写指南
+
+> 本指南详细介绍如何在 Alice 对话系统中编写 YAML 格式的脚本，基于源码实现，提供完整的参考和示例。
+
+## 目录
+
+1. [脚本系统概述](#脚本系统概述)
+2. [YAML 脚本格式详解](#yaml-脚本格式详解)
+3. [条件系统详解](#条件系统详解)
+4. [响应模板系统](#响应模板系统)
+5. [代词映射和句式转换](#代词映射和句式转换)
+6. [字典系统使用](#字典系统使用)
+7. [实用示例](#实用示例)
+8. [最佳实践](#最佳实践)
+9. [故障排除](#故障排除)
+
+## 脚本系统概述
+
+Alice 脚本系统是一个基于 YAML 格式的对话响应生成系统，支持复杂的条件匹配和灵活的响应模板。该系统是 Alice 对话引擎的核心组件之一。
+
+### 系统架构
+
+```
+Alice 脚本系统
+├── YAML 脚本引擎 (yaml_script_engine.py)
+│   ├── 脚本加载和解析
+│   ├── 优先级调度
+│   ├── 条件匹配
+│   └── 响应生成
+├── 句法重组引擎 (syntax_reassembly.py)
+│   ├── 代词映射
+│   ├── 句式转换
+│   └── 组件重组
+├── 字典系统
+│   ├── 实体模式词典 (entity_patterns.yaml)
+│   ├── 意图关键词词典 (intent_keywords.yaml)
+│   └── 映射规则配置 (mapping.yaml)
+└── NLP 基础设施
+    ├── 分词和词性标注
+    ├── 句法分析
+    ├── 实体识别
+    └── 语义分析
+```
+
+### 工作流程
+
+1. **输入处理**：用户输入文本经过 NLP 处理，提取分词、词性、句法结构、实体等信息
+2. **脚本匹配**：基于优先级和条件，从脚本库中匹配最合适的意图
+3. **响应生成**：使用匹配的模板和上下文信息生成响应
+4. **后处理**：应用代词映射和句式转换，生成最终响应
+
+### 脚本模块类型
+
+- **叙事助推 (Narrative Continuity)**：推动对话叙事发展
+- **实体深度挖掘 (Entity Deep-Dive)**：深入探讨用户提到的实体
+- **情感镜像与验证 (Emotional Mirroring)**：反映和验证用户情感
+- **认知探索 (Cognitive Probing)**：引导用户深入思考
+- **Meta 对话 (Meta-Conversation)**：关于对话本身的对话
+
+## YAML 脚本格式详解
+
+### 基本语法结构
+
+Alice 脚本采用 YAML 格式，每个脚本是一个独立的意图定义：
+
+```yaml
+- intent: intent_name
+  priority: 50
+  condition:
+    # 条件定义
+  templates:
+    - "响应模板 1"
+    - "响应模板 2"
+  reassembly_rules:
+    - "重组规则 1"
+    - "重组规则 2"
+  keyword_only: false
+```
+
+### 必需字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `intent` | string | 意图名称，唯一标识符 |
+| `templates` | list | 响应模板列表，至少包含一个模板 |
+
+### 可选字段
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `priority` | integer | 50 | 优先级（0-100），数值越高优先级越高 |
+| `condition` | dict | null | 匹配条件，为 null 时无条件匹配 |
+| `reassembly_rules` | list | [] | 重组规则列表 |
+| `keyword_only` | boolean | false | 是否仅使用关键词匹配，不进行代词替换 |
+
+### 优先级系统
+
+Alice 使用四级优先级系统：
+
+| 优先级 | 范围 | 用途 |
+|--------|------|------|
+| P0 | 90-100 | 情感危机或极端情绪，最高优先级 |
+| P1 | 70-89 | 实体挖掘，深入探讨特定实体 |
+| P2 | 40-69 | 叙事助推，推动对话发展 |
+| P3 | 0-39 | 万能回复，兜底响应 |
+
+### 示例基础脚本
+
+```yaml
+- intent: greeting
+  priority: 85
+  condition:
+    keywords: ["你好", "您好", "嗨", "早上好"]
+  templates:
+    - "你好！今天过得怎么样？"
+    - "嗨！有什么可以帮到你的吗？"
+    - "很高兴见到你！想聊些什么呢？"
+```
+
+## 条件系统详解
+
+条件系统允许基于多种语言特征进行精确的脚本匹配。
+
+### 实体条件匹配
+
+基于识别的命名实体类型进行匹配：
+
+```yaml
+- intent: person_interest
+  priority: 70
+  condition:
+    entities: ["PERSON", "TITLE"]  # 匹配人名或称谓
+  templates:
+    - "你提到的{PERSON}，ta 平时是个怎样的人呀？"
+    - "{TITLE}对你来说很重要吗？"
+```
+
+支持的实体类型：
+- `person`：人名
+- `location`：地点
+- `organization`：组织机构
+- `time`：时间
+- `date`：日期
+- `pronoun`：代词
+- `title`：称谓
+- `number`：数字
+- `emotion`：情感
+- `general`：通用实体
+
+### 关键词条件匹配
+
+基于文本中的关键词进行匹配：
+
+```yaml
+- intent: emotion_happy
+  priority: 85
+  condition:
+    keywords: ["开心", "高兴", "快乐", "愉快", "兴奋"]
+  templates:
+    - "哇，听得出你现在心情不错！"
+    - "什么事情让你这么开心呢？"
+    - "真为你感到高兴！"
+```
+
+### 词性标签条件匹配
+
+基于词性标注进行匹配：
+
+```yaml
+- intent: discussion_starter
+  priority: 60
+  condition:
+    pos_tags: ["v", "n"]  # 包含动词或名词
+  templates:
+    - "能多说说关于{predicate}的事情吗？"
+    - "你对{subject}有什么看法？"
+```
+
+支持的词性标签（PKU 标准）：
+- `n`：名词
+- `v`：动词
+- `a`：形容词
+- `d`：副词
+- `r`：代词
+- `m`：数词
+- `q`：量词
+- `p`：介词
+- `c`：连词
+- `u`：助词
+- `nh`：人名
+- `ni`：机构名
+- `ns`：地名
+
+### 依存关系条件匹配
+
+基于依存句法分析进行匹配：
+
+```yaml
+- intent: question_about_action
+  priority: 75
+  condition:
+    dependencies: ["SBV", "VOB"]  # 包含主谓或动宾关系
+  templates:
+    - "你想了解关于{dep_SBV}的什么信息呢？"
+    - "能详细说说{dep_VOB}吗？"
+```
+
+支持的依存关系标签：
+- `SBV`：主谓关系
+- `VOB`：动宾关系
+- `IOB`：间宾关系
+- `ATT`：定中关系
+- `ADV`：状中结构
+- `CMP`：动补结构
+- `COO`：并列关系
+- `POB`：介宾关系
+- `LAD`：左附加关系
+- `RAD`：右附加关系
+- `IS`：独立结构
+- `HED`：核心关系
+
+### 句法成分条件匹配
+
+基于句法成分进行匹配：
+
+```yaml
+- intent: about_subject
+  priority: 70
+  condition:
+    subject: ["我", "我们"]  # 主语包含"我"或"我们"
+  templates:
+    - "你为什么觉得{subject}呢？"
+    - "{subject}让你有什么感受？"
+
+- intent: about_predicate
+  priority: 65
+  condition:
+    predicate: ["喜欢", "爱", "讨厌"]  # 谓语包含特定动词
+  templates:
+    - "你为什么{predicate}这个呢？"
+    - "{predicate}它多久了？"
+```
+
+### 三元组条件匹配
+
+基于主谓宾三元组进行匹配：
+
+```yaml
+- intent: about_triple
+  priority: 80
+  condition:
+    triples: ["学习", "喜欢", "编程"]  # 匹配完整的三元组
+  templates:
+    - "你{triple_predicate}{triple_object}多久了？"
+    - "是什么让你开始{triple_predicate}{triple_object}的呢？"
+
+- intent: complex_triple
+  priority: 75
+  condition:
+    triples:
+      - subject: "我"
+        predicate: "喜欢"
+      - predicate: "学习"
+        object: "编程"
+  templates:
+    - "你{triple_predicate}{triple_object}有什么收获吗？"
+```
+
+### 分词数量条件匹配
+
+基于文本长度进行匹配：
+
+```yaml
+- intent: short_response
+  priority: 40
+  condition:
+    max_tokens: 5  # 文本不超过5个词
+  templates:
+    - "能多说一点吗？"
+    - "我想了解更多细节。"
+
+- intent: long_discussion
+  priority: 60
+  condition:
+    min_tokens: 10  # 文本至少10个词
+  templates:
+    - "你详细说说看。"
+    - "这很有趣，继续讲讲。"
+```
+
+### 复合条件
+
+可以组合多个条件，形成更复杂的匹配逻辑：
+
+```yaml
+- intent: deep_emotion
+  priority: 90
+  condition:
+    keywords: ["难过", "伤心", "痛苦"]
+    entities: ["EMOTION"]
+    min_tokens: 3
+  templates:
+    - "听起来这件事让你{emotion}，能详细说说吗？"
+    - "你愿意和我分享更多关于这件事吗？"
+```
+
+## 响应模板系统
+
+响应模板系统支持多种占位符，可以根据上下文动态填充内容。
+
+### 基本占位符语法
+
+占位符使用 `{placeholder}` 格式，系统会自动替换为相应的值。
+
+### 实体占位符
+
+基于识别的命名实体进行替换：
+
+```yaml
+- intent: about_person
+  priority: 70
+  condition:
+    entities: ["PERSON"]
+  templates:
+    - "你提到的{PERSON}，ta 是谁呀？"
+    - "{PERSON}对你来说很重要吗？"
+    - "能多介绍一下{PERSON}吗？"
+```
+
+支持的实体类型占位符：
+- `{person}`：人名
+- `{location}`：地点
+- `{organization}`：组织机构
+- `{time}`：时间
+- `{date}`：日期
+- `{pronoun}`：代词
+- `{title}`：称谓
+- `{number}`：数字
+- `{emotion}`：情感
+- `{general}`：通用实体
+
+### 句法成分占位符
+
+基于句法分析结果进行替换：
+
+```yaml
+- intent: about_subject
+  priority: 65
+  condition:
+    has_predicate: true
+  templates:
+    - "你为什么觉得{subject}呢？"
+    - "{subject}让你有什么感受？"
+    - "能多说说{subject}吗？"
+
+- intent: about_action
+  priority: 70
+  condition:
+    has_predicate: true
+  templates:
+    - "你为什么{predicate}呢？"
+    - "{predicate}这件事多久了？"
+    - "能详细说说{predicate}的过程吗？"
+
+- intent: about_object
+  priority: 60
+  condition:
+    has_predicate: true
+  templates:
+    - "你对{object}有什么看法？"
+    - "{object}对你来说意味着什么？"
+    - "能多讲讲{object}吗？"
+```
+
+### 分词占位符
+
+基于分词结果进行替换：
+
+```yaml
+- intent: about_first_word
+  priority: 50
+  templates:
+    - "你说的{first_token}是什么意思呢？"
+    - "{first_token}，能具体解释一下吗？"
+
+- intent: about_last_word
+  priority: 50
+  templates:
+    - "你最后提到的{last_token}很重要吗？"
+    - "关于{last_word}，你想了解更多吗？"
+
+- intent: about_specific_token
+  priority: 55
+  condition:
+    min_tokens: 5
+  templates:
+    - "你第3个词说的{token_2}是什么意思？"
+    - "{token_1}和{token_3}之间有什么联系吗？"
+```
+
+### 词性占位符
+
+基于词性标注进行替换：
+
+```yaml
+- intent: about_verb
+  priority: 60
+  condition:
+    pos_tags: ["v"]
+  templates:
+    - "你为什么{pos_v}呢？"
+    - "{pos_v}这件事有什么特别的原因吗？"
+
+- intent: about_noun
+  priority: 55
+  condition:
+    pos_tags: ["n"]
+  templates:
+    - "能多说说{pos_n}吗？"
+    - "{pos_n}对你来说很重要吗？"
+```
+
+支持的词性占位符：
+- `{pos_v}`：动词
+- `{pos_n}`：名词
+- `{pos_a}`：形容词
+- `{pos_d}`：副词
+- `{pos_r}`：代词
+- `{pos_m}`：数词
+- `{pos_q}`：量词
+- `{pos_p}`：介词
+- `{pos_c}`：连词
+- `{pos_u}`：助词
+- `{pos_nh}`：人名
+- `{pos_ni}`：机构名
+- `{pos_ns}`：地名
+
+### 依存关系占位符
+
+基于依存句法分析进行替换：
+
+```yaml
+- intent: about_sbv
+  priority: 65
+  condition:
+    dependencies: ["SBV"]
+  templates:
+    - "你为什么{dep_SBV}呢？"
+    - "{dep_SBV}这件事有什么特别的原因吗？"
+
+- intent: about_vob
+  priority: 60
+  condition:
+    dependencies: ["VOB"]
+  templates:
+    - "能多说说{dep_VOB}吗？"
+    - "{dep_VOB}对你来说很重要吗？"
+```
+
+支持的依存关系占位符：
+- `{dep_SBV}`：主谓关系
+- `{dep_VOB}`：动宾关系
+- `{dep_IOB}`：间宾关系
+- `{dep_ATT}`：定中关系
+- `{dep_ADV}`：状中结构
+- `{dep_CMP}`：动补结构
+- `{dep_COO}`：并列关系
+- `{dep_POB}`：介宾关系
+- `{dep_LAD}`：左附加关系
+- `{dep_RAD}`：右附加关系
+
+### 三元组占位符
+
+基于主谓宾三元组进行替换：
+
+```yaml
+- intent: about_triple
+  priority: 75
+  condition:
+    has_predicate: true
+  templates:
+    - "你{triple_predicate}{triple_object}多久了？"
+    - "是什么让你开始{triple_predicate}{triple_object}的呢？"
+    - "{triple_subject}让你有什么感受？"
+```
+
+### 语义角色占位符
+
+基于语义角色分析进行替换：
+
+```yaml
+- intent: about_semantic_role
+  priority: 70
+  condition:
+    semantic_roles: ["A0", "A1"]
+  templates:
+    - "{role_A0}做了什么？"
+    - "{role_A1}受到了什么影响？"
+```
+
+支持的语义角色占位符：
+- `{role_A0}`：施事
+- `{role_A1}`：受事
+- `{role_A2}`：与事
+- `{role_A3}`：客事
+- `{role_AM}`：方式
+- `{role_TMP}`：时间
+- `{role_LOC}`：地点
+
+### 占位符组合使用
+
+可以在单个模板中组合使用多种占位符：
+
+```yaml
+- intent: complex_response
+  priority: 80
+  condition:
+    entities: ["PERSON", "LOCATION"]
+    has_predicate: true
+  templates:
+    - "{person}在{location}{predicate}，能详细说说这个过程吗？"
+    - "你{predicate}{person}的时候，{location}是什么样子的？"
+    - "{person}在{location}的经历对你有什么影响吗？"
+```
+
+### 未匹配占位符处理
+
+未匹配的占位符会被自动移除：
+
+```yaml
+- intent: example
+  priority: 50
+  templates:
+    - "你说的{unknown_placeholder}是什么意思？"  # {unknown_placeholder} 会被移除
+    - "能详细说说吗？"
+```
+
+## 代词映射和句式转换
+
+代词映射和句式转换系统可以实现 Eliza 风格的对话响应。
+
+### 代词映射规则
+
+代词映射规则定义在 `alice/scripts/mapping.yaml` 文件中：
+
+```yaml
+pronoun_mapping:
+  # 基本人称代词
+  "我": "你"
+  "我的": "你的"
+  "我们": "你们"
+  "我自己": "你自己"
+
+  # 家庭成员
+  "我妈": "你妈"
+  "我爸": "你爸"
+  "我老婆": "你老婆"
+  "我老公": "你老公"
+```
+
+### 句式转换规则
+
+句式转换规则也定义在 `mapping.yaml` 文件中：
+
+```yaml
+transformation_rules:
+  - ["我觉得 (.*)", "你为什么觉得{1}呢？"]
+  - ["我感到 (.*)", "你为什么感到{1}呢？"]
+  - ["我喜欢 (.*)", "你喜欢{1}什么地方？"]
+  - ["我讨厌 (.*)", "为什么讨厌{1}呢？"]
+```
+
+### keyword_only 模式
+
+`keyword_only` 标志控制是否进行代词替换：
+
+```yaml
+- intent: keyword_only_response
+  priority: 70
+  condition:
+    keywords: ["工作", "学习"]
+  templates:
+    - "你对{work}有什么看法？"
+  keyword_only: true  # 仅填充占位符，不进行代词替换
+
+- intent: normal_response
+  priority: 70
+  condition:
+    keywords: ["工作", "学习"]
+  templates:
+    - "你对{work}有什么看法？"
+  keyword_only: false  # 进行代词替换
+```
+
+### 代词映射示例
+
+```yaml
+- intent: self_disclosure
+  priority: 75
+  condition:
+    keywords: ["我", "我的"]
+  templates:
+    - "你为什么觉得{subject}呢？"
+    - "{subject}让你有什么感受？"
+```
+
+当用户说"我很难过"时：
+- 句法分析提取主语"我"
+- 代词映射将"我"转换为"你"
+- 生成响应："你为什么觉得你很难过呢？"
+
+### 句式转换示例
+
+```yaml
+- intent: feeling_reflection
+  priority: 80
+  condition:
+    keywords: ["感觉", "觉得"]
+  templates:
+    - "你为什么觉得{subject}呢？"
+```
+
+当用户说"我觉得很难过"时：
+- 匹配转换规则："我觉得 (.*)" → "你为什么觉得{1}呢？"
+- 提取组1："难过"
+- 应用代词映射
+- 生成响应："你为什么觉得难过呢？"
+
+## 字典系统使用
+
+字典系统提供预定义的实体模式和意图关键词，简化脚本编写。
+
+### 实体模式词典
+
+实体模式词典位于 `alice/scripts/dictionaries/entity_patterns.yaml`：
+
+```yaml
+# 实体识别模式词典
+
+pronouns:
+  - 我
+  - 你
+  - 他
+  - 她
+  - 它
+  - 我们
+  - 你们
+  - 他们
+
+titles:
+  - 朋友
+  - 家人
+  - 爸爸
+  - 妈妈
+  - 老师
+  - 同学
+  - 同事
+
+time_words:
+  - 今天
+  - 昨天
+  - 明天
+  - 最近
+  - 现在
+```
+
+### 意图关键词词典
+
+意图关键词词典位于 `alice/scripts/dictionaries/intent_keywords.yaml`：
+
+```yaml
+# 意图关键词词典
+
+narrative:
+  - 去
+  - 做
+  - 看
+  - 买
+  - 发生
+  - 出现
+  - 开始
+  - 结束
+
+emotion:
+  - 感觉
+  - 觉得
+  - 心情
+  - 情绪
+  - 感到
+  - 以为
+
+person:
+  - 朋友
+  - 家人
+  - 同事
+  - 同学
+  - 老师
+
+relationship:
+  - 关系
+  - 相处
+  - 吵架
+  - 矛盾
+  - 误会
+```
+
+### 使用字典中的关键词
+
+可以在脚本中直接使用字典中的关键词：
+
+```yaml
+- intent: narrative_continuation
+  priority: 60
+  condition:
+    keywords: ["narrative"]  # 使用 narrative 类别中的所有关键词
+  templates:
+    - "后来发生了什么呢？"
+    - "能继续说说吗？"
+    - "这之后怎么样了？"
+
+- intent: emotion_exploration
+  priority: 80
+  condition:
+    keywords: ["emotion", "person"]  # 使用多个类别
+  templates:
+    - "你{person}让你有什么感受？"
+    - "能多说说你的{emotion}吗？"
+```
+
+### 扩展字典系统
+
+可以通过添加新的 YAML 文件来扩展字典：
+
+```yaml
+# alice/scripts/dictionaries/custom_categories.yaml
+
+study:
+  - 学习
+  - 考试
+  - 作业
+  - 课程
+  - 知识
+
+work:
+  - 工作
+  - 项目
+  - 任务
+  - 同事
+  - 老板
+```
+
+然后在脚本中使用：
+
+```yaml
+- intent: about_study
+  priority: 70
+  condition:
+    keywords: ["study"]
+  templates:
+    - "最近在{study}什么呢？"
+    - "你对{study}有什么心得吗？"
+```
+
+## 实用示例
+
+本节提供各种场景下的脚本示例。
+
+### 基础脚本示例
+
+#### 简单问候
+
+```yaml
+- intent: greeting
+  priority: 85
+  condition:
+    keywords: ["你好", "您好", "嗨", "早上好", "晚上好"]
+  templates:
+    - "你好！今天过得怎么样？"
+    - "嗨！有什么可以帮到你的吗？"
+    - "很高兴见到你！想聊些什么呢？"
+    - "你好呀！今天有什么新鲜事吗？"
+```
+
+#### 询问近况
+
+```yaml
+- intent: how_are_you
+  priority: 75
+  condition:
+    keywords: ["怎么样", "好吗", "最近", "忙吗"]
+  templates:
+    - "我很好，谢谢关心！你呢？"
+    - "还不错，最近在做一些有趣的事情。你怎么样？"
+    - "挺好的，你最近怎么样？"
+    - "一切顺利，你呢？有什么新鲜事吗？"
+```
+
+### 叙事助推脚本
+
+#### 推动叙事发展
+
+```yaml
+- intent: narrative_continuation
+  priority: 65
+  condition:
+    keywords: ["然后", "后来", "接着", "之后"]
+    min_tokens: 3
+  templates:
+    - "然后呢？继续说。"
+    - "后来发生了什么？"
+    - "能详细说说之后的事情吗？"
+    - "接着怎么样了？"
+
+- intent: story_starter
+  priority: 60
+  condition:
+    keywords: ["发生", "遇到", "看见", "听见"]
+  templates:
+    - "能详细说说当时的情况吗？"
+    - "这之前发生了什么？"
+    - "能多讲讲这个故事吗？"
+    - "什么时候开始的呢？"
+```
+
+#### 时间线探索
+
+```yaml
+- intent: timeline_exploration
+  priority: 70
+  condition:
+    keywords: ["时间", "时候", "那天", "当时"]
+    entities: ["TIME", "DATE"]
+  templates:
+    - "在{time}发生了什么？"
+    - "能说说{date}那天的事情吗？"
+    - "当时是什么情况？"
+    - "那段时间你有什么感受？"
+```
+
+### 实体挖掘脚本
+
+#### 人物探索
+
+```yaml
+- intent: person_deep_dive
+  priority: 80
+  condition:
+    entities: ["PERSON", "TITLE"]
+    keywords: ["朋友", "家人", "同事", "老师"]
+  templates:
+    - "你提到的{person}，ta 是什么样的人呢？"
+    - "你{title}之间是什么关系？"
+    - "能多介绍一下{person}吗？"
+    - "你{person}认识多久了？"
+
+- intent: relationship_exploration
+  priority: 75
+  condition:
+    keywords: ["关系", "相处", "朋友", "家人"]
+  templates:
+    - "你们是怎么认识的？"
+    - "你们{person}关系怎么样？"
+    - "能多说说你们{title}的故事吗？"
+    - "你{person}有什么难忘的回忆吗？"
+```
+
+#### 地点探索
+
+```yaml
+- intent: location_exploration
+  priority: 70
+  condition:
+    entities: ["LOCATION"]
+  templates:
+    - "{location}是个什么样的地方？"
+    - "能描述一下{location}吗？"
+    - "你对{location}有什么特别的回忆吗？"
+    - "为什么提到{location}呢？"
+```
+
+### 情感镜像与验证脚本
+
+#### 情感识别
+
+```yaml
+- intent: emotion_happy
+  priority: 85
+  condition:
+    keywords: ["开心", "高兴", "快乐", "愉快", "兴奋", "满足"]
+  templates:
+    - "哇，听得出你现在心情不错！"
+    - "什么事情让你这么开心呢？"
+    - "真为你感到高兴！"
+    - "能分享一下让你快乐的事情吗？"
+
+- intent: emotion_sad
+  priority: 90
+  condition:
+    keywords: ["难过", "伤心", "悲伤", "痛苦", "沮丧", "失望"]
+  templates:
+    - "听起来这件事让你很难受。"
+    - "我能理解这种感受。"
+    - "愿意和我多说说吗？"
+    - "这确实让人感到难过。"
+
+- intent: emotion_angry
+  priority: 95
+  condition:
+    keywords: ["生气", "愤怒", "恼火", "气愤", "恼怒"]
+  templates:
+    - "听起来这件事让你很生气。"
+    - "能具体说说是什么让你这么生气吗？"
+    - "我能理解你的愤怒。"
+    - "这种情况确实令人恼火。"
+```
+
+#### 情感验证
+
+```yaml
+- intent: emotion_validation
+  priority: 85
+  condition:
+    keywords: ["感觉", "觉得", "心情", "情绪"]
+    has_predicate: true
+  templates:
+    - "你为什么觉得{predicate}呢？"
+    - "{predicate}让你有什么感受？"
+    - "能多说说你的{emotion}吗？"
+    - "这种感觉持续多久了？"
+```
+
+### 认知探索脚本
+
+#### 价值观探索
+
+```yaml
+- intent: values_exploration
+  priority: 75
+  condition:
+    keywords: ["重要", "在乎", "珍惜", "认为", "相信"]
+    min_tokens: 4
+  templates:
+    - "为什么这对你这么重要呢？"
+    - "能多说说你的价值观吗？"
+    - "是什么让你这么在乎这个？"
+    - "这种信念是怎么形成的呢？"
+```
+
+#### 观点探索
+
+```yaml
+- intent: opinion_exploration
+  priority: 70
+  condition:
+    keywords: ["觉得", "认为", "相信", "以为", "观点"]
+    has_predicate: true
+  templates:
+    - "你为什么{predicate}呢？"
+    - "这种{predicate}是怎么形成的？"
+    - "能多解释一下你的观点吗？"
+    - "有没有其他可能性呢？"
+```
+
+#### 因果关系探索
+
+```yaml
+- intent: causality_exploration
+  priority: 80
+  condition:
+    keywords: ["因为", "所以", "导致", "引起", "结果"]
+    min_tokens: 4
+  templates:
+    - "能详细说说原因吗？"
+    - "这个结果是怎么发生的？"
+    - "还有其他原因吗？"
+    - "能具体描述一下这个过程吗？"
+```
+
+### 复杂条件脚本示例
+
+#### 情感危机处理
+
+```yaml
+- intent: emotional_crisis
+  priority: 100
+  condition:
+    keywords: ["绝望", "崩溃", "不想活了", "没意义", "痛苦"]
+    min_tokens: 2
+  templates:
+    - "我听到你正在经历非常困难的时刻。"
+    - "这种情况确实让人感到绝望。"
+    - "你愿意和我多说说你的感受吗？"
+    - "这种痛苦的感受一定很难熬。"
+
+- intent: crisis_intervention
+  priority: 95
+  condition:
+    keywords: ["自杀", "结束生命", "没希望", "活不下去"]
+    min_tokens: 2
+  templates:
+    - "我听到你正在考虑伤害自己，这让我很担心。"
+    - "你现在感觉怎么样？"
+    - "有没有什么人可以帮助你？"
+    - "我们可以一起想办法，你不是一个人。"
+```
+
+#### 深度情感探索
+
+```yaml
+- intent: deep_emotion_exploration
+  priority: 85
+  condition:
+    keywords: ["emotion", "person", "relationship"]
+    min_tokens: 5
+  templates:
+    - "你{person}让你有什么{emotion}呢？"
+    - "能多说说你们{relationship}中的感受吗？"
+    - "这种{emotion}是什么时候开始的？"
+    - "你对{person}的{emotion}有什么影响？"
+```
+
+#### 多条件复合
+
+```yaml
+- intent: complex_narrative
+  priority: 75
+  condition:
+    keywords: ["narrative", "emotion", "time"]
+    entities: ["TIME", "PERSON"]
+    has_predicate: true
+    min_tokens: 6
+  templates:
+    - "在{time}，你{predicate}{person}的时候是什么感受？"
+    - "能详细说说{time}发生的事情吗？"
+    - "你对{person}在{time}的表现有什么{emotion}？"
+    - "这段经历对你有什么影响吗？"
+```
+
+## 最佳实践
+
+### 脚本设计原则
+
+1. **单一职责**：每个脚本应该专注于一个特定的意图或场景
+2. **优先级合理**：根据重要性和紧急性设置合适的优先级
+3. **条件精确**：使用具体的条件匹配，避免过于宽泛
+4. **模板多样**：为每个意图提供多个响应模板，避免重复
+5. **占位符合理**：使用适当的占位符，提高响应的个性化程度
+
+### 性能优化建议
+
+1. **避免过度复杂的条件**：复杂的条件匹配可能影响性能
+2. **合理设置优先级**：避免所有脚本都设置高优先级
+3. **控制模板数量**：每个意图的模板数量控制在合理范围内
+4. **定期清理无用脚本**：移除不再使用的脚本，减少匹配负担
+5. **使用字典系统**：利用预定义的字典，减少重复定义
+
+### 调试和测试方法
+
+1. **使用统计信息**：利用脚本的统计功能监控使用情况
+2. **日志记录**：启用详细的日志记录，帮助调试
+3. **单元测试**：为关键脚本编写单元测试
+4. **A/B 测试**：对不同版本的脚本进行 A/B 测试
+5. **用户反馈**：收集用户反馈，持续优化脚本
+
+### 版本控制建议
+
+1. **版本管理**：使用 Git 等工具管理脚本版本
+2. **变更记录**：记录每次脚本的变更和原因
+3. **分支管理**：使用分支进行脚本开发和测试
+4. **代码审查**：对脚本变更进行代码审查
+5. **回滚机制**：保留历史版本，便于回滚
+
+### 脚本组织结构
+
+建议按照以下方式组织脚本文件：
+
+```
+alice/scripts/
+├── intents/
+│   ├── greeting.yaml          # 问候相关
+│   ├── emotion.yaml           # 情感相关
+│   ├── narrative.yaml         # 叙事相关
+│   ├── entity.yaml           # 实体相关
+│   ├── cognitive.yaml        # 认知相关
+│   └── meta.yaml             # Meta对话
+├── dictionaries/
+│   ├── entity_patterns.yaml   # 实体模式
+│   ├── intent_keywords.yaml   # 意图关键词
+│   └── semantic_tags.yaml     # 语义标签
+└── rules/
+    ├── pronoun_mapping.yaml   # 代词映射
+    └── transformation_rules.yaml  # 句式转换
+```
+
+## 故障排除
+
+### 常见错误和解决方案
+
+#### 1. YAML 格式错误
+
+**错误**：`YAML 解析错误: expected '<document>', found '{'`
+
+**原因**：YAML 格式不正确
+
+**解决方案**：
+- 检查缩进是否正确（使用空格，不要使用 Tab）
+- 确保字符串使用引号包裹
+- 检查列表和嵌套结构是否正确
+
+```yaml
+# 正确格式
+- intent: example
+  priority: 50
+  templates:
+    - "正确格式"
+    - "另一个模板"
+
+# 错误格式
+- intent: example
+  priority: 50
+  templates:
+  - "错误格式"  # 缩进问题
+    - "另一个模板"
+```
+
+#### 2. 条件不匹配
+
+**错误**：脚本没有被触发
+
+**原因**：条件过于严格或不匹配
+
+**解决方案**：
+- 检查条件是否过于严格
+- 使用调试日志查看匹配过程
+- 简化条件或添加更多关键词
+
+```yaml
+# 可能过于严格的条件
+- intent: example
+  priority: 50
+  condition:
+    entities: ["PERSON"]
+    keywords: ["非常具体的词"]
+    pos_tags: ["v"]
+  templates:
+    - "响应"
+
+# 简化后的条件
+- intent: example
+  priority: 50
+  condition:
+    keywords: ["更通用的词"]
+  templates:
+    - "响应"
+```
+
+#### 3. 占位符未填充
+
+**错误**：响应中包含未替换的占位符
+
+**原因**：占位符与上下文不匹配
+
+**解决方案**：
+- 检查占位符名称是否正确
+- 确保上下文中包含所需的数据
+- 使用 `keyword_only: true` 避免代词替换问题
+
+```yaml
+# 问题脚本
+- intent: example
+  priority: 50
+  templates:
+    - "你{unknown_placeholder}是什么意思？"  # 未知占位符
+
+# 修复后的脚本
+- intent: example
+  priority: 50
+  templates:
+    - "能详细说说吗？"  # 移除未知占位符
+```
+
+#### 4. 优先级冲突
+
+**错误**：多个脚本同时匹配
+
+**原因**：优先级设置不当或条件重叠
+
+**解决方案**：
+- 调整优先级
+- 使条件更加具体
+- 使用 `keyword_only` 区分不同类型的匹配
+
+#### 5. 性能问题
+
+**错误**：响应生成缓慢
+
+**原因**：脚本过多或条件复杂
+
+**解决方案**：
+- 减少脚本数量
+- 简化条件
+- 使用字典系统减少重复定义
+
+### 调试技巧
+
+#### 1. 启用详细日志
+
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+#### 2. 使用统计信息
+
+```python
+engine = YAMLScriptEngine("scripts.yaml")
+stats = engine.get_stats()
+print(f"统计信息: {stats}")
+```
+
+#### 3. 手动测试匹配
+
+```python
+# 测试特定文本的匹配结果
+result = engine.match("测试文本", context)
+print(f"匹配结果: {result}")
+```
+
+#### 4. 检查上下文数据
+
+```python
+# 打印上下文信息
+print(f"上下文: {context}")
+print(f"实体: {context.get('entities', [])}")
+print(f"句法: {context.get('syntax', {})}")
+```
+
+### 性能问题排查
+
+#### 1. 脚本数量检查
+
+```python
+# 统计脚本数量
+engine = YAMLScriptEngine("scripts.yaml")
+stats = engine.get_stats()
+print(f"总脚本数: {stats['total_intents']}")
+```
+
+#### 2. 条件复杂度检查
+
+- 检查是否使用了过多的条件组合
+- 确保条件不会导致指数级增长
+
+#### 3. 内存使用检查
+
+```python
+# 检查内存使用
+import sys
+print(f"脚本引擎内存使用: {sys.getsizeof(engine)} bytes")
+```
+
+#### 4. 响应生成时间检查
+
+```python
+import time
+
+start_time = time.time()
+response = engine.generate_response(intent, context)
+end_time = time.time()
+print(f"响应生成时间: {end_time - start_time} 秒")
+```
+
+### 优化建议
+
+#### 1. 脚本优化
+
+- 合并相似功能的脚本
+- 移除冗余的模板
+- 简化复杂的条件
+
+#### 2. 系统优化
+
+- 使用缓存机制
+- 预加载常用脚本
+- 优化 YAML 解析
+
+#### 3. 监控和调优
+
+- 定期检查脚本使用统计
+- 根据使用频率调整优先级
+- 收集用户反馈持续优化
+
+---
+
+## 总结
+
+本指南详细介绍了 Alice 脚本系统的各个方面，从基础的 YAML 格式到复杂的条件匹配和响应生成。通过遵循这些指南和最佳实践，您可以有效地设计和实现高质量的对话脚本。
+
+记住，脚本编写是一个迭代的过程，需要不断地测试、优化和改进。通过持续的学习和实践，您将能够创建出更加自然、智能和有用的对话体验。

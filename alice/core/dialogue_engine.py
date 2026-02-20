@@ -32,6 +32,7 @@ from alice.exceptions import (
     TextProcessingError,
 )
 from alice.utils.sanitizer import sanitize_text
+from alice.utils.hot_reloader import HotReloader, ReloadResult, create_hot_reloader
 from alice.config import (
     ENABLE_LTP_BY_DEFAULT,
     ENABLE_NER_BY_DEFAULT,
@@ -70,6 +71,9 @@ class DialogueEngine:
         use_ltp: Optional[bool] = None,
         enable_ner: Optional[bool] = None,
         ner_use_ltp: Optional[bool] = None,
+        enable_hot_reload: bool = False,
+        hot_reload_mode: str = "auto",
+        hot_reload_poll_interval: float = 2.0,
     ):
         """
         初始化对话引擎
@@ -81,6 +85,9 @@ class DialogueEngine:
             use_ltp: 是否使用 LTP 增强（默认使用 config.ENABLE_LTP_BY_DEFAULT）
             enable_ner: 是否启用 NER 实体识别（默认使用 config.ENABLE_NER_BY_DEFAULT）
             ner_use_ltp: NER 是否使用 LTP 增强（默认使用 config.NER_USE_LTP_BY_DEFAULT）
+            enable_hot_reload: 是否启用热重载功能
+            hot_reload_mode: 热重载模式 ("auto" 或 "manual")
+            hot_reload_poll_interval: 文件轮询间隔（秒），仅 auto 模式有效
         """
         self.enable_plugins = enable_plugins
         # 使用配置文件的默认值，如果调用方未指定
@@ -91,6 +98,12 @@ class DialogueEngine:
         # 保存配置
         self.script_file = script_file
         self.rules_file = rules_file
+        self.enable_hot_reload = enable_hot_reload
+        self.hot_reload_mode = hot_reload_mode
+        self.hot_reload_poll_interval = hot_reload_poll_interval
+
+        # 热重载器
+        self.hot_reloader: Optional[HotReloader] = None
 
         # 初始化核心组件
         self.preprocessor = TextPreprocessor()
@@ -180,6 +193,10 @@ class DialogueEngine:
                 self._initialize_plugins()
                 self.plugin_manager.initialize_all()
 
+            # 6. 初始化热重载器
+            if self.enable_hot_reload:
+                self._initialize_hot_reloader()
+
             self._initialized = True
             logger.info("对话引擎初始化成功")
             return True
@@ -187,6 +204,94 @@ class DialogueEngine:
         except Exception as e:
             logger.error(f"对话引擎初始化失败：{e}", exc_info=True)
             return False
+
+    def _initialize_hot_reloader(self) -> None:
+        """
+        初始化热重载器
+        """
+        if not self.script_engine and not self.reassembly_engine:
+            logger.warning("没有可热重载的引擎，热重载器将不可用")
+            return
+
+        try:
+            self.hot_reloader = create_hot_reloader(
+                script_file=self.script_file,
+                rules_file=self.rules_file,
+                script_engine=self.script_engine,
+                reassembly_engine=self.reassembly_engine,
+                auto_reload=True,
+                mode=self.hot_reload_mode,
+            )
+
+            # 注册重载回调
+            self.hot_reloader.add_reload_callback(self._on_hot_reload)
+
+            # 启动热重载器
+            self.hot_reloader.start()
+
+            logger.info(
+                f"热重载器已启动 (模式：{self.hot_reload_mode}, 轮询间隔：{self.hot_reload_poll_interval}s)"
+            )
+
+        except Exception as e:
+            logger.warning(f"热重载器初始化失败：{e}")
+            self.hot_reloader = None
+
+    def _on_hot_reload(self, result: ReloadResult) -> None:
+        """
+        热重载回调
+
+        Args:
+            result: 重载结果
+        """
+        if result.success:
+            logger.info(
+                f"热重载成功 - 脚本：{result.script_reloaded}, 规则：{result.rules_reloaded}"
+            )
+        else:
+            logger.error(f"热重载失败：{result.error}")
+
+    def reload_scripts(self) -> ReloadResult:
+        """
+        手动重载脚本文件
+
+        Returns:
+            重载结果
+        """
+        if not self.hot_reloader:
+            return ReloadResult(
+                success=False,
+                error="热重载器未启用"
+            )
+        return self.hot_reloader.reload_scripts()
+
+    def reload_rules(self) -> ReloadResult:
+        """
+        手动重载规则文件
+
+        Returns:
+            重载结果
+        """
+        if not self.hot_reloader:
+            return ReloadResult(
+                success=False,
+                error="热重载器未启用"
+            )
+        return self.hot_reloader.reload_rules()
+
+    def reload_all(self) -> ReloadResult:
+        """
+        手动重载所有配置文件
+
+        Returns:
+            重载结果
+        """
+        if not self.hot_reloader:
+            return ReloadResult(
+                success=False,
+                error="热重载器未启用"
+            )
+        return self.hot_reloader.reload_all()
 
     def _initialize_plugins(self) -> None:
         """
@@ -289,6 +394,31 @@ class DialogueEngine:
             'original_text': user_input,
             'standardized_text': standardized_text,
         }
+
+        # 添加更多 LTP 变量供脚本引擎使用
+
+        # 添加带词性的 tokens 列表
+        if nlp_result.syntax:
+            words = nlp_result.syntax.words
+            poses = nlp_result.syntax.poses
+            semantic_info['tokens_with_pos'] = list(zip(words, poses))
+
+        # 添加依存关系
+        if nlp_result.syntax and hasattr(nlp_result.syntax, 'dependencies'):
+            semantic_info['dependencies'] = nlp_result.syntax.dependencies
+
+        # 添加三元组（如果 LTP 引擎提供了）
+        try:
+            from ltp_engine import extract_triples
+            triples = extract_triples(standardized_text)
+            if triples:
+                semantic_info['triples'] = triples
+        except Exception:
+            # 三元组提取失败不影响主流程
+            pass
+
+        # 添加语义角色（如果 LTP 引擎启用了 SRL）
+        # 注意：SRL 默认关闭，需要显式启用
 
         # 4. 上下文信息注入
         semantic_info['recent_turns'] = self.context_manager.get_recent_turns(3)
@@ -487,6 +617,11 @@ class DialogueEngine:
 
     def cleanup(self) -> None:
         """清理引擎资源"""
+        # 停止热重载器
+        if self.hot_reloader:
+            self.hot_reloader.stop()
+            logger.info("热重载器已停止")
+
         if self.enable_plugins:
             self.plugin_manager.cleanup_all()
         self._initialized = False

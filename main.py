@@ -25,12 +25,20 @@ def run_cli():
         ConfigurationError,
         InitializationError,
     )
+    from alice.config import ENABLE_HOT_RELOAD_BY_DEFAULT, HOT_RELOAD_MODE
 
     try:
-        alice = AliceBot()
+        alice = AliceBot(enable_hot_reload=ENABLE_HOT_RELOAD_BY_DEFAULT, hot_reload_mode=HOT_RELOAD_MODE)
     except (ConfigurationError, InitializationError) as e:
         print(f"启动失败：{e}")
         sys.exit(1)
+
+    # 显示热重载状态
+    hot_reload_status = alice.get_hot_reload_status()
+    if hot_reload_status.get("enabled", False):
+        print(f"🔄 热重载已启用 (模式：{hot_reload_status.get('mode', 'auto')})")
+        print("   修改 YAML 文件后将自动重载，或输入 'reload' 手动重载")
+    print()
 
     print("🤖 Alice - 好奇的朋友")
     print("=" * 50)
@@ -40,6 +48,16 @@ def run_cli():
     while True:
         try:
             user_input = input("你：").strip()
+            
+            # 热重载命令
+            if user_input.lower() == 'reload':
+                result = alice.reload_all()
+                if result.success:
+                    print(f"Alice: ✅ 重载成功！脚本：{result.script_reloaded}, 规则：{result.rules_reloaded}")
+                else:
+                    print(f"Alice: ❌ 重载失败：{result.error}")
+                continue
+            
             if user_input.lower() in ['再见', 'quit', 'exit', 'bye']:
                 print("Alice: 再见！很高兴和你聊天！")
                 break

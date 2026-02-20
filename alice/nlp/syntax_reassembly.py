@@ -56,7 +56,7 @@ class SyntaxReassembly:
         self.transformation_rules: List[Tuple[str, str]] = []
 
         if rules_file:
-            self._load_rules(rules_file)
+            self.load_rules(rules_file)
 
         # 可选：覆盖配置
         if pronoun_mapping:
@@ -64,9 +64,9 @@ class SyntaxReassembly:
         if transformation_rules:
             self.transformation_rules.extend(transformation_rules)
 
-    def _load_rules(self, rules_file: str) -> None:
+    def load_rules(self, rules_file: str) -> None:
         """
-        从 YAML 配置文件加载规则
+        从 YAML 配置文件加载规则（支持热重载）
 
         Args:
             rules_file: YAML 规则文件路径
@@ -107,6 +107,7 @@ class SyntaxReassembly:
 
         except Exception as e:
             logger.warning(f"加载规则文件失败：{e}")
+            raise
 
     def reassemble(
         self,

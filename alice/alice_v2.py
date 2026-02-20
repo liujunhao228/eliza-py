@@ -50,6 +50,8 @@ class AliceBot:
         enable_plugins: bool = True,
         cache_size: int = 100,
         use_ltp: Optional[bool] = None,
+        enable_hot_reload: bool = False,
+        hot_reload_mode: str = "auto",
     ):
         """
         初始化 Alice 机器人
@@ -61,6 +63,8 @@ class AliceBot:
             enable_plugins: 是否启用插件系统
             cache_size: 缓存大小
             use_ltp: 是否使用 LTP 增强（默认使用 config.ENABLE_LTP_BY_DEFAULT）
+            enable_hot_reload: 是否启用热重载功能
+            hot_reload_mode: 热重载模式 ("auto" 或 "manual")
         """
         # 配置管理器
         self.config_manager = ConfigManager()
@@ -82,6 +86,8 @@ class AliceBot:
             rules_file=rules_file,
             enable_plugins=enable_plugins,
             use_ltp=use_ltp,
+            enable_hot_reload=enable_hot_reload,
+            hot_reload_mode=hot_reload_mode,
         )
 
         # 监控器
@@ -271,6 +277,48 @@ class AliceBot:
             self.dialogue_logger.clear()
         self._initialized = False
         logger.info("Alice 机器人已清理")
+
+    # =========================================================================
+    # 热重载 API
+    # =========================================================================
+
+    def reload_scripts(self):
+        """
+        手动重载脚本文件
+
+        Returns:
+            重载结果
+        """
+        return self.dialogue_engine.reload_scripts()
+
+    def reload_rules(self):
+        """
+        手动重载规则文件
+
+        Returns:
+            重载结果
+        """
+        return self.dialogue_engine.reload_rules()
+
+    def reload_all(self):
+        """
+        手动重载所有配置文件
+
+        Returns:
+            重载结果
+        """
+        return self.dialogue_engine.reload_all()
+
+    def get_hot_reload_status(self) -> Dict[str, Any]:
+        """
+        获取热重载器状态
+
+        Returns:
+            热重载器状态字典
+        """
+        if self.dialogue_engine.hot_reloader:
+            return self.dialogue_engine.hot_reloader.get_status()
+        return {"enabled": False}
 
 
 # 向后兼容：保留旧的 AliceBot 引用
