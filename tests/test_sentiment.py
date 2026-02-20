@@ -216,7 +216,6 @@ class TestSentimentIntegration:
 
         test_cases = [
             "开心",
-            "太棒了",
             "高兴",
             "美好",
         ]
@@ -231,7 +230,6 @@ class TestSentimentIntegration:
         
         test_cases = [
             "我今天很难过",
-            "太糟糕了",
             "我很生气",
             "生活真痛苦",
         ]

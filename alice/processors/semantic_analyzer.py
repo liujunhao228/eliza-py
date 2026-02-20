@@ -44,6 +44,8 @@ class SemanticAnalyzer:
         use_ltp: bool = False,
         ltp_engine: Optional[Any] = None,
         sentiment_engine: Optional[Any] = None,
+        enable_ner: bool = True,
+        ner_use_ltp: bool = True,
     ) -> None:
         """
         初始化语义分析器
@@ -52,11 +54,15 @@ class SemanticAnalyzer:
             use_ltp: 是否使用 LTP 增强
             ltp_engine: LTP 引擎实例（可选）
             sentiment_engine: 情感分析引擎实例（可选）
+            enable_ner: 是否启用 NER 实体识别
+            ner_use_ltp: NER 是否使用 LTP 增强
         """
         self.preprocessor = TextPreprocessor()
         self.use_ltp = use_ltp
         self.ltp_engine = ltp_engine
         self.sentiment_engine = sentiment_engine
+        self.enable_ner = enable_ner
+        self.ner_use_ltp = ner_use_ltp
 
         # 情感词库（用于降级或无外部引擎时）
         self.positive_words = {
@@ -124,7 +130,7 @@ class SemanticAnalyzer:
             "sentiment": self._analyze_sentiment(words),
             "sentiment_detail": self._analyze_sentiment_with_engine(text),
             "intent": self._detect_intent(words),
-            "entities": self._extract_entities(words, text),
+            "entities": self._extract_entities(words, text) if self.enable_ner else [],
             "original_text": text,
             "standardized_text": standardized_text,
         }
@@ -191,8 +197,11 @@ class SemanticAnalyzer:
             ltp_result = self.ltp_engine.analyze(text)
 
             # 融合 LTP 结果和轻量级分析
-            ltp_entities = [(e.entity_type.value, e.text) for e in ltp_result.entities]
-            rule_entities = self._extract_entities(words, text)
+            ltp_entities = []
+            if self.enable_ner and self.ner_use_ltp:
+                ltp_entities = [(e.entity_type.value, e.text) for e in ltp_result.entities]
+            
+            rule_entities = self._extract_entities(words, text) if self.enable_ner else []
 
             # 合并实体（去重）
             all_entities = list(set(rule_entities + ltp_entities))
@@ -214,7 +223,7 @@ class SemanticAnalyzer:
                 "sentiment": base_sentiment,
                 "sentiment_detail": sentiment_detail,
                 "intent": self._detect_intent(words),
-                "entities": all_entities,
+                "entities": all_entities if self.enable_ner else [],
                 "syntax": ltp_result.syntax.to_dict() if ltp_result.syntax else None,
                 "original_text": text,
                 "standardized_text": standardized_text,

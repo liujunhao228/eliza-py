@@ -24,6 +24,11 @@ from alice.exceptions import (
 )
 from alice.utils.degradation_monitor import degradation_monitor
 from alice.utils.sanitizer import sanitize_text
+from alice.config import (
+    ENABLE_LTP_BY_DEFAULT,
+    ENABLE_NER_BY_DEFAULT,
+    NER_USE_LTP_BY_DEFAULT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +36,13 @@ logger = logging.getLogger(__name__)
 class DialogueEngine:
     """
     对话主引擎
-    
+
     职责:
     - 对话流程控制
     - 组件协调和调度
     - 插件管理
     - 上下文管理
-    
+
     对话流程:
     1. 文本预处理
     2. 语义分析
@@ -52,7 +57,9 @@ class DialogueEngine:
         script_file: Optional[str] = None,
         rules_file: Optional[str] = None,
         enable_plugins: bool = True,
-        use_ltp: bool = False,
+        use_ltp: Optional[bool] = None,
+        enable_ner: Optional[bool] = None,
+        ner_use_ltp: Optional[bool] = None,
     ):
         """
         初始化对话引擎
@@ -61,23 +68,30 @@ class DialogueEngine:
             script_file: 脚本文件路径
             rules_file: 反射规则文件路径
             enable_plugins: 是否启用插件系统
-            use_ltp: 是否使用 LTP 增强
+            use_ltp: 是否使用 LTP 增强（默认使用 config.ENABLE_LTP_BY_DEFAULT）
+            enable_ner: 是否启用 NER 实体识别（默认使用 config.ENABLE_NER_BY_DEFAULT）
+            ner_use_ltp: NER 是否使用 LTP 增强（默认使用 config.NER_USE_LTP_BY_DEFAULT）
         """
         self.enable_plugins = enable_plugins
-        self.use_ltp = use_ltp
+        # 使用配置文件的默认值，如果调用方未指定
+        self.use_ltp = use_ltp if use_ltp is not None else ENABLE_LTP_BY_DEFAULT
+        self.enable_ner = enable_ner if enable_ner is not None else ENABLE_NER_BY_DEFAULT
+        self.ner_use_ltp = ner_use_ltp if ner_use_ltp is not None else NER_USE_LTP_BY_DEFAULT
 
         # 初始化核心组件
         self.preprocessor = TextPreprocessor()
 
         # LTP 引擎（可选）
         self.ltp_engine: Optional[LtpEngine] = None
-        if use_ltp:
+        if self.use_ltp:
             self.ltp_engine = LtpEngine(lazy_load=True)
 
         # 语义分析器（可选 LTP 增强）
         self.analyzer = SemanticAnalyzer(
-            use_ltp=use_ltp,
+            use_ltp=self.use_ltp,
             ltp_engine=self.ltp_engine,
+            enable_ner=self.enable_ner,
+            ner_use_ltp=self.ner_use_ltp,
         )
 
         self.context_manager = ContextManager()

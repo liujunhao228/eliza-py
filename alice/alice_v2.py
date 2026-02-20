@@ -26,6 +26,7 @@ from alice.exceptions import (
     TextProcessingError,
 )
 from alice.utils.sanitizer import sanitize_text
+from alice.config import ENABLE_LOGGING_BY_DEFAULT
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 class AliceBot:
     """
     Alice 聊天机器人 - 重构版
-    
+
     新架构特性:
     - 模块化设计：各组件职责清晰
     - 插件化架构：支持动态扩展
@@ -46,10 +47,10 @@ class AliceBot:
         self,
         script_file: Optional[str] = None,
         rules_file: Optional[str] = None,
-        enable_logging: bool = True,
+        enable_logging: Optional[bool] = None,
         enable_plugins: bool = True,
         cache_size: int = 100,
-        use_ltp: bool = False,
+        use_ltp: Optional[bool] = None,
     ):
         """
         初始化 Alice 机器人
@@ -57,17 +58,20 @@ class AliceBot:
         Args:
             script_file: 脚本文件路径
             rules_file: 反射规则文件路径
-            enable_logging: 是否启用日志
+            enable_logging: 是否启用日志（默认使用 config.ENABLE_LOGGING_BY_DEFAULT）
             enable_plugins: 是否启用插件系统
             cache_size: 缓存大小
-            use_ltp: 是否使用 LTP 增强（默认 False）
+            use_ltp: 是否使用 LTP 增强（默认使用 config.ENABLE_LTP_BY_DEFAULT）
         """
         # 配置管理器
         self.config_manager = ConfigManager()
 
+        # 使用配置文件的默认值，如果调用方未指定
+        self.enable_logging = enable_logging if enable_logging is not None else ENABLE_LOGGING_BY_DEFAULT
+
         # 使用默认配置（如果未指定）
         from alice.config import DEFAULT_SCRIPT_FILE, DEFAULT_RULES_FILE
-        
+
         if script_file is None:
             script_file = str(DEFAULT_SCRIPT_FILE)
         if rules_file is None:
@@ -80,11 +84,10 @@ class AliceBot:
             enable_plugins=enable_plugins,
             use_ltp=use_ltp,
         )
-        
+
         # 监控器
-        self.enable_logging = enable_logging
         self.monitor = UnifiedMonitor()
-        self.dialogue_logger = DialogueLogger() if enable_logging else None
+        self.dialogue_logger = DialogueLogger() if self.enable_logging else None
         
         # 缓存
         self.cache = IntelligentCache(max_size=cache_size)

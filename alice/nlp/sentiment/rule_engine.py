@@ -420,22 +420,25 @@ class RuleSentimentEngine(SentimentEngine):
         Returns:
             强度描述
         """
-        # 首先检查 metadata 中是否有程度副词信息
-        degree_score = result.metadata.get('degree_score', 0.0)
-        base_score = result.metadata.get('base_score', 0.0)
+        # 直接在原始文本中查找程度副词
+        text = result.text
         
-        # 如果有程度副词加权信息，使用它来判断强度
-        if base_score != 0:
-            multiplier = degree_score / base_score if base_score != 0 else 1.0
-            if multiplier >= 1.8:
-                return "strong"
-            elif multiplier >= 1.0:
-                return "moderate"
-            else:
-                return "weak"
+        # 按长度排序，优先匹配长词
+        sorted_adverbs = sorted(self.DEGREE_ADVERBS.keys(), key=len, reverse=True)
         
-        # 降级：使用分数绝对值判断
-        return super().get_intensity(result)
+        max_multiplier = 1.0
+        for adverb in sorted_adverbs:
+            if adverb in text:
+                multiplier = self.DEGREE_ADVERBS[adverb]
+                max_multiplier = max(max_multiplier, multiplier)
+                break  # 找到第一个匹配的就停止（因为已按长度排序）
+        
+        if max_multiplier >= 1.8:
+            return "strong"
+        elif max_multiplier >= 1.3:
+            return "moderate"
+        else:
+            return "weak"
 
     def get_emotion_description(self, result: SentimentResult) -> str:
         """
