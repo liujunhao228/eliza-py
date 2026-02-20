@@ -162,6 +162,9 @@ class AliceBot:
             # 使用对话引擎生成响应
             response = self.dialogue_engine.respond(user_input)
 
+            # 获取规则触发信息
+            rule_info = self.dialogue_engine.get_last_rule_info()
+
             # 记录性能
             duration = time.time() - start_time
             self.monitor.record_interaction(
@@ -171,9 +174,13 @@ class AliceBot:
                 metadata={"input_length": len(user_input)},
             )
 
-            # 记录日志
+            # 记录日志（包含规则触发信息）
             if self.enable_logging and self.dialogue_logger:
-                self.dialogue_logger.log_dialogue(user_input, response)
+                self.dialogue_logger.log_dialogue(
+                    user_input=user_input,
+                    bot_response=response,
+                    rule_info=rule_info,
+                )
                 self.dialogue_logger.log_performance("respond", duration * 1000)
 
             # 缓存响应

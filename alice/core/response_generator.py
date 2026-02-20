@@ -190,6 +190,9 @@ class ResponseGenerator:
         Returns:
             生成的响应
         """
+        # 记录响应策略
+        response_strategy = "fallback"  # 默认回退策略
+        
         # 1. 尝试基于情感选择响应（优先级最高）
         sentiment_detail = semantic_info.get("sentiment_detail", {})
         if sentiment_detail:
@@ -198,25 +201,48 @@ class ResponseGenerator:
                 user_input=user_input,
             )
             if response:
+                response_strategy = "sentiment_driven"
+                logger.debug(
+                    f"响应策略：{response_strategy}",
+                    extra={"response_strategy": response_strategy, "intent": intent},
+                )
                 return response
 
         # 2. 基于意图选择响应
         response = self._select_by_intent(intent, user_input)
         if response:
+            response_strategy = "intent_based"
+            logger.debug(
+                f"响应策略：{response_strategy}",
+                extra={"response_strategy": response_strategy, "intent": intent},
+            )
             return response
 
         # 3. 对于问候、告别、感谢等 keyword_only 意图，不使用重组规则
         # 直接返回回退响应，避免代词替换
         if intent in ("greeting", "farewell", "thanks"):
+            logger.debug(
+                f"响应策略：{response_strategy}",
+                extra={"response_strategy": response_strategy, "intent": intent},
+            )
             return self._get_fallback_response()
 
         # 4. 尝试使用重组规则（仅适用于非 keyword_only 意图）
         if semantic_info.get("tokens"):
             response = self._try_reassembly(user_input, semantic_info)
             if response:
+                response_strategy = "reassembly"
+                logger.debug(
+                    f"响应策略：{response_strategy}",
+                    extra={"response_strategy": response_strategy, "intent": intent},
+                )
                 return response
 
         # 5. 使用回退响应
+        logger.debug(
+            f"响应策略：{response_strategy}",
+            extra={"response_strategy": response_strategy, "intent": intent},
+        )
         return self._get_fallback_response()
 
     def _select_by_sentiment(

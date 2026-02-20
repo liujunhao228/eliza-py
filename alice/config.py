@@ -33,9 +33,6 @@ SCRIPTS_DIR = ALICE_DIR / "scripts"
 # 默认脚本文件路径（YAML 格式）
 DEFAULT_SCRIPT_FILE = SCRIPTS_DIR / "emotion_responses.yaml"
 
-# LTP 脚本文件路径
-LTP_SCRIPT_FILE = SCRIPTS_DIR / "curiosity_scripts_ltp.yaml"
-
 # 默认反射规则文件路径（YAML 格式，包含代词映射和句式转换规则）
 DEFAULT_RULES_FILE = SCRIPTS_DIR / "mapping.yaml"
 
@@ -68,16 +65,16 @@ PERFORMANCE_MONITOR_SAMPLE_RATE = 1.0
 # =============================================================================
 
 # 是否默认启用 LTP 句法分析
-ENABLE_LTP_BY_DEFAULT = False
+ENABLE_LTP_BY_DEFAULT = True
 
 # 是否默认启用 NER 实体识别
 ENABLE_NER_BY_DEFAULT = True
 
 # 是否默认启用对话日志
-ENABLE_LOGGING_BY_DEFAULT = False
+ENABLE_LOGGING_BY_DEFAULT = True
 
 # NER 是否使用 LTP 增强
-NER_USE_LTP_BY_DEFAULT = False
+NER_USE_LTP_BY_DEFAULT = True
 
 
 # =============================================================================

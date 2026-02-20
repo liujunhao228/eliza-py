@@ -220,15 +220,31 @@ class DialogueEngine:
         )
 
         # 5. 生成响应
+        rule_info = {}  # 记录规则触发信息
         try:
             if plugin_response and plugin_response.success:
                 response = plugin_response.response
+                # 从插件 metadata 中提取 rule_info
+                plugin_metadata = plugin_response.metadata or {}
+                rule_info = {
+                    "source": "plugin",
+                    "plugin_name": "curiosity",
+                    "script_id": plugin_metadata.get("script_id", ""),
+                    "intent": plugin_metadata.get("intent", ""),
+                    "matched_pattern": plugin_metadata.get("matched_pattern", ""),
+                    "keyword_only": plugin_metadata.get("keyword_only", False),
+                }
             else:
                 response = self.response_generator.generate(
                     user_input=standardized_text,
                     semantic_info=semantic_info,
                     intent=intent,
                 )
+                # 记录响应生成器策略
+                rule_info = {
+                    "source": "response_generator",
+                    "intent": intent,
+                }
         except Exception as e:
             # 使用结构化日志和脱敏处理
             logger.error(
@@ -273,7 +289,19 @@ class DialogueEngine:
             )
             # 不抛出异常，因为响应已经生成
 
+        # 保存 rule_info 供上层使用
+        self._last_rule_info = rule_info
+
         return response
+
+    def get_last_rule_info(self) -> Dict[str, Any]:
+        """
+        获取最后一次响应的规则触发信息
+
+        Returns:
+            规则触发信息字典
+        """
+        return getattr(self, '_last_rule_info', {})
 
     def _process_with_plugins(
         self,

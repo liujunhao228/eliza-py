@@ -265,28 +265,40 @@ class DialogueLogger:
         self,
         user_input: str,
         bot_response: str,
+        rule_info: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         记录对话
-        
+
         Args:
             user_input: 用户输入
             bot_response: 机器人响应
+            rule_info: 规则触发信息（包含 script_id, intent, matched_pattern 等）
             metadata: 元数据
         """
         dialogue = {
             "timestamp": datetime.now().isoformat(),
             "user_input": user_input,
             "bot_response": bot_response,
+            "rule_info": rule_info or {},
             "metadata": metadata or {},
         }
-        
+
         self._dialogues.append(dialogue)
-        
+
+        # 构建规则触发信息字符串
+        rule_str = ""
+        if rule_info:
+            source = rule_info.get("source", "unknown")
+            if source == "plugin":
+                rule_str = f" [规则：plugin/{rule_info.get('script_id', '')}]"
+            elif source == "response_generator":
+                rule_str = f" [规则：response_generator/{rule_info.get('intent', '')}]"
+
         logger.info(
-            f"对话：{user_input[:50]}... -> {bot_response[:50]}...",
-            extra={"dialogue": dialogue},
+            f"对话：{user_input[:50]}... -> {bot_response[:50]}...{rule_str}",
+            extra={"dialogue": dialogue, "rule_info": rule_info or {}},
         )
 
     def log_performance(

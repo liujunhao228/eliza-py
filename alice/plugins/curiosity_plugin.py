@@ -111,6 +111,8 @@ class CuriosityPlugin(BasePlugin):
                         "intent": intent.name,
                         "priority": intent.priority,
                         "keyword_only": intent.keyword_only,
+                        "script_id": intent.name,  # 脚本 ID
+                        "matched_pattern": self._get_matched_pattern(text, intent),  # 匹配模式
                     },
                 )
             else:
@@ -126,6 +128,28 @@ class CuriosityPlugin(BasePlugin):
                 response="抱歉，我走神了...",
                 metadata={"error": str(e)},
             )
+
+    def _get_matched_pattern(self, text: str, intent: ScriptIntent) -> Optional[str]:
+        """
+        获取匹配的关键词模式
+
+        Args:
+            text: 用户输入文本
+            intent: 匹配的脚本意图
+
+        Returns:
+            匹配的关键词模式
+        """
+        # 从 templates 中提取匹配的关键词
+        for template in intent.templates:
+            # 查找模板中的关键词（简单实现：查找被花括号包围的部分）
+            import re
+            keywords = re.findall(r'\{([^}]+)\}', template)
+            for kw in keywords:
+                if kw in text:
+                    return kw
+        # 如果没有找到具体关键词，返回意图名称
+        return intent.name
 
     def _generate_response(
         self,
