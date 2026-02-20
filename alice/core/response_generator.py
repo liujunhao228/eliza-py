@@ -65,16 +65,8 @@ class ResponseGenerator:
         Returns:
             回退响应列表
         """
-        # 默认回退响应（仅在 YAML 脚本无匹配时使用）
-        default_fallback = [
-            "唔，我在听。",
-            "原来是这样啊。",
-            "能再多说一些吗？",
-            "嗯，我明白了。",
-        ]
-
         if not fallback_file:
-            return default_fallback
+            return []
 
         # 尝试从文件加载
         try:
@@ -86,7 +78,7 @@ class ResponseGenerator:
         except Exception as e:
             logger.warning(f"无法加载回退响应文件：{e}")
 
-        return default_fallback
+        return []
 
     def generate(
         self,
@@ -260,29 +252,9 @@ class ResponseGenerator:
         Returns:
             重组规则列表
         """
-        # 重组规则应当来自 YAML 配置文件，这里提供默认规则
-        default_rules = {
-            "belief": [
-                "你为什么会有'{1}'这样的想法呢？",
-                "能多说说关于'{1}'的事吗？",
-                "{1}，这是什么时候开始的？",
-            ],
-            "question": [
-                "这是个好问题。你是怎么想到这个问题的？",
-                "你觉得呢？我很好奇你的想法。",
-            ],
-            "narrative": [
-                "后来呢？",
-                "那之后发生了什么？",
-                "能多说说当时的情况吗？",
-            ],
-            "emotion": [
-                "这种感觉一定很难受吧，想多聊聊吗？",
-                "能说说为什么会有这样的感受吗？",
-            ],
-        }
-
-        return default_rules.get(intent, [])
+        # 重组规则应当来自 YAML 配置文件
+        # 如果重组引擎没有提供规则，返回空列表
+        return []
 
     def _get_fallback_response(self) -> str:
         """
