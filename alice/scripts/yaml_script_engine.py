@@ -242,8 +242,11 @@ class YAMLScriptEngine:
         if "entities" in condition:
             required_entities = condition["entities"]
             context_entities = context.get("entities", [])
+            
+            # 将要求的实体类型转换为大写集合，用于不区分大小写的匹配
+            required_entities_upper = {e.upper() for e in required_entities}
 
-            if not any(e[0] in required_entities for e in context_entities):
+            if not any(e[0].upper() in required_entities_upper for e in context_entities):
                 return False
 
         # 检查关键词条件
@@ -580,8 +583,100 @@ class YAMLScriptEngine:
                     template = template.replace(match.group(0), role.get("text", ""))
                     break
 
+        # 填充时间变量占位符
+        template = self._fill_time_placeholders(template, context)
+
+        # 填充用户画像变量占位符
+        template = self._fill_user_profile_placeholders(template, context)
+
         # 清理未匹配的占位符
         template = re.sub(r"\{[^}]+\}", "", template)
+
+        return template
+
+    def _fill_time_placeholders(
+        self,
+        template: str,
+        context: Dict[str, Any],
+    ) -> str:
+        """
+        填充时间变量占位符
+
+        支持的占位符（不区分大小写）:
+        - {year}: 年份（如 2026）
+        - {month}: 月份（1-12）
+        - {day}: 日期（1-31）
+        - {weekday}: 星期数字（0-6，0=周一）
+        - {weekday_name}: 星期名称（如"星期五"）
+        - {hour}: 小时（0-23）
+        - {minute}: 分钟（0-59）
+        - {second}: 秒（0-59）
+        - {category_time}: 时间段（早晨/中午/下午/晚上/深夜）
+
+        Args:
+            template: 模板字符串
+            context: 上下文信息
+
+        Returns:
+            填充后的字符串
+        """
+        # 从 context 获取 time_context 或 turn_count 等信息
+        time_context = context.get("time_context", {})
+
+        # 定义占位符映射（支持不区分大小写）
+        time_placeholders = {
+            "year": str(time_context.get("year", "")),
+            "month": str(time_context.get("month", "")),
+            "day": str(time_context.get("day", "")),
+            "weekday": str(time_context.get("weekday", "")),
+            "weekday_name": str(time_context.get("weekday_name", "")),
+            "hour": str(time_context.get("hour", "")),
+            "minute": str(time_context.get("minute", "")),
+            "second": str(time_context.get("second", "")),
+            "category_time": str(time_context.get("category_time", "")),
+        }
+
+        # 不区分大小写替换
+        for key, value in time_placeholders.items():
+            # 使用正则表达式进行不区分大小写的替换
+            pattern = re.compile(r"\{" + key + r"\}", re.IGNORECASE)
+            template = pattern.sub(value, template)
+
+        return template
+
+    def _fill_user_profile_placeholders(
+        self,
+        template: str,
+        context: Dict[str, Any],
+    ) -> str:
+        """
+        填充用户画像变量占位符
+
+        支持的占位符:
+        - {user_name}: 用户姓名
+        - {user_nickname}: 用户昵称
+        - {address_form}: 称呼偏好（你/您）
+
+        Args:
+            template: 模板字符串
+            context: 上下文信息
+
+        Returns:
+            填充后的字符串
+        """
+        user_profile = context.get("user_profile", {})
+
+        # 定义占位符映射
+        profile_placeholders = {
+            "user_name": str(user_profile.get("name", "")),
+            "user_nickname": str(user_profile.get("nickname", "")),
+            "address_form": str(user_profile.get("address_form", context.get("address_form", "你"))),
+        }
+
+        # 不区分大小写替换
+        for key, value in profile_placeholders.items():
+            pattern = re.compile(r"\{" + key + r"\}", re.IGNORECASE)
+            template = pattern.sub(value, template)
 
         return template
 

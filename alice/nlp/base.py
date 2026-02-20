@@ -6,7 +6,7 @@ NLP 基础模块 - 定义统一接口和数据类
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from enum import Enum
 
 
@@ -53,6 +53,7 @@ class SyntaxStructure:
     predicate: str = ""
     object: str = ""
     modifiers: Dict[str, List[str]] = field(default_factory=dict)
+    dependencies: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
         """转换为字典"""
@@ -63,6 +64,7 @@ class SyntaxStructure:
             'predicate': self.predicate,
             'object': self.object,
             'modifiers': self.modifiers,
+            'dependencies': self.dependencies,
         }
 
 

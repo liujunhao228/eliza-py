@@ -192,7 +192,7 @@ def format_result(result: LtpFullResult) -> str:
 
     # 命名实体
     if result.entities:
-        entity_str = ", ".join([f"{e.text}({e.type})" for e in result.entities])
+        entity_str = ", ".join([f"{e.text}({e.entity_type.name})" for e in result.entities])
         lines.append(f"实体：{entity_str}")
 
     # 依存关系

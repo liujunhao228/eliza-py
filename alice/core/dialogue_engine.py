@@ -56,7 +56,7 @@ class DialogueEngine:
     对话流程:
     1. 文本预处理
     2. NLP 句法分析（可选 LTP）
-    3. 语义分析（情感、意图、实体）
+    3. 语义分析（意图、实体）
     4. YAML 脚本引擎匹配
     5. 插件处理
     6. 响应生成
@@ -402,8 +402,12 @@ class DialogueEngine:
             words = nlp_result.syntax.words
             poses = nlp_result.syntax.poses
             semantic_info['tokens_with_pos'] = list(zip(words, poses))
+            
+            # 将 dependencies 添加到 syntax 字典中（供 yaml_script_engine 条件检查使用）
+            if hasattr(nlp_result.syntax, 'dependencies'):
+                semantic_info['syntax']['dependencies'] = nlp_result.syntax.dependencies
 
-        # 添加依存关系
+        # 同时在顶层也添加一份 dependencies（向后兼容）
         if nlp_result.syntax and hasattr(nlp_result.syntax, 'dependencies'):
             semantic_info['dependencies'] = nlp_result.syntax.dependencies
 
@@ -422,6 +426,20 @@ class DialogueEngine:
 
         # 4. 上下文信息注入
         semantic_info['recent_turns'] = self.context_manager.get_recent_turns(3)
+
+        # 添加时间上下文
+        semantic_info['time_context'] = self.context_manager.get_time_context()
+        semantic_info['turn_count'] = self.context_manager.get_turn_count()
+
+        # 添加用户画像信息
+        user_profile = self.context_manager.get_user_profile()
+        if user_profile:
+            semantic_info['user_profile'] = {
+                'name': user_profile.name,
+                'nickname': user_profile.nickname,
+                'address_form': user_profile.address_form,
+            }
+        semantic_info['address_form'] = self.context_manager.get_address_form()
 
         # 5. 意图匹配（基于 YAML 脚本引擎）
         intent_match = self.intent_matcher.match(standardized_text, semantic_info)

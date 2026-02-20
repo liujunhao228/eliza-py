@@ -81,7 +81,7 @@ ENABLE_LOGGING_BY_DEFAULT = True
 NER_USE_LTP_BY_DEFAULT = True
 
 # 是否默认启用热重载
-ENABLE_HOT_RELOAD_BY_DEFAULT = False
+ENABLE_HOT_RELOAD_BY_DEFAULT = True
 
 # 热重载模式 ("auto" 或 "manual")
 HOT_RELOAD_MODE = "auto"

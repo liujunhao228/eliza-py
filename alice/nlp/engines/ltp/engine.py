@@ -314,6 +314,7 @@ class LtpEngine(SyntaxAnalyzer):
         # 提取主谓宾
         subject = predicate = obj = ""
         modifiers: Dict[str, List[str]] = {}
+        dependencies: List[Dict[str, Any]] = []
 
         for dep in result.dependencies:
             word = dep.token.text
@@ -328,6 +329,14 @@ class LtpEngine(SyntaxAnalyzer):
                 if 0 <= head_idx < len(words):
                     head_word = words[head_idx]
                     modifiers.setdefault(head_word, []).append(word)
+            
+            # 将依存关系转换为字典格式
+            dependencies.append({
+                'word': dep.token.text,
+                'relation': dep.relation,
+                'head': dep.head_idx,
+                'desc': dep.description,
+            })
 
         return SyntaxStructure(
             words=words,
@@ -336,6 +345,7 @@ class LtpEngine(SyntaxAnalyzer):
             predicate=predicate,
             object=obj,
             modifiers=modifiers,
+            dependencies=dependencies,
         )
 
     def _fallback_analyze(self, text: str) -> NlpResult:

@@ -9,6 +9,7 @@ LTP 任务处理器
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple, Dict
 
@@ -22,6 +23,8 @@ from .models import (
     SemanticDependencyGraph,
 )
 from alice.nlp.base import Entity, EntityType
+
+logger = logging.getLogger(__name__)
 
 
 class BaseTaskHandler(ABC):
@@ -96,20 +99,35 @@ class NERTaskHandler(BaseTaskHandler):
         entities = []
         ner_data = ltp_output.ner[0] if ltp_output.ner else []
 
-        # 处理可能的嵌套结构 [[(text, type), ...]]
+        # 处理可能的嵌套结构 [[(type, text, start, end), ...]]
         if ner_data and isinstance(ner_data[0], list):
             ner_data = ner_data[0]
 
         for item in ner_data:
+            # LTP NER 格式：(实体类型，实体文本，起始索引，结束索引)
             if not isinstance(item, (tuple, list)) or len(item) < 2:
                 continue
 
-            entity_text, entity_type = item[0], item[1]
+            entity_type, entity_text = item[0], item[1]
 
-            # 查找位置
-            start_pos = text.find(entity_text)
-            if start_pos == -1:
-                continue
+            # 查找位置（优先使用 LTP 返回的位置信息）
+            if len(item) >= 4:
+                # LTP 返回的是词索引，需要转换为字符位置
+                start_idx = item[2]
+                if 0 <= start_idx < len(tokens):
+                    start_pos = tokens[start_idx].start_pos
+                    end_pos = tokens[start_idx].end_pos
+                else:
+                    # 回退到文本查找
+                    start_pos = text.find(entity_text)
+                    if start_pos == -1:
+                        continue
+                    end_pos = start_pos + len(entity_text)
+            else:
+                start_pos = text.find(entity_text)
+                if start_pos == -1:
+                    continue
+                end_pos = start_pos + len(entity_text)
 
             entity_type_enum = self.ENTITY_MAPPING.get(
                 entity_type, EntityType.GENERAL
@@ -119,7 +137,7 @@ class NERTaskHandler(BaseTaskHandler):
                 text=entity_text,
                 entity_type=entity_type_enum,
                 start_pos=start_pos,
-                end_pos=start_pos + len(entity_text),
+                end_pos=end_pos,
                 confidence=0.95,
             ))
 

@@ -1,7 +1,16 @@
+- intent: self_introduction
+  priority: 75
+  condition:
+    entities: ["PERSON", "TITLE"]  # 匹配人名或称谓
+    keywords: ["我"]
+  templates:
+    - "{PERSON}，你好呀！"
+    - "原来是{PERSON}。你这么闲？"
+
 - intent: person_interest
   priority: 70
   condition:
     entities: ["PERSON", "TITLE"]  # 匹配人名或称谓
   templates:
-    - "你提到的{PERSON}，ta 平时是个怎样的人呀？"
-    - "{TITLE}对你来说很重要吗？"
+    - "{PERSON}是个怎样的人呀？"
+    - "{PERSON}对你来说很重要吗？"
