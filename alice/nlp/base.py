@@ -33,6 +33,16 @@ class Entity:
     end_pos: int = 0
     confidence: float = 1.0
 
+    def to_dict(self) -> Dict:
+        """转换为字典"""
+        return {
+            'text': self.text,
+            'type': self.entity_type.value,
+            'start': self.start_pos,
+            'end': self.end_pos,
+            'confidence': self.confidence,
+        }
+
 
 @dataclass
 class SyntaxStructure:
@@ -44,6 +54,17 @@ class SyntaxStructure:
     object: str = ""
     modifiers: Dict[str, List[str]] = field(default_factory=dict)
 
+    def to_dict(self) -> Dict:
+        """转换为字典"""
+        return {
+            'words': self.words,
+            'poses': self.poses,
+            'subject': self.subject,
+            'predicate': self.predicate,
+            'object': self.object,
+            'modifiers': self.modifiers,
+        }
+
 
 @dataclass
 class NlpResult:
@@ -52,6 +73,15 @@ class NlpResult:
     tokens: List[str] = field(default_factory=list)
     entities: List[Entity] = field(default_factory=list)
     syntax: Optional[SyntaxStructure] = None
+
+    def to_dict(self) -> Dict:
+        """转换为字典"""
+        return {
+            'text': self.text,
+            'tokens': self.tokens,
+            'entities': [e.to_dict() for e in self.entities],
+            'syntax': self.syntax.to_dict() if self.syntax else None,
+        }
 
 
 class Segmenter(ABC):

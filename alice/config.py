@@ -31,7 +31,7 @@ ALICE_DIR = Path(__file__).parent
 SCRIPTS_DIR = ALICE_DIR / "scripts"
 
 # 默认脚本文件路径（YAML 格式）
-DEFAULT_SCRIPT_FILE = SCRIPTS_DIR / "emotion_responses.yaml"
+DEFAULT_SCRIPT_FILE = SCRIPTS_DIR / "curiosity_scripts.yaml"
 
 # 默认反射规则文件路径（YAML 格式，包含代词映射和句式转换规则）
 DEFAULT_RULES_FILE = SCRIPTS_DIR / "mapping.yaml"

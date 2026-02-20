@@ -119,25 +119,56 @@ class LtpEngine(SyntaxAnalyzer):
             return NlpResult(text=text, tokens=list(text))
         
         try:
+            # 使用正确的LTP任务参数，包含NER任务
             result = self._ltp.pipeline(
                 [text],
-                tasks=['seg', 'pos', 'parser', 'ner']
+                tasks=['cws', 'pos', 'dep', 'ner']  # 添加NER任务
             )
-            seg, pos, parser, ner = result
             
-            syntax = self._build_syntax(seg[0], pos[0], parser[0])
-            entities = self._extract_entities(ner[0], text)
+            # 正确处理LTPOutput对象返回值
+            if hasattr(result, 'cws'):
+                # LTPOutput对象格式
+                seg = result.cws[0] if result.cws else list(text)
+                pos = result.pos[0] if hasattr(result, 'pos') and result.pos else ['n'] * len(seg)
+                
+                # 处理依存关系
+                if hasattr(result, 'dep') and result.dep:
+                    dep_data = result.dep[0]
+                    if isinstance(dep_data, dict):
+                        # 新版本格式：{'head': [...], 'label': [...]}
+                        parser = list(zip(dep_data.get('label', []), dep_data.get('head', [])))
+                    else:
+                        # 兼容旧版本格式
+                        parser = dep_data if isinstance(dep_data, list) else []
+                else:
+                    # 如果没有依存关系信息，创建默认结构
+                    parser = [('HED', -1)] + [('SBV', 0)] * (len(seg) - 1) if seg else []
+                
+                # 处理NER结果
+                if hasattr(result, 'ner') and result.ner:
+                    ner_result = result.ner[0]
+                else:
+                    # 如果没有NER信息，创建空结果
+                    ner_result = []
+            else:
+                # 如果返回格式不符合预期，记录错误但不降级
+                logger.error("LTP返回格式不符合预期")
+                raise ValueError("LTP返回格式错误")
+
+            syntax = self._build_syntax(seg, pos, parser)
+            entities = self._extract_entities(ner_result, text)
             
             return NlpResult(
                 text=text,
-                tokens=seg[0],
+                tokens=seg,
                 entities=entities,
                 syntax=syntax,
             )
             
         except Exception as e:
             logger.error(f"LTP 分析失败：{e}", exc_info=True)
-            return NlpResult(text=text, tokens=list(text))
+            # 对于核心功能，应该明确报错而不是降级
+            raise RuntimeError(f"LTP句法分析失败: {str(e)}") from e
     
     def _build_syntax(
         self,
@@ -210,5 +241,49 @@ class LtpEngine(SyntaxAnalyzer):
                 end_pos=start_pos + len(entity_text),
                 confidence=0.9,
             ))
+        
+        return entities
+    
+    def _simple_analyze(self, text: str) -> NlpResult:
+        """简化分析（降级方案）"""
+        # 简单分词（按字符）
+        tokens = list(text)
+        
+        return NlpResult(
+            text=text,
+            tokens=tokens,
+            syntax=SyntaxStructure(words=tokens),
+        )
+    
+    def _extract_entities_simple(self, seg: List[str], pos: List[str], text: str) -> List[Entity]:
+        """基于词性和规则的简单实体识别"""
+        entities = []
+        
+        for i, (word, pos_tag) in enumerate(zip(seg, pos)):
+            # 基于词性标注的简单实体识别
+            if pos_tag.startswith('nh'):  # 人名
+                entities.append(Entity(
+                    text=word,
+                    entity_type=EntityType.PERSON,
+                    start_pos=text.find(word),
+                    end_pos=text.find(word) + len(word),
+                    confidence=0.7
+                ))
+            elif pos_tag.startswith('ns'):  # 地名
+                entities.append(Entity(
+                    text=word,
+                    entity_type=EntityType.LOCATION,
+                    start_pos=text.find(word),
+                    end_pos=text.find(word) + len(word),
+                    confidence=0.7
+                ))
+            elif pos_tag.startswith('ni'):  # 机构名
+                entities.append(Entity(
+                    text=word,
+                    entity_type=EntityType.ORGANIZATION,
+                    start_pos=text.find(word),
+                    end_pos=text.find(word) + len(word),
+                    confidence=0.7
+                ))
         
         return entities
