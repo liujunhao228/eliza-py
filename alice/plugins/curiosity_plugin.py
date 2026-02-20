@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-好奇心插件模块
+好奇心插件模块 - 重构版
 
 实现 Alice 的核心功能：好奇的朋友角色。
+基于 YAML 脚本引擎驱动，移除硬编码逻辑。
 """
 
 import logging
@@ -19,20 +20,25 @@ logger = logging.getLogger(__name__)
 
 class CuriosityPlugin(BasePlugin):
     """
-    好奇心插件
-    
-    实现 Alice 的核心对话功能：
+    好奇心插件 - 重构版
+
+    实现 Alice 的核心对话策略：
     - 叙事助推：维持对话流
     - 实体深度挖掘：对人、事、物表现好奇
-    - 情感镜像与验证：捕捉并反射情绪
-    - 认知探索：引导用户思考
-    - Meta 对话：处理对 Alice 的提问
+    - 情感镜像与验证：反射用户情绪
+    - 认知探索：引导思考观点
+    - Meta 对话：处理关于 Alice 的提问
+
+    设计原则:
+    - YAML 脚本驱动：所有对话逻辑来自 YAML 配置文件
+    - 无硬编码：移除所有硬编码的对话规则
+    - 优先级调度：基于脚本优先级选择响应
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         初始化好奇心插件
-        
+
         Args:
             config: 配置字典，可包含：
                 - script_file: 脚本文件路径
@@ -42,25 +48,41 @@ class CuriosityPlugin(BasePlugin):
         default_config = {
             "script_file": None,
             "rules_file": None,
+            "priority": 50,
         }
         config = config or default_config
 
         super().__init__(config)
         self.priority = self.config.get("priority", 50)
 
+        # 脚本引擎和重组引擎（由对话引擎统一管理）
         self.script_engine: Optional[YAMLScriptEngine] = None
         self.reassembly_engine: Optional[SyntaxReassembly] = None
+
+        # 使用统计
         self.script_history: Dict[str, int] = {}
         self.last_used_responses: Dict[str, str] = {}
 
     def initialize(self) -> bool:
-        """初始化脚本引擎和重组引擎"""
+        """
+        初始化插件
+
+        注意：脚本引擎和重组引擎由对话引擎统一初始化并注入
+        插件只负责使用这些引擎
+
+        Returns:
+            是否初始化成功
+        """
         try:
+            # 如果配置中指定了文件路径，创建独立的引擎实例
             script_file = self.config.get("script_file")
             rules_file = self.config.get("rules_file")
 
-            self.script_engine = YAMLScriptEngine(script_file=script_file)
-            self.reassembly_engine = SyntaxReassembly(rules_file=rules_file)
+            if script_file and not self.script_engine:
+                self.script_engine = YAMLScriptEngine(script_file=script_file)
+
+            if rules_file and not self.reassembly_engine:
+                self.reassembly_engine = SyntaxReassembly(rules_file=rules_file)
 
             logger.info("好奇心插件初始化成功")
             return True
@@ -69,39 +91,98 @@ class CuriosityPlugin(BasePlugin):
             logger.error(f"好奇心插件初始化失败：{e}")
             return False
 
+    def set_script_engine(self, script_engine: YAMLScriptEngine) -> None:
+        """
+        设置脚本引擎（由对话引擎注入）
+
+        Args:
+            script_engine: YAML 脚本引擎实例
+        """
+        self.script_engine = script_engine
+        logger.debug(f"好奇心插件已绑定脚本引擎，支持 {len(script_engine.intents)} 个意图")
+
+    def set_reassembly_engine(self, reassembly_engine: SyntaxReassembly) -> None:
+        """
+        设置重组引擎（由对话引擎注入）
+
+        Args:
+            reassembly_engine: 句法重组引擎实例
+        """
+        self.reassembly_engine = reassembly_engine
+        logger.debug("好奇心插件已绑定重组引擎")
+
     def process_input(self, text: str, context: Dict[str, Any]) -> PluginResult:
         """
         处理用户输入并生成响应
 
         Args:
             text: 用户输入文本
-            context: 对话上下文
+            context: 对话上下文（包含 semantic_info, intent_match 等）
 
         Returns:
             插件处理结果
         """
-        if not self.script_engine:
+        # 优先使用注入的脚本引擎
+        script_engine = self.script_engine
+        if not script_engine:
             return PluginResult(
                 success=False,
-                response="系统未初始化",
+                response=None,
+                metadata={"reason": "script_engine_not_available"},
             )
 
         try:
-            # 使用 YAMLScriptEngine 匹配脚本
-            intent = self.script_engine.match(text, context)
+            # 从上下文中获取语义信息
+            semantic_info = context.get("semantic_info", {})
+            intent_match = context.get("intent_match", None)
 
+            # 如果已有意图匹配结果，直接使用
+            if intent_match and hasattr(intent_match, 'intent'):
+                intent_name = intent_match.intent
+                script_intent = script_engine.intents.get(intent_name)
+                if script_intent:
+                    # 生成响应
+                    response = self._generate_response(
+                        intent=script_intent,
+                        text=text,
+                        context=semantic_info,
+                    )
+
+                    if response:
+                        # 更新历史记录
+                        self.script_history[intent_name] = self.script_history.get(intent_name, 0) + 1
+                        self.last_used_responses[intent_name] = response
+
+                        return PluginResult(
+                            success=True,
+                            response=response,
+                            metadata={
+                                "intent": intent_name,
+                                "priority": script_intent.priority,
+                                "keyword_only": script_intent.keyword_only,
+                                "script_id": intent_name,
+                            },
+                        )
+
+            # 无意图匹配结果，重新匹配
+            intent = script_engine.match(text, semantic_info)
             if not intent:
                 return PluginResult(
                     success=False,
                     response=None,
+                    metadata={"reason": "no_intent_matched"},
                 )
 
-            # 生成响应（支持 keyword_only 模板）
-            response = self._generate_response(intent, text, context)
+            # 生成响应
+            response = self._generate_response(
+                intent=intent,
+                text=text,
+                context=semantic_info,
+            )
 
             if response:
                 # 更新历史记录
-                self.script_history = self.script_engine.get_stats()
+                self.script_history[intent.name] = self.script_history.get(intent.name, 0) + 1
                 self.last_used_responses[intent.name] = response
 
                 return PluginResult(
@@ -111,45 +192,23 @@ class CuriosityPlugin(BasePlugin):
                         "intent": intent.name,
                         "priority": intent.priority,
                         "keyword_only": intent.keyword_only,
-                        "script_id": intent.name,  # 脚本 ID
-                        "matched_pattern": self._get_matched_pattern(text, intent),  # 匹配模式
+                        "script_id": intent.name,
                     },
                 )
             else:
                 return PluginResult(
                     success=False,
                     response=None,
+                    metadata={"reason": "response_generation_failed"},
                 )
 
         except Exception as e:
-            logger.error(f"好奇心插件处理失败：{e}")
+            logger.error(f"好奇心插件处理失败：{e}", exc_info=True)
             return PluginResult(
                 success=False,
-                response="抱歉，我走神了...",
+                response=None,
                 metadata={"error": str(e)},
             )
-
-    def _get_matched_pattern(self, text: str, intent: ScriptIntent) -> Optional[str]:
-        """
-        获取匹配的关键词模式
-
-        Args:
-            text: 用户输入文本
-            intent: 匹配的脚本意图
-
-        Returns:
-            匹配的关键词模式
-        """
-        # 从 templates 中提取匹配的关键词
-        for template in intent.templates:
-            # 查找模板中的关键词（简单实现：查找被花括号包围的部分）
-            import re
-            keywords = re.findall(r'\{([^}]+)\}', template)
-            for kw in keywords:
-                if kw in text:
-                    return kw
-        # 如果没有找到具体关键词，返回意图名称
-        return intent.name
 
     def _generate_response(
         self,
@@ -158,104 +217,150 @@ class CuriosityPlugin(BasePlugin):
         context: Dict[str, Any],
     ) -> Optional[str]:
         """
-        生成响应：支持 keyword_only 模板（不进行代词替换）
+        生成响应
 
         Args:
             intent: 脚本意图
             text: 用户输入
-            context: 对话上下文
+            context: 上下文信息
 
         Returns:
             生成的响应
         """
-        if not self.script_engine:
+        if not intent.templates:
             return None
 
-        # 使用 YAMLScriptEngine 的 generate_response_with_reassembly 方法
-        # 该方法会根据 intent.keyword_only 决定是否进行代词替换
-        response = self.script_engine.generate_response_with_reassembly(
-            intent=intent,
-            context=context,
-            user_input=text,
-            reassembly_engine=self.reassembly_engine,
-        )
+        # 如果是 keyword_only 模板，直接返回模板内容（不进行代词替换）
+        if intent.keyword_only:
+            return self._select_template(intent)
 
-        return response if response else None
+        # 非 keyword_only 模板，使用重组引擎进行代词替换
+        if self.reassembly_engine:
+            response = self._generate_with_reassembly(intent, text, context)
+            if response:
+                return response
 
-    def _apply_reassembly(self, match) -> Optional[str]:
+        # 无重组引擎或重组失败，直接返回模板
+        return self._fill_placeholders(intent, context)
+
+    def _generate_with_reassembly(
+        self,
+        intent: ScriptIntent,
+        text: str,
+        context: Dict[str, Any],
+    ) -> Optional[str]:
         """
-        应用重组规则生成响应
-        
+        使用重组引擎生成响应（进行代词替换）
+
         Args:
-            match: 脚本匹配结果
-            
+            intent: 脚本意图
+            text: 用户输入
+            context: 上下文信息
+
         Returns:
             重组后的响应
         """
         if not self.reassembly_engine:
             return None
-        
-        rules = match.reassembly_rules
-        selected_rule = self._select_reassembly_rule(rules, match.script_id)
-        
-        if not selected_rule:
+
+        # 选择模板
+        template = self._select_template(intent)
+        if not template:
             return None
-        
+
+        # 填充实体占位符
+        template = self._fill_placeholders_from_template(template, context)
+
+        # 使用重组引擎应用代词映射
         response = self.reassembly_engine.reassemble(
-            components=match.components,
-            reassembly_rule=selected_rule,
+            components=[text],
+            reassembly_rule=template,
             apply_pronoun_mapping=True,
         )
-        
+
         return response.strip() if response else None
 
-    def _select_reassembly_rule(self, rules: List[str], script_id: str) -> Optional[str]:
+    def _select_template(self, intent: ScriptIntent) -> Optional[str]:
         """
-        选择重组规则（避免重复）
-        
-        Args:
-            rules: 重组规则列表
-            script_id: 脚本 ID
-            
-        Returns:
-            选中的规则
-        """
-        if not rules:
-            return None
-        
-        last_rule = self.last_used_responses.get(f"{script_id}_rule", "")
-        available_rules = [r for r in rules if r != last_rule]
-        
-        if available_rules:
-            selected = random.choice(available_rules)
-        else:
-            selected = random.choice(rules)
-        
-        self.last_used_responses[f"{script_id}_rule"] = selected
-        return selected
+        选择模板（避免重复）
 
-    def _select_response(self, match) -> Optional[str]:
-        """
-        从预定义响应中选择
-        
         Args:
-            match: 脚本匹配结果
-            
+            intent: 脚本意图
+
         Returns:
-            选中的响应
+            选中的模板
         """
-        if not match.responses:
+        if not intent.templates:
             return None
-        
-        last_response = self.last_used_responses.get(match.script_id, "")
-        available_responses = [r for r in match.responses if r != last_response]
-        
-        if available_responses:
-            selected = random.choice(available_responses)
-        else:
-            selected = random.choice(match.responses)
-        
-        return selected
+
+        templates = intent.templates
+        if len(templates) == 1:
+            return templates[0]
+
+        # 避免重复使用同一个模板
+        last_response = self.last_used_responses.get(intent.name, "")
+        available = [t for t in templates if t != last_response]
+
+        if available:
+            return random.choice(available)
+        return random.choice(templates)
+
+    def _fill_placeholders_from_template(
+        self,
+        template: str,
+        context: Dict[str, Any],
+    ) -> str:
+        """
+        填充模板中的实体占位符
+
+        Args:
+            template: 模板字符串
+            context: 上下文信息
+
+        Returns:
+            填充后的模板
+        """
+        import re
+
+        entities = context.get("entities", [])
+
+        # 构建实体映射
+        entity_map = {}
+        for entity_type, entity_text in entities:
+            entity_map[entity_type.lower()] = entity_text
+
+        # 替换占位符
+        def replace_placeholder(match):
+            placeholder = match.group(1).lower()
+            return entity_map.get(placeholder, match.group(0))
+
+        result = re.sub(r'\{([^}]+)\}', replace_placeholder, template)
+
+        # 清理未匹配的占位符（替换为空）
+        result = re.sub(r'\{[^}]+\}', '', result)
+
+        return result
+
+    def _fill_placeholders(
+        self,
+        intent: ScriptIntent,
+        context: Dict[str, Any],
+    ) -> Optional[str]:
+        """
+        填充模板中的实体占位符
+
+        Args:
+            intent: 脚本意图
+            context: 上下文信息
+
+        Returns:
+            填充后的响应
+        """
+        template = self._select_template(intent)
+        if not template:
+            return None
+
+        return self._fill_placeholders_from_template(template, context)
 
     def get_stats(self) -> Dict[str, Any]:
         """获取插件统计信息"""
@@ -267,8 +372,6 @@ class CuriosityPlugin(BasePlugin):
 
     def reset(self) -> None:
         """重置插件状态"""
-        if self.script_engine:
-            self.script_engine.reset()
         self.script_history.clear()
         self.last_used_responses.clear()
 

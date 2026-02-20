@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-响应生成器模块
+响应生成器模块 - 重构版
 
-负责根据意图和上下文生成合适的响应。
+基于 YAML 脚本引擎和重组规则生成响应。
+移除硬编码的响应池，所有响应由规则文件驱动。
 
 情感分析增强：
 - 支持基于情感标签的响应选择
@@ -12,172 +13,87 @@
 """
 
 import logging
-import random
 from typing import Any, Dict, List, Optional
-
-from alice.nlp.syntax_reassembly import SyntaxReassembly
 
 logger = logging.getLogger(__name__)
 
 
 class ResponseGenerator:
     """
-    响应生成器
+    响应生成器 - 重构版
 
     功能:
-    - 基于意图的响应选择
+    - 基于 YAML 脚本引擎的响应生成
     - 基于重组规则的响应生成
     - 回退响应处理
     - 响应多样性控制
     - 情感驱动的共情回应
+
+    设计原则:
+    - 规则文件驱动：所有响应模板来自 YAML 文件
+    - 无硬编码：移除所有硬编码的响应池
+    - 优先级调度：基于脚本优先级选择响应
     """
 
-    def __init__(self, rules_file: Optional[str] = None):
+    def __init__(
+        self,
+        script_engine: Optional[Any] = None,
+        reassembly_engine: Optional[Any] = None,
+        fallback_file: Optional[str] = None,
+    ):
         """
         初始化响应生成器
 
         Args:
-            rules_file: 反射规则文件路径
+            script_engine: YAML 脚本引擎实例
+            reassembly_engine: 句法重组引擎实例
+            fallback_file: 回退响应文件路径（可选）
         """
-        self.reassembly_engine = SyntaxReassembly(rules_file=rules_file)
+        self.script_engine = script_engine
+        self.reassembly_engine = reassembly_engine
 
-        # 预定义响应库
-        self._init_response_pools()
+        # 回退响应（仅保留最基础的，其他全部来自 YAML）
+        self.fallback_responses = self._load_fallback_responses(fallback_file)
 
-    def _init_response_pools(self) -> None:
-        """初始化响应池"""
-        # 问候响应
-        self.greeting_responses = [
-            "你好！有什么可以帮你的吗？",
-            "嗨！今天过得怎么样？",
-            "你好！想聊些什么呢？",
-        ]
-        
-        # 告别响应
-        self.farewell_responses = [
-            "再见！很高兴和你聊天！",
-            "拜拜，下次再聊！",
-            "再见，祝你一切顺利！",
-        ]
-        
-        # 感谢响应
-        self.thanks_responses = [
-            "不客气！能帮到你我很开心。",
-            "别客气，随时找我聊天哦。",
-            "小事一桩，有什么问题再来问我。",
-        ]
-        
-        # 肯定响应
-        self.affirmation_responses = [
-            "嗯，我在听。",
-            "好的，继续说。",
-            "明白了，然后呢？",
-        ]
-        
-        # 否定响应
-        self.negation_responses = [
-            "为什么这么想呢？",
-            "能说说为什么不同意吗？",
-            "唔，看来你有不同的看法。",
-        ]
-        
-        # 问题响应
-        self.question_responses = [
-            "这是个好问题，你是怎么想的？",
-            "我觉得这个问题值得深入思考。",
-            "嗯，这个问题我也想知道答案。",
-        ]
-        
-        # 自我介绍响应
-        self.self_intro_responses = [
-            "我是一个对你的故事充满好奇的朋友呀。",
-            "我是 Alice，一个想听你说话的朋友。",
-            "我就是我，一个愿意倾听的朋友。",
-        ]
-        
-        # 通用回退响应
-        self.fallback_responses = [
-            "嗯，我明白了。",
-            "能再多说一些吗？",
-            "这很有趣，继续说。",
-            "我理解你的感受。",
-            "为什么会这样呢？",
+    def _load_fallback_responses(self, fallback_file: Optional[str]) -> List[str]:
+        """
+        加载回退响应
+
+        Args:
+            fallback_file: 回退响应文件路径
+
+        Returns:
+            回退响应列表
+        """
+        # 默认回退响应（仅在 YAML 脚本无匹配时使用）
+        default_fallback = [
             "唔，我在听。",
             "原来是这样啊。",
+            "能再多说一些吗？",
+            "嗯，我明白了。",
         ]
 
-        # 情感驱动响应
-        self._init_empathy_responses()
+        if not fallback_file:
+            return default_fallback
 
-    def _init_empathy_responses(self) -> None:
-        """初始化情感驱动响应池"""
-        # 正面情感响应
-        self.positive_responses = [
-            "哇，听得出你现在心情不错！这种好心情是因为什么呢？",
-            "太好了！这种开心的感觉真棒，能多跟我分享一下吗？",
-            "真为你高兴！这种时候最想和谁分享呢？",
-            "听起来很棒！这种感觉让你想到了什么？",
-        ]
+        # 尝试从文件加载
+        try:
+            import yaml
+            with open(fallback_file, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+                if isinstance(data, list):
+                    return data
+        except Exception as e:
+            logger.warning(f"无法加载回退响应文件：{e}")
 
-        # 负面情感响应
-        self.negative_responses = [
-            "听起来那阵子你挺不容易的，那种感觉现在还在吗？",
-            "我能感受到你的难过，想和我多说说吗？",
-            "这种情况确实让人难受，你是怎么应对的呢？",
-            "我在这里陪着你，想说什么都可以。",
-        ]
-
-        # 细粒度情感响应
-        self.emotion_specific_responses = {
-            # 喜悦
-            "joy": [
-                "真为你感到开心！这种喜悦是从哪里来的呢？",
-                "太好了！这种快乐的感觉一定很美妙吧？",
-            ],
-            # 愤怒
-            "anger": [
-                "听起来这件事让你很生气，能说说发生了什么吗？",
-                "我理解你的感受，遇到这种事确实会让人恼火。",
-            ],
-            # 悲伤
-            "sadness": [
-                "我能感受到你的难过，想和我多说说吗？",
-                "这种悲伤的感觉一定很难熬，我在这里陪着你。",
-            ],
-            # 恐惧
-            "fear": [
-                "听起来这件事让你有些害怕，能告诉我更多吗？",
-                "别担心，我在这里。这种担心是从哪里来的呢？",
-            ],
-            # 焦虑
-            "anxiety": [
-                "听起来你有些焦虑，这种感觉是什么时候开始的？",
-                "我理解这种不安的感觉，想和我聊聊吗？",
-            ],
-            # 厌恶
-            "disgust": [
-                "听起来这件事让你很反感，能说说为什么吗？",
-                "我理解你的感受，遇到这种事确实让人不舒服。",
-            ],
-            # 惊讶
-            "surprise": [
-                "哇，这真是个意外！当时你是怎么反应的？",
-                "听起来很令人惊讶，接下来发生了什么？",
-            ],
-        }
-
-        # 情感强度修饰词
-        self.intensity_modifiers = {
-            "strong": ["真的", "确实", "非常"],
-            "moderate": ["有点", "有些", "比较"],
-            "weak": ["稍微", "略微"],
-        }
+        return default_fallback
 
     def generate(
         self,
         user_input: str,
         semantic_info: Dict[str, Any],
         intent: str,
+        intent_match: Optional[Any] = None,
     ) -> str:
         """
         生成响应
@@ -186,208 +102,214 @@ class ResponseGenerator:
             user_input: 用户输入
             semantic_info: 语义分析结果
             intent: 意图类型
+            intent_match: 意图匹配结果（包含 priority, keyword_only 等）
 
         Returns:
             生成的响应
         """
-        # 记录响应策略
-        response_strategy = "fallback"  # 默认回退策略
-        
-        # 1. 尝试基于情感选择响应（优先级最高）
-        sentiment_detail = semantic_info.get("sentiment_detail", {})
-        if sentiment_detail:
-            response = self._select_by_sentiment(
-                sentiment_detail=sentiment_detail,
+        # 1. 优先使用脚本引擎生成响应（如果有）
+        if self.script_engine and intent_match:
+            response = self._generate_from_script(
+                intent_match=intent_match,
                 user_input=user_input,
+                semantic_info=semantic_info,
             )
             if response:
-                response_strategy = "sentiment_driven"
                 logger.debug(
-                    f"响应策略：{response_strategy}",
-                    extra={"response_strategy": response_strategy, "intent": intent},
+                    "响应策略：script_based",
+                    extra={"intent": intent, "strategy": "script_based"},
                 )
                 return response
 
-        # 2. 基于意图选择响应
-        response = self._select_by_intent(intent, user_input)
-        if response:
-            response_strategy = "intent_based"
-            logger.debug(
-                f"响应策略：{response_strategy}",
-                extra={"response_strategy": response_strategy, "intent": intent},
-            )
-            return response
+        # 2. 对于 keyword_only 意图（问候、告别、感谢），直接返回脚本响应
+        # 不使用重组规则
+        if intent_match and getattr(intent_match, 'keyword_only', False):
+            if self.script_engine:
+                response = self._get_script_template(intent_match)
+                if response:
+                    return response
 
-        # 3. 对于问候、告别、感谢等 keyword_only 意图，不使用重组规则
-        # 直接返回回退响应，避免代词替换
-        if intent in ("greeting", "farewell", "thanks"):
-            logger.debug(
-                f"响应策略：{response_strategy}",
-                extra={"response_strategy": response_strategy, "intent": intent},
-            )
-            return self._get_fallback_response()
-
-        # 4. 尝试使用重组规则（仅适用于非 keyword_only 意图）
-        if semantic_info.get("tokens"):
-            response = self._try_reassembly(user_input, semantic_info)
+        # 3. 尝试使用重组规则（仅适用于非 keyword_only 意图）
+        if self.reassembly_engine and semantic_info.get("tokens"):
+            response = self._try_reassembly(user_input, semantic_info, intent)
             if response:
-                response_strategy = "reassembly"
                 logger.debug(
-                    f"响应策略：{response_strategy}",
-                    extra={"response_strategy": response_strategy, "intent": intent},
+                    "响应策略：reassembly",
+                    extra={"intent": intent, "strategy": "reassembly"},
                 )
                 return response
 
-        # 5. 使用回退响应
+        # 4. 使用回退响应
         logger.debug(
-            f"响应策略：{response_strategy}",
-            extra={"response_strategy": response_strategy, "intent": intent},
+            "响应策略：fallback",
+            extra={"intent": intent, "strategy": "fallback"},
         )
         return self._get_fallback_response()
 
-    def _select_by_sentiment(
+    def _generate_from_script(
         self,
-        sentiment_detail: Dict[str, Any],
+        intent_match: Any,
         user_input: str,
+        semantic_info: Dict[str, Any],
     ) -> Optional[str]:
         """
-        根据情感选择响应
+        从脚本引擎生成响应
 
         Args:
-            sentiment_detail: 详细情感分析结果
+            intent_match: 意图匹配结果
             user_input: 用户输入
+            semantic_info: 语义分析结果
 
         Returns:
-            选中的响应
+            生成的响应
         """
-        label = sentiment_detail.get("label", "neutral")
-        emotions = sentiment_detail.get("emotions", {})
-        intensity = sentiment_detail.get("intensity", "moderate")
+        if not self.script_engine:
+            return None
 
-        # 1. 优先使用细粒度情感响应
-        if emotions:
-            # 获取主导情感
-            dominant_emotion = max(emotions, key=emotions.get)
-            if dominant_emotion in self.emotion_specific_responses:
-                responses = self.emotion_specific_responses[dominant_emotion]
-                return random.choice(responses)
+        # 构建上下文
+        context = {
+            "entities": semantic_info.get("entities", []),
+            "sentiment": semantic_info.get("sentiment", 0.0),
+            "sentiment_detail": semantic_info.get("sentiment_detail", {}),
+            "sentiment_label": semantic_info.get("sentiment_label", "neutral"),
+            "recent_turns": semantic_info.get("recent_turns", []),
+        }
 
-        # 2. 使用情感极性响应
-        if label == "positive":
-            return random.choice(self.positive_responses)
-        elif label == "negative":
-            return random.choice(self.negative_responses)
+        # 获取脚本意图
+        script_intent = self.script_engine.intents.get(intent_match.intent)
+        if not script_intent:
+            return None
 
-        return None
+        # 如果是 keyword_only，直接返回模板（不进行代词替换）
+        if script_intent.keyword_only:
+            return self._get_script_template(script_intent)
 
-    def _select_by_intent(self, intent: str, user_input: str) -> Optional[str]:
+        # 非 keyword_only，使用重组引擎
+        if self.reassembly_engine:
+            response = self.script_engine.generate_response_with_reassembly(
+                intent=script_intent,
+                context=context,
+                user_input=user_input,
+                reassembly_engine=self.reassembly_engine,
+            )
+            return response
+
+        # 无重组引擎时，仅填充实体占位符
+        return self.script_engine.generate_response(script_intent, context)
+
+    def _get_script_template(self, script_intent: Any) -> Optional[str]:
         """
-        根据意图选择响应
-        
+        获取脚本模板（随机选择）
+
         Args:
-            intent: 意图类型
-            user_input: 用户输入
-            
+            script_intent: 脚本意图对象
+
         Returns:
-            选中的响应
+            选中的模板
         """
-        if intent == "greeting":
-            return random.choice(self.greeting_responses)
-        
-        elif intent == "farewell":
-            return random.choice(self.farewell_responses)
-        
-        elif intent == "thanks":
-            return random.choice(self.thanks_responses)
-        
-        elif intent == "affirmation":
-            return random.choice(self.affirmation_responses)
-        
-        elif intent == "negation":
-            return random.choice(self.negation_responses)
-        
-        elif intent == "question":
-            return random.choice(self.question_responses)
-        
-        elif intent == "self_introduction":
-            return random.choice(self.self_intro_responses)
-        
-        return None
+        import random
+
+        if not script_intent.templates:
+            return None
+
+        return random.choice(script_intent.templates)
 
     def _try_reassembly(
         self,
         user_input: str,
         semantic_info: Dict[str, Any],
+        intent: str,
     ) -> Optional[str]:
         """
         尝试使用重组规则生成响应
-        
+
         Args:
             user_input: 用户输入
             semantic_info: 语义分析结果
-            
+            intent: 意图类型
+
         Returns:
             重组后的响应
         """
         if not self.reassembly_engine:
             return None
-        
-        # 使用简单的重组规则
-        tokens = semantic_info.get("tokens", [])
-        if not tokens:
+
+        # 根据意图类型选择不同的重组规则
+        rules = self._get_reassembly_rules_for_intent(intent)
+        if not rules:
             return None
-        
-        # 尝试使用预设的重组规则
-        components = [user_input]
-        rules = [
-            "你为什么会有'{1}'这样的想法呢？",
-            "能多说说关于'{1}'的事吗？",
-            "{1}，这是什么时候开始的？",
-        ]
-        
+
+        import random
         rule = random.choice(rules)
+
         response = self.reassembly_engine.reassemble(
-            components=components,
+            components=[user_input],
             reassembly_rule=rule,
             apply_pronoun_mapping=True,
         )
-        
+
         return response.strip() if response else None
+
+    def _get_reassembly_rules_for_intent(self, intent: str) -> List[str]:
+        """
+        根据意图获取重组规则
+
+        Args:
+            intent: 意图类型
+
+        Returns:
+            重组规则列表
+        """
+        # 重组规则应当来自 YAML 配置文件，这里提供默认规则
+        default_rules = {
+            "belief": [
+                "你为什么会有'{1}'这样的想法呢？",
+                "能多说说关于'{1}'的事吗？",
+                "{1}，这是什么时候开始的？",
+            ],
+            "question": [
+                "这是个好问题。你是怎么想到这个问题的？",
+                "你觉得呢？我很好奇你的想法。",
+            ],
+            "narrative": [
+                "后来呢？",
+                "那之后发生了什么？",
+                "能多说说当时的情况吗？",
+            ],
+            "emotion": [
+                "这种感觉一定很难受吧，想多聊聊吗？",
+                "能说说为什么会有这样的感受吗？",
+            ],
+        }
+
+        return default_rules.get(intent, [])
 
     def _get_fallback_response(self) -> str:
         """
         获取回退响应
-        
+
         Returns:
             回退响应
         """
+        import random
         return random.choice(self.fallback_responses)
 
-    def add_custom_response(
-        self,
-        intent: str,
-        responses: List[str],
-    ) -> None:
+    def set_script_engine(self, script_engine: Any) -> None:
         """
-        添加自定义响应
-        
-        Args:
-            intent: 意图类型
-            responses: 响应列表
-        """
-        attr_name = f"{intent}_responses"
-        
-        if not hasattr(self, attr_name):
-            setattr(self, attr_name, [])
-        
-        existing = getattr(self, attr_name)
-        existing.extend(responses)
+        设置脚本引擎
 
-    def set_fallback_responses(self, responses: List[str]) -> None:
-        """
-        设置回退响应
-        
         Args:
-            responses: 响应列表
+            script_engine: YAML 脚本引擎实例
         """
-        self.fallback_responses = responses
+        self.script_engine = script_engine
+        logger.info(f"响应生成器已绑定脚本引擎，支持 {len(script_engine.intents)} 个意图")
+
+    def set_reassembly_engine(self, reassembly_engine: Any) -> None:
+        """
+        设置重组引擎
+
+        Args:
+            reassembly_engine: 句法重组引擎实例
+        """
+        self.reassembly_engine = reassembly_engine
+        logger.info("响应生成器已绑定重组引擎")
