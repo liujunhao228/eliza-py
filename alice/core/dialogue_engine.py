@@ -103,9 +103,29 @@ class DialogueEngine:
         self.nlp_factory = NlpFactory(config=nlp_config)
 
         # NLP 流水线（分词 + 实体识别 + 情感分析）
-        components = ['jieba', 'ner', 'sentiment']
-        if self.use_ltp:
-            components.append('syntax')
+        # 分词策略：
+        # - 仅使用分词功能时：使用 jieba
+        # - 使用高级功能（句法分析、命名实体识别）时：使用 LTP（分词也顺便用 LTP 来做）
+        components = []
+        
+        # 检查是否使用高级功能
+        use_advanced = self.use_ltp or (self.enable_ner and self.ner_use_ltp)
+        
+        if use_advanced:
+            # 使用 LTP 进行分词和高级分析
+            if self.use_ltp:
+                components.append('syntax')  # LTP 句法分析（包含分词）
+            if self.enable_ner:
+                components.append('ner')  # 实体识别
+            # 添加基础组件
+            components.append('sentiment')
+        else:
+            # 仅使用 jieba 分词 + 基础情感分析
+            components.append('jieba')  # jieba 分词
+            if self.enable_ner:
+                components.append('ner')  # 基于词典的 NER
+            components.append('sentiment')
+        
         self.nlp_pipeline = self.nlp_factory.create_pipeline(components)
 
         self.context_manager = ContextManager()
