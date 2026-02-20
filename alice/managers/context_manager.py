@@ -26,7 +26,6 @@ class ConversationTurn:
     bot_response: str
     timestamp: datetime = field(default_factory=datetime.now)
     entities: List[Tuple[str, str]] = field(default_factory=list)
-    sentiment: float = 0.0
     intent: str = "general"
 
 
@@ -73,17 +72,15 @@ class ContextManager:
         user_input: str,
         bot_response: str,
         entities: Optional[List[Tuple[str, str]]] = None,
-        sentiment: float = 0.0,
         intent: str = "general",
     ) -> None:
         """
         更新上下文
-        
+
         Args:
             user_input: 用户输入
             bot_response: 机器人响应
             entities: 实体列表 [(类型，文本), ...]
-            sentiment: 情感分数
             intent: 意图类型
         """
         # 创建对话轮次
@@ -91,7 +88,6 @@ class ContextManager:
             user_input=user_input,
             bot_response=bot_response,
             entities=entities or [],
-            sentiment=sentiment,
             intent=intent,
         )
         

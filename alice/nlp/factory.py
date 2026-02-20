@@ -15,7 +15,6 @@ from alice.nlp.base import (
     Segmenter,
     SyntaxAnalyzer,
     EntityRecognizer,
-    SentimentAnalyzer,
     NlpResult,
 )
 
@@ -64,7 +63,6 @@ class NlpPipeline:
                         result.entities.extend(engine_result.entities)
                     if engine_result.syntax:
                         result.syntax = engine_result.syntax
-                    result.sentiment = engine_result.sentiment or result.sentiment
 
             except Exception as e:
                 logger.warning(f"引擎处理失败：{type(engine).__name__}, 错误：{e}")
@@ -182,20 +180,7 @@ class NlpFactory:
         )
         self._cache['entity_recognizer'] = engine
         return engine
-    
-    def create_sentiment_analyzer(self) -> SentimentAnalyzer:
-        """创建情感分析器"""
-        if 'sentiment_analyzer' in self._cache:
-            return self._cache['sentiment_analyzer']
-        
-        from alice.nlp.engines.sentiment_engine import SentimentEngine
-        from alice.nlp.dictionaries.dictionary_manager import DictionaryManager
-        
-        dict_manager = DictionaryManager()
-        engine = SentimentEngine(dictionary_manager=dict_manager)
-        self._cache['sentiment_analyzer'] = engine
-        return engine
-    
+
     def create_pipeline(
         self,
         components: List[str],
@@ -212,16 +197,15 @@ class NlpFactory:
                 - 'jieba': 分词（使用 jieba）
                 - 'syntax': 句法分析（需要 LTP，分词也用 LTP）
                 - 'ner': 实体识别（可使用 LTP，分词也用 LTP）
-                - 'sentiment': 情感分析
 
         Returns:
             NLP 流水线
         """
         engines = []
-        
+
         # 检查是否使用高级功能（句法分析或 LTP 增强的 NER）
         use_advanced = 'syntax' in components or 'ner' in components
-        
+
         # 如果不需要高级功能，使用 jieba 分词
         if not use_advanced and 'jieba' in components:
             try:
@@ -251,8 +235,6 @@ class NlpFactory:
                         engines.append(analyzer)
                 elif component == 'ner':
                     engines.append(self.create_entity_recognizer())
-                elif component == 'sentiment':
-                    engines.append(self.create_sentiment_analyzer())
                 else:
                     logger.warning(f"未知组件：{component}")
             except Exception as e:

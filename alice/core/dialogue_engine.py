@@ -102,30 +102,27 @@ class DialogueEngine:
         }
         self.nlp_factory = NlpFactory(config=nlp_config)
 
-        # NLP 流水线（分词 + 实体识别 + 情感分析）
+        # NLP 流水线（分词 + 实体识别）
         # 分词策略：
         # - 仅使用分词功能时：使用 jieba
         # - 使用高级功能（句法分析、命名实体识别）时：使用 LTP（分词也顺便用 LTP 来做）
         components = []
-        
+
         # 检查是否使用高级功能
         use_advanced = self.use_ltp or (self.enable_ner and self.ner_use_ltp)
-        
+
         if use_advanced:
             # 使用 LTP 进行分词和高级分析
             if self.use_ltp:
                 components.append('syntax')  # LTP 句法分析（包含分词）
             if self.enable_ner:
                 components.append('ner')  # 实体识别
-            # 添加基础组件
-            components.append('sentiment')
         else:
-            # 仅使用 jieba 分词 + 基础情感分析
+            # 仅使用 jieba 分词
             components.append('jieba')  # jieba 分词
             if self.enable_ner:
                 components.append('ner')  # 基于词典的 NER
-            components.append('sentiment')
-        
+
         self.nlp_pipeline = self.nlp_factory.create_pipeline(components)
 
         self.context_manager = ContextManager()
@@ -253,17 +250,16 @@ class DialogueEngine:
                 }
             ) from e
 
-        # 2. NLP 流水线分析（分词 + 实体 + 情感 + 句法）
+        # 2. NLP 流水线分析（分词 + 实体 + 句法）
         try:
             nlp_result = self.nlp_pipeline.process(standardized_text)
-            
+
             logger.debug(
                 "NLP 分析完成",
                 extra={
                     'component': 'nlp_pipeline',
                     'tokens_count': len(nlp_result.tokens),
                     'entities_count': len(nlp_result.entities),
-                    'sentiment': nlp_result.sentiment,
                 }
             )
         except Exception as e:
@@ -289,7 +285,6 @@ class DialogueEngine:
         # 3. 构建语义信息
         semantic_info = {
             'tokens': nlp_result.tokens,
-            'sentiment': nlp_result.sentiment,
             'entities': [(e.entity_type.value, e.text) for e in nlp_result.entities],
             'syntax': nlp_result.syntax.to_dict() if nlp_result.syntax else None,
             'original_text': user_input,
@@ -382,7 +377,6 @@ class DialogueEngine:
                 user_input=user_input,
                 bot_response=response,
                 entities=semantic_info.get("entities", []),
-                sentiment=semantic_info.get("sentiment", 0.0),
                 intent=intent,
             )
         except Exception as e:

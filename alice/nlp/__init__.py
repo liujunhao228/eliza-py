@@ -5,7 +5,6 @@ NLP 模块 - 统一自然语言处理接口
 - 分词：JiebaEngine
 - 句法分析：LtpEngine（可选）
 - 实体识别：NerEngine
-- 情感分析：SentimentEngine
 - 工厂：NlpFactory
 
 使用示例:
@@ -15,10 +14,9 @@ NLP 模块 - 统一自然语言处理接口
 
     # 创建单个引擎
     segmenter = factory.create_segmenter()
-    sentiment = factory.create_sentiment_analyzer()
 
     # 创建流水线
-    pipeline = factory.create_pipeline(['jieba', 'ner', 'sentiment'])
+    pipeline = factory.create_pipeline(['jieba', 'ner'])
     result = pipeline.process("今天我很开心")
 """
 
@@ -30,11 +28,10 @@ from alice.nlp.base import (
     Segmenter,
     SyntaxAnalyzer,
     EntityRecognizer,
-    SentimentAnalyzer,
 )
 from alice.nlp.factory import NlpFactory, NlpPipeline
 from alice.nlp.dictionaries import DictionaryManager
-from alice.nlp.engines import JiebaEngine, LtpEngine, NerEngine, SentimentEngine
+from alice.nlp.engines import JiebaEngine, LtpEngine, NerEngine
 
 __all__ = [
     # 基础数据类
@@ -46,7 +43,6 @@ __all__ = [
     "Segmenter",
     "SyntaxAnalyzer",
     "EntityRecognizer",
-    "SentimentAnalyzer",
     # 工厂
     "NlpFactory",
     "NlpPipeline",
@@ -54,7 +50,6 @@ __all__ = [
     "JiebaEngine",
     "LtpEngine",
     "NerEngine",
-    "SentimentEngine",
     # 工具
     "DictionaryManager",
 ]

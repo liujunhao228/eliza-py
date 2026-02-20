@@ -33,12 +33,6 @@ condition:
   keywords: ["开心", "高兴", "快乐"]
 ```
 
-**情感匹配**
-```yaml
-condition:
-  sentiment_label: "positive"  # positive|negative|neutral
-```
-
 **实体匹配**
 ```yaml
 condition:

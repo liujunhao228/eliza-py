@@ -17,7 +17,6 @@ class PluginResult:
     success: bool
     response: Optional[str] = None
     entities: Optional[List[tuple]] = None
-    sentiment: Optional[float] = None
     intent: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 

@@ -181,12 +181,12 @@ class ContextManager:
                         self.current_topic = topic
                         break
     
-    def _record_events(self, analysis: Dict, user_input: str):
+    def _record_events(self, analysis: Dict):
         """记录重要事件"""
         # 检测事件相关的动词
         event_verbs = ['去', '做', '发生', '出现', '开始', '结束', '看了', '买了', '吃了']
         tokens = analysis.get('tokens', list(user_input))
-        
+
         if any(verb in user_input for verb in event_verbs):
             event_record = {
                 'description': user_input,
@@ -194,22 +194,11 @@ class ContextManager:
                 'components': analysis.get('tokens', []),
             }
             self.recent_events.append(event_record)
-    
-    def _record_emotion(self, analysis: Dict):
-        """记录情感状态"""
-        sentiment = analysis.get('sentiment', 0)
-        if abs(sentiment) > 0.3:  # 情感强度超过阈值
-            emotion_record = {
-                'sentiment': sentiment,
-                'timestamp': datetime.now(),
-                'type': 'positive' if sentiment > 0 else 'negative'
-            }
-            self.emotion_history.append(emotion_record)
-    
+
     def _add_to_memory(self, content: str, analysis: Dict):
         """
         添加到记忆队列
-        
+
         Args:
             content: 内容
             analysis: 语义分析结果
@@ -221,39 +210,33 @@ class ContextManager:
             type=item_type,
             metadata={
                 'entities': analysis.get('entities', []),
-                'sentiment': analysis.get('sentiment', 0),
             }
         )
         self.memory.append(memory_item)
-    
+
     def _classify_content(self, content: str, analysis: Dict) -> str:
         """
         内容分类
-        
+
         Args:
             content: 内容
             analysis: 语义分析结果
-            
+
         Returns:
             内容类型
         """
         entities = analysis.get('entities', [])
-        sentiment = analysis.get('sentiment', 0)
-        
+
         # 检查是否与人相关
-        if any(ent[0] == 'pronoun' or any(kw in ent[1] for kw in ['朋友', '家人', '同事']) 
+        if any(ent[0] == 'pronoun' or any(kw in ent[1] for kw in ['朋友', '家人', '同事'])
                for ent in entities if isinstance(ent, tuple) and len(ent) > 1):
             return 'person'
-        
-        # 检查是否与情感相关
-        if abs(sentiment) > 0.5:
-            return 'emotion'
-        
+
         # 检查是否与事件相关
         event_verbs = ['去', '做', '发生', '出现', '开始', '结束']
         if any(verb in content for verb in event_verbs):
             return 'event'
-        
+
         return 'general'
     
     def get_context_state(self) -> Dict:
@@ -395,24 +378,7 @@ class ContextManager:
         if entity2 not in self.entity_relations:
             self.entity_relations[entity2] = set()
         self.entity_relations[entity2].add(entity1)
-    
-    def _get_emotion_trend(self) -> str:
-        """
-        获取情感趋势
-        
-        Returns:
-            'positive', 'negative', 或 'neutral'
-        """
-        if not self.emotion_history:
-            return 'neutral'
-        
-        avg_sentiment = sum(e['sentiment'] for e in self.emotion_history) / len(self.emotion_history)
-        if avg_sentiment > 0.2:
-            return 'positive'
-        elif avg_sentiment < -0.2:
-            return 'negative'
-        return 'neutral'
-    
+
     def get_relevant_memory(self, query: str, max_results: int = 3) -> List[MemoryItem]:
         """
         根据查询获取相关记忆

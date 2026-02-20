@@ -49,7 +49,7 @@ class IntentMatcher:
 
         Args:
             text: 输入文本
-            context: 上下文信息（entities, sentiment 等）
+            context: 上下文信息（entities 等）
 
         Returns:
             意图匹配结果
@@ -104,10 +104,6 @@ class IntentMatcher:
         if entities:
             # 实体匹配由脚本引擎已经验证过
             base_confidence += 0.1
-
-        # 情感匹配奖励
-        if "sentiment" in condition or "sentiment_label" in condition:
-            base_confidence += 0.05
 
         return min(base_confidence, 1.0)
 

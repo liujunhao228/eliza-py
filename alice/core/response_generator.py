@@ -161,9 +161,6 @@ class ResponseGenerator:
         # 构建上下文
         context = {
             "entities": semantic_info.get("entities", []),
-            "sentiment": semantic_info.get("sentiment", 0.0),
-            "sentiment_detail": semantic_info.get("sentiment_detail", {}),
-            "sentiment_label": semantic_info.get("sentiment_label", "neutral"),
             "recent_turns": semantic_info.get("recent_turns", []),
         }
 

@@ -50,7 +50,6 @@ class NlpResult:
     """NLP 分析结果"""
     text: str
     tokens: List[str] = field(default_factory=list)
-    sentiment: float = 0.0
     entities: List[Entity] = field(default_factory=list)
     syntax: Optional[SyntaxStructure] = None
 
@@ -84,26 +83,12 @@ class SyntaxAnalyzer(ABC):
 
 class EntityRecognizer(ABC):
     """实体识别器接口"""
-    
+
     @property
     @abstractmethod
     def is_available(self) -> bool:
         pass
-    
+
     @abstractmethod
     def recognize(self, text: str) -> List[Entity]:
-        pass
-
-
-class SentimentAnalyzer(ABC):
-    """情感分析器接口"""
-    
-    @property
-    @abstractmethod
-    def is_available(self) -> bool:
-        pass
-    
-    @abstractmethod
-    def analyze(self, text: str) -> float:
-        """返回情感分数 (-1.0 到 1.0)"""
         pass

@@ -171,27 +171,27 @@ class YAMLScriptEngine:
 
         Args:
             text: 输入文本
-            context: 上下文信息（包含 entities, sentiment 等）
+            context: 上下文信息（包含 entities 等）
 
         Returns:
             匹配的脚本意图
         """
         context = context or {}
-        
+
         # 按优先级排序（从高到低）
         sorted_intents = sorted(
             self.intents.values(),
             key=lambda i: i.priority,
             reverse=True,
         )
-        
+
         for intent in sorted_intents:
             if self._check_condition(intent, text, context):
                 intent.usage_count += 1
                 from datetime import datetime
                 intent.last_used = datetime.now().isoformat()
                 return intent
-        
+
         return None
 
     def _check_condition(
@@ -223,88 +223,6 @@ class YAMLScriptEngine:
 
             if not any(e[0] in required_entities for e in context_entities):
                 return False
-
-        # 检查情感分数条件（旧格式，使用 negative/positive）
-        if "sentiment" in condition:
-            required_sentiment = condition["sentiment"]
-            sentiment_score = context.get("sentiment", 0.0)
-
-            if required_sentiment == "negative" and sentiment_score >= -0.2:
-                return False
-            elif required_sentiment == "positive" and sentiment_score <= 0.2:
-                return False
-
-        # 检查情感标签条件（新格式，使用 positive/negative/neutral/mixed）
-        if "sentiment_label" in condition:
-            required_label = condition["sentiment_label"]
-            sentiment_score = context.get("sentiment", 0.0)
-            
-            # 根据情感分数计算实际标签
-            if sentiment_score > 0.2:
-                actual_label = "positive"
-            elif sentiment_score < -0.2:
-                actual_label = "negative"
-            else:
-                actual_label = "neutral"
-            
-            if required_label != actual_label:
-                return False
-
-        # 检查情感类型条件（如 joy, anger, sadness 等）
-        if "emotion_type" in condition:
-            required_emotion = condition["emotion_type"]
-            sentiment_detail = context.get("sentiment_detail", {})
-            actual_emotions = sentiment_detail.get("emotions", [])
-            sentiment_label = context.get("sentiment_label", "")
-            sentiment_score = context.get("sentiment", 0.0)
-            
-            # 映射情感类型到情感标签
-            emotion_to_label = {
-                "joy": "positive",
-                "anger": "negative",
-                "sadness": "negative",
-                "fear": "negative",
-                "anxiety": "negative",
-                "disgust": "negative",
-                "surprise": "neutral",
-            }
-            expected_label = emotion_to_label.get(required_emotion)
-            
-            # 如果有细粒度情感数据，优先检查
-            if actual_emotions and required_emotion in actual_emotions:
-                pass  # 匹配成功，继续检查其他条件
-            elif sentiment_label and required_emotion == sentiment_label:
-                pass  # 情感标签匹配
-            elif expected_label:
-                # 根据情感类型对应的标签进行判断
-                if required_emotion in ["joy"] and sentiment_score <= 0.2:
-                    return False
-                elif required_emotion in ["anger", "sadness", "fear", "anxiety", "disgust"] and sentiment_score >= -0.2:
-                    return False
-                elif required_emotion == "surprise":
-                    # surprise 应该是中性情感，分数接近 0
-                    if abs(sentiment_score) > 0.3:
-                        return False
-            else:
-                # 无法确定情感类型，不匹配
-                return False
-
-        # 检查情感强度条件
-        if "sentiment_intensity" in condition:
-            required_intensity = condition["sentiment_intensity"]
-            sentiment_score = context.get("sentiment", 0.0)
-            abs_score = abs(sentiment_score)
-            
-            intensity_map = {
-                "strong": (0.7, 1.0),
-                "moderate": (0.3, 0.7),
-                "weak": (0.0, 0.3),
-            }
-            
-            if required_intensity in intensity_map:
-                min_score, max_score = intensity_map[required_intensity]
-                if not (min_score <= abs_score <= max_score):
-                    return False
 
         # 检查关键词条件
         if "keywords" in condition:
