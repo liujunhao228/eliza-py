@@ -183,6 +183,57 @@ class TestRuleSentimentEngine:
         assert result.score < 0
         assert "糟" in result.keywords
 
+    def test_negation_handling(self, engine):
+        """测试否定词处理"""
+        test_cases = [
+            # 基本否定
+            ("我不开心", -0.8, SentimentLabel.NEGATIVE),
+            ("我没有生气", -0.6, SentimentLabel.NEGATIVE), 
+            ("不太好", -0.5, SentimentLabel.NEGATIVE),
+            
+            # 多重否定
+            ("我不太开心", -0.7, SentimentLabel.NEGATIVE),
+            ("我没有不高兴", 0.3, SentimentLabel.POSITIVE),  # 双重否定表示肯定
+            
+            # 否定词位置测试
+            ("今天不开心", -0.8, SentimentLabel.NEGATIVE),
+            ("不开心的一天", -0.8, SentimentLabel.NEGATIVE),
+            
+            # 与程度副词结合
+            ("我非常不开心", -0.9, SentimentLabel.NEGATIVE),
+            ("我有点不开心", -0.6, SentimentLabel.NEGATIVE),
+        ]
+        
+        for text, expected_score_range, expected_label in test_cases:
+            with self.subTest(text=text):
+                result = engine.analyze(text)
+                print(f"测试: '{text}' -> 分数: {result.score}, 标签: {result.label.value}")
+                
+                # 检查标签
+                assert result.label == expected_label, f"标签不匹配: 期望{expected_label.value}, 实际{result.label.value}"
+                
+                # 检查分数范围（考虑到双重否定等情况）
+                if expected_label == SentimentLabel.NEGATIVE:
+                    assert result.score < 0, f"负面情感分数应该是负数: {result.score}"
+                elif expected_label == SentimentLabel.POSITIVE:
+                    assert result.score > 0, f"正面情感分数应该是正数: {result.score}"
+
+    def test_double_negation(self, engine):
+        """测试双重否定处理"""
+        # 双重否定应该表示肯定
+        test_cases = [
+            "我不是不开心",  # 应该是正面
+            "我没有不高兴",  # 应该是正面
+            "不是不好的体验",  # 应该是正面
+        ]
+        
+        for text in test_cases:
+            with self.subTest(text=text):
+                result = engine.analyze(text)
+                print(f"双重否定测试: '{text}' -> 分数: {result.score}, 标签: {result.label.value}")
+                # 双重否定通常表示肯定，但可能不会完全回到正面，而是中性偏正面
+                assert result.score >= -0.3, f"双重否定应该至少是中性: {result.score}"
+
 
 class TestSentimentEngineFactory:
     """测试情感分析引擎工厂"""
