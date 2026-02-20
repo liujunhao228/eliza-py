@@ -80,7 +80,6 @@ class LtpEngine(SyntaxAnalyzer):
         device: Optional[str] = None,
         batch_size: int = 32,
         max_length: int = 512,
-        lazy_load: bool = True,
         enable_srl: bool = False,
         enable_sdp: bool = False,
     ):
@@ -92,7 +91,6 @@ class LtpEngine(SyntaxAnalyzer):
             device: 运行设备 ('cpu', 'cuda', 'cuda:0' 等)，None 自动选择
             batch_size: 批处理大小，默认 32
             max_length: 最大序列长度，默认 512
-            lazy_load: 是否懒加载（首次分析时才加载模型）
             enable_srl: 是否启用语义角色标注，默认关闭
             enable_sdp: 是否启用语义依存分析，默认关闭
 
@@ -111,7 +109,6 @@ class LtpEngine(SyntaxAnalyzer):
             device=device,
             batch_size=batch_size,
             max_length=max_length,
-            lazy_load=lazy_load,
             enable_srl=enable_srl,
             enable_sdp=enable_sdp,
         )
@@ -136,8 +133,8 @@ class LtpEngine(SyntaxAnalyzer):
             'avg_time_ms': 0.0,
         }
 
-        if not lazy_load:
-            self._load_model()
+        # 初始化时立即加载模型
+        self._load_model()
 
     def _load_model(self) -> bool:
         """加载 LTP 模型"""
@@ -171,8 +168,6 @@ class LtpEngine(SyntaxAnalyzer):
         """检查引擎是否可用"""
         if not LTP_AVAILABLE:
             return False
-        if self.config.lazy_load:
-            return True
         return self._initialized and self._ltp is not None
 
     @property

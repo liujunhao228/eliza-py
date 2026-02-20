@@ -103,7 +103,6 @@ class NlpFactory:
             config: 配置字典
                 - use_ltp_for_advanced: 是否对高级功能使用 LTP（默认 False）
                 - ltp_model_path: LTP 模型路径
-                - ltp_lazy_load: LTP 懒加载（默认 True）
                 - ltp_device: LTP 运行设备（'cpu', 'cuda', 'cuda:0' 等），None 自动选择
                 - ltp_batch_size: LTP 批处理大小（默认 32）
                 - ltp_max_length: LTP 最大序列长度（默认 512）
@@ -155,7 +154,6 @@ class NlpFactory:
         device = self.config.get('ltp_device')
         batch_size = self.config.get('ltp_batch_size', 32)
         max_length = self.config.get('ltp_max_length', 512)
-        lazy_load = self.config.get('ltp_lazy_load', True)
         enable_srl = self.config.get('ltp_enable_srl', False)
         enable_sdp = self.config.get('ltp_enable_sdp', False)
 
@@ -168,8 +166,6 @@ class NlpFactory:
             batch_size = kwargs['batch_size']
         if 'max_length' in kwargs:
             max_length = kwargs['max_length']
-        if 'lazy_load' in kwargs:
-            lazy_load = kwargs['lazy_load']
         if 'enable_srl' in kwargs:
             enable_srl = kwargs['enable_srl']
         if 'enable_sdp' in kwargs:
@@ -180,7 +176,6 @@ class NlpFactory:
             device=device,
             batch_size=batch_size,
             max_length=max_length,
-            lazy_load=lazy_load,
             enable_srl=enable_srl,
             enable_sdp=enable_sdp,
         )

@@ -82,6 +82,29 @@ NER_USE_LTP_BY_DEFAULT = True
 
 
 # =============================================================================
+# LTP 任务启用开关
+# =============================================================================
+
+# 词分词 (Chinese Word Segmentation)
+LTP_ENABLE_CWS = True
+
+# 词性标注 (Part-of-Speech tagging)
+LTP_ENABLE_POS = True
+
+# 命名实体识别 (Named Entity Recognition)
+LTP_ENABLE_NER = True
+
+# 依存句法分析 (Dependency Parsing)
+LTP_ENABLE_DEP = True
+
+# 语义依存分析 (Semantic Dependency Parsing)，默认关闭
+LTP_ENABLE_SDP = False
+
+# 语义角色标注 (Semantic Role Labeling)，默认关闭
+LTP_ENABLE_SRL = False
+
+
+# =============================================================================
 # 预定义响应配置
 # =============================================================================
 

@@ -123,8 +123,8 @@ tokens = engine.segment("今天天气真好")
 ```python
 from alice.nlp import LtpEngine
 
-# 懒加载模式（首次使用时才加载模型）
-engine = LtpEngine(lazy_load=True)
+# 初始化时自动加载模型
+engine = LtpEngine()
 
 result = engine.analyze("我和朋友去了北京")
 print(f"主语：{result.syntax.subject}")
@@ -392,7 +392,6 @@ factory.clear_cache()
 config = {
     'use_ltp': True,
     'ltp_model_path': '/path/to/model',
-    'ltp_lazy_load': False,
 }
 factory = NlpFactory(config=config)
 ```

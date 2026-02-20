@@ -98,7 +98,6 @@ class DialogueEngine:
         # NLP 工厂（统一管理所有 NLP 引擎）
         nlp_config = {
             'use_ltp': self.use_ltp,
-            'ltp_lazy_load': True,
         }
         self.nlp_factory = NlpFactory(config=nlp_config)
 

@@ -345,8 +345,8 @@ def example_usage():
             from alice.nlp.engines import LtpEngine
             # 清除缓存
             LtpEngine.clear_cache()
-            # 重新初始化（使用懒加载）
-            engine = LtpEngine(lazy_load=True)
+            # 重新初始化
+            engine = LtpEngine()
             engine.reset()  # 先重置
             return engine.is_available
         except Exception:
