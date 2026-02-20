@@ -8,11 +8,11 @@
 ## ✨ 特点
 
 - 🎯 **轻量化设计**: 仅需 jieba 分词，无需大型 NLP 模型
-- 🚀 **快速响应**: 平均响应时间 <200ms
+- 🚀 **快速响应**: 平均响应时间 <50ms
 - 💬 **好奇心驱动**: 主动询问"为什么"、"然后呢"引导对话
-- 🔧 **易于定制**: JSON 脚本配置，灵活调整行为
+- 🔧 **易于定制**: YAML 脚本配置，灵活调整行为
 - 📦 **开箱即用**: 安装依赖即可运行
-- 🆕 **LTP 句法分析**: 支持依存句法分析，实现更智能的对话理解（可选）
+- 🆕 **NLP 工厂模式**: 统一管理分词、实体识别、情感分析引擎
 
 ## 🚀 快速开始
 
@@ -27,79 +27,46 @@ cd eliza-py
 pip install -r requirements.txt
 
 # （可选）安装 LTP 进行深度句法分析
-pip install ltp==4.2.10
+pip install ltp>=4.2.10
 ```
 
 ### 运行
 
 ```bash
-# 启动 Alice（普通模式）
-python alice/core.py
+# 启动 Alice
+python main.py
 
-# 启用 LTP 句法分析（需要先安装 LTP）
-python -c "from alice.core import AliceBot; alice = AliceBot(enable_ltp=True); print(alice.respond('我觉得今天很开心'))"
+# 或使用 Python API
+python -c "from alice.alice_v2 import AliceBot; alice = AliceBot(); print(alice.respond('你好'))"
 ```
 
 ### 示例对话
 
-#### 普通模式
-
 ```
 Alice: 你好！我是 Alice。有什么想聊的吗？
-你：我昨天去了一个新开的餐厅
-Alice: 后来呢？发生了什么让你印象深刻的事吗？
-你：那里的装修很有特色，服务员也很热情
-Alice: 听起来很有意思，能详细说说吗？
-你：菜品也很美味
-Alice: 哇，那一定很有趣吧？继续说说看！
+你：我昨天和朋友去了一家新餐厅
+Alice: 你提到的这个朋友，ta 是个怎样的人呀？
+你：是我很好的同事，我们认识很久了
+Alice: 听起来你们关系很好，能多说说你们是怎么认识的吗？
+你：后来我们一起去了餐厅
+Alice: 那家餐厅给你留下了什么印象呢？
+你：菜品很美味，环境也很好
+Alice: 哇，那一定是很愉快的经历吧？
 你：再见
 Alice: 再见！很高兴和你聊天！
-```
-
-#### LTP 增强模式（需要先安装 LTP）
-
-```
-你：我觉得今天很开心
-Alice: 为什么你觉得今天很开心呢？
-
-你：我和朋友去了一家新餐厅
-Alice: 你和朋友去了哪家餐厅？
-
-你：工作压力让我很焦虑
-Alice: 为什么工作压力让你焦虑？
 ```
 
 ## 📖 文档
 
 | 文档 | 描述 |
 |------|------|
-| [快速开始指南](docs/快速开始指南.md) | 5 分钟上手教程 |
-| [程序设计方案](docs/程序设计方案.md) | 架构设计和技术实现 |
-| [重组规则融合方案](docs/Alice 融合 Eliza 重组规则设计方案.md) | Eliza 重组规则集成设计 |
-| [重组规则使用指南](docs/重组规则使用指南.md) | 重组规则配置和使用教程 |
-| [详细实施计划](docs/详细实施计划.md) | 开发路线图和时间表 |
-| [LTP 使用指南](docs/LTP 使用指南.md) | LTP 依存句法分析模型使用教程 |
+| [NLP 模块文档](docs/NLP 模块文档.md) | NLP 工厂和引擎使用指南 |
+| [项目模块文档](docs/项目模块文档.md) | 整体架构和模块说明 |
+| [情感分析指南](docs/情感分析模块使用指南.md) | 情感分析功能使用教程 |
+| [开发者指南](docs/开发者指南.md) | 开发环境和贡献指南 |
+| [编码规范](docs/编码规范.md) | 代码规范和最佳实践 |
 
 ## 🎯 核心功能
-
-### 0. LTP 句法分析增强（可选）
-
-启用 LTP 后，Alice 可以进行深度句法分析：
-
-- **主干提取**: 识别句子主谓宾结构
-- **依存分析**: 识别修饰、并列等语法关系
-- **智能重组**: 基于句法成分生成更自然的响应
-
-```python
-# 启用 LTP
-alice = AliceBot(enable_ltp=True)
-
-# 获取句法分析结果
-from alice.utils.ltp_parser import LTPParser
-parser = LTPParser()
-structure = parser.parse("我觉得今天很开心")
-print(f"主谓宾：{structure.subject} | {structure.predicate} | {structure.object}")
-```
 
 ### 1. 叙事延续
 当用户分享经历时，Alice 会好奇地追问：
@@ -125,74 +92,53 @@ print(f"主谓宾：{structure.subject} | {structure.predicate} | {structure.obj
 
 ### 修改脚本
 
-编辑 `alice/scripts/curiosity_scripts.json`：
+编辑 `alice/scripts/emotion_responses.yaml`：
 
-```json
-{
-  "narrative_continuation": {
-    "patterns": [".*去.*了.*"],
-    "responses": [
-      "你的自定义响应 1",
-      "你的自定义响应 2"
-    ],
-    "priority": 5
-  }
-}
+```yaml
+- intent: sentiment_positive
+  priority: 85
+  condition:
+    sentiment_label: "positive"
+  templates:
+    - "你的自定义响应 1"
+    - "你的自定义响应 2"
 ```
 
 ### 编程使用
 
 ```python
-from alice.core import AliceBot
+from alice.alice_v2 import AliceBot
 
 alice = AliceBot()
 response = alice.respond("你好")
 print(response)
 ```
 
-## 🚀 性能优化
+## 🚀 性能基准
 
-### LTP 按需使用（新增）
-
-为解决引入 LTP 后的性能问题，我们实现了智能的按需使用机制：
-
-- **智能决策**：自动判断对话复杂度，决定是否使用 LTP
-- **按需加载**：只在真正需要时才初始化 LTP 模型
-- **缓存机制**：避免重复分析相同内容
-- **显著提升**：简单对话响应时间提升 99%+
-
-```python
-# 启用按需 LTP（推荐）
-alice = AliceBot(enable_ltp=True)
-
-# 查看性能统计
-stats = alice.get_conversation_summary()['ltp_stats']
-print(f"LTP 使用次数: {stats.get('successes', 0)}")
-print(f"跳过简单分析: {stats.get('skipped_for_simple', 0)}")
-```
-
-详细使用指南请参考：[LTP 按需使用指南](docs/LTP按需使用指南.md)
-
-## 📊 性能对比
-
-| 功能 | 传统模式 | 优化模式 | 改善率 |
-|------|---------|---------|--------|
-| 简单问候响应 | 1500ms+ | ~0ms | 99%+ |
-| 内存占用 | 300MB+ | 50-100MB | 70% |
-| 启动时间 | 30秒+ | 2-3秒 | 90% |
+| 引擎 | 响应时间 | 内存占用 |
+|-----|---------|---------|
+| JiebaEngine (分词) | <10ms | ~20MB |
+| SentimentEngine (情感) | <5ms | ~10MB |
+| NerEngine (实体) | <10ms | ~10MB |
+| LtpEngine (句法，可选) | <100ms | ~200MB |
+| 完整对话流程 | <50ms | ~50MB |
 
 ## 🛠️ 开发
 
 ### 运行测试
 
-```
+```bash
 pip install pytest pytest-cov
 pytest tests/
+
+# NLP 模块测试
+python test_nlp_refactor.py
 ```
 
 ### 代码格式化
 
-```
+```bash
 black alice/
 flake8 alice/
 ```
@@ -202,35 +148,39 @@ flake8 alice/
 ```
 eliza-py/
 ├── alice/
-│   ├── core.py                    # 核心对话引擎
-│   └── scripts/
-│       └── curiosity_scripts.json # 好奇心脚本
-├── docs/                          # 项目文档
-├── scripts/                       # ELIZA 原始脚本
-├── utils/                         # 工具函数
-├── requirements.txt               # 依赖配置
-└── README.md                      # 项目说明
+│   ├── alice_v2.py              # 主入口类
+│   ├── core/                    # 核心对话引擎
+│   ├── nlp/                     # NLP 模块（v3.0 重构）
+│   │   ├── engines/             # NLP 引擎
+│   │   └── dictionaries/        # 词典管理
+│   ├── processors/              # 处理器
+│   ├── plugins/                 # 插件系统
+│   ├── scripts/                 # YAML 脚本
+│   └── utils/                   # 工具函数
+├── docs/                        # 项目文档
+├── requirements.txt             # 依赖配置
+└── README.md                    # 项目说明
 ```
 
 ## 🎓 技术原理
 
 Alice 基于 ELIZA 的经典"镜像反射"原理：
 
-1. **模式匹配**: 使用正则表达式识别用户意图
+1. **模式匹配**: 使用 YAML 脚本识别用户意图
 2. **代词转换**: 将"我"转换为"你"进行反问
-3. **脚本响应**: 根据匹配的意图选择响应模板
-4. **上下文记忆**: 保持最近 3 轮的对话实体
+3. **情感分析**: 基于词典的情感极性判断
+4. **实体识别**: 识别人物、地点、时间等实体
+5. **上下文记忆**: 保持最近对话的上下文信息
 
 与原始 ELIZA 的区别：
 - 支持中文分词（jieba）
-- 简化的情感分析
+- 基于 YAML 的脚本引擎
+- 情感分析和实体识别
 - 基于优先级的脚本调度
-- 响应去重机制
 
 ## 📚 参考资料
 
 - Weizenbaum, J. (1966). [ELIZA—a computer program for the study of natural language communication between man and machine](https://dl.acm.org/doi/10.1145/365153.365168). Communications of the ACM.
-- [ELIZA 原始实现](https://github.com/rdimaio/eliza-py)
 
 ## 🤝 贡献
 

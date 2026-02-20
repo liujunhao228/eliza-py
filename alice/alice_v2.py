@@ -18,7 +18,6 @@ from alice.core import DialogueEngine
 from alice.managers import ConfigManager
 from alice.utils.monitor import UnifiedMonitor, DialogueLogger
 from alice.cache import IntelligentCache
-from alice.processors import TextPreprocessor
 from alice.exceptions import (
     InputValidationError,
     ScriptMatchingError,
@@ -88,13 +87,10 @@ class AliceBot:
         # 监控器
         self.monitor = UnifiedMonitor()
         self.dialogue_logger = DialogueLogger() if self.enable_logging else None
-        
+
         # 缓存
         self.cache = IntelligentCache(max_size=cache_size)
-        
-        # 文本预处理
-        self.preprocessor = TextPreprocessor()
-        
+
         # 初始化
         self._initialized = False
         self.initialize()

@@ -17,13 +17,13 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from alice.plugins import PluginManager, CuriosityPlugin, PluginResult
-from alice.processors import TextPreprocessor, SemanticAnalyzer
+from alice.processors import TextPreprocessor
 from alice.managers import ContextManager
 from alice.core.intent_matcher import IntentMatcher, IntentMatch
 from alice.core.response_generator import ResponseGenerator
 from alice.scripts.yaml_script_engine import YAMLScriptEngine
-from alice.nlp import LtpEngine
 from alice.nlp.syntax_reassembly import SyntaxReassembly
+from alice.nlp.factory import NlpFactory, NlpPipeline
 from alice.exceptions import (
     DialogueError,
     InputValidationError,
@@ -31,7 +31,6 @@ from alice.exceptions import (
     ResponseGenerationError,
     TextProcessingError,
 )
-from alice.utils.degradation_monitor import degradation_monitor
 from alice.utils.sanitizer import sanitize_text
 from alice.config import (
     ENABLE_LTP_BY_DEFAULT,
@@ -96,18 +95,18 @@ class DialogueEngine:
         # 初始化核心组件
         self.preprocessor = TextPreprocessor()
 
-        # LTP 引擎（可选）
-        self.ltp_engine: Optional[LtpEngine] = None
-        if self.use_ltp:
-            self.ltp_engine = LtpEngine(lazy_load=True)
+        # NLP 工厂（统一管理所有 NLP 引擎）
+        nlp_config = {
+            'use_ltp': self.use_ltp,
+            'ltp_lazy_load': True,
+        }
+        self.nlp_factory = NlpFactory(config=nlp_config)
 
-        # 语义分析器（可选 LTP 增强）
-        self.analyzer = SemanticAnalyzer(
-            use_ltp=self.use_ltp,
-            ltp_engine=self.ltp_engine,
-            enable_ner=self.enable_ner,
-            ner_use_ltp=self.ner_use_ltp,
-        )
+        # NLP 流水线（分词 + 实体识别 + 情感分析）
+        components = ['jieba', 'ner', 'sentiment']
+        if self.use_ltp:
+            components.append('syntax')
+        self.nlp_pipeline = self.nlp_factory.create_pipeline(components)
 
         self.context_manager = ContextManager()
 
@@ -214,7 +213,6 @@ class DialogueEngine:
         # 1. 文本预处理
         try:
             standardized_text = self.preprocessor.standardize_text(user_input)
-            tokens = self.preprocessor.segment_text(standardized_text)
         except Exception as e:
             logger.error(
                 "文本预处理失败",
@@ -235,48 +233,25 @@ class DialogueEngine:
                 }
             ) from e
 
-        # 2. NLP 句法分析（如果启用 LTP）
-        nlp_result = None
-        if self.use_ltp and self.ltp_engine and self.ltp_engine.is_available:
-            try:
-                nlp_result = self.ltp_engine.analyze(standardized_text)
-                logger.debug(
-                    "NLP 分析完成",
-                    extra={
-                        'component': 'ltp_engine',
-                        'tokens_count': len(nlp_result.tokens) if nlp_result else 0,
-                        'entities_count': len(nlp_result.entities) if nlp_result else 0,
-                    }
-                )
-            except Exception as e:
-                logger.warning(
-                    f"NLP 分析失败，降级处理：{e}",
-                    extra={
-                        'component': 'ltp_engine',
-                        'error_type': type(e).__name__,
-                    }
-                )
-                degradation_monitor.register_degradation(
-                    component='ltp_engine',
-                    reason=f'NLP 分析异常：{type(e).__name__}',
-                    severity=2,
-                    recovery_plan='使用轻量级语义分析'
-                )
-
-        # 3. 语义分析（情感、意图、实体）
+        # 2. NLP 流水线分析（分词 + 实体 + 情感 + 句法）
         try:
-            semantic_info = self.analyzer.analyze(standardized_text)
-            # 添加 NLP 结果到语义信息
-            if nlp_result:
-                semantic_info['nlp_tokens'] = nlp_result.tokens
-                semantic_info['nlp_entities'] = [(e.entity_type.value, e.text) for e in nlp_result.entities]
-                semantic_info['syntax'] = nlp_result.syntax.to_dict() if nlp_result.syntax else None
+            nlp_result = self.nlp_pipeline.process(standardized_text)
+            
+            logger.debug(
+                "NLP 分析完成",
+                extra={
+                    'component': 'nlp_pipeline',
+                    'tokens_count': len(nlp_result.tokens),
+                    'entities_count': len(nlp_result.entities),
+                    'sentiment': nlp_result.sentiment,
+                }
+            )
         except Exception as e:
             logger.error(
-                "语义分析失败",
+                "NLP 分析失败",
                 extra={
                     'component': 'dialogue_engine',
-                    'step': 'semantic_analysis',
+                    'step': 'nlp_analysis',
                     'error_type': type(e).__name__,
                     'input_length': len(standardized_text),
                     'input_preview': sanitize_text(standardized_text[:50]),
@@ -284,12 +259,22 @@ class DialogueEngine:
                 exc_info=True,
             )
             raise TextProcessingError(
-                f"语义分析失败：{type(e).__name__}",
+                f"NLP 分析失败：{type(e).__name__}",
                 context={
                     'input_length': len(standardized_text),
                     'error_type': type(e).__name__,
                 }
             ) from e
+
+        # 3. 构建语义信息
+        semantic_info = {
+            'tokens': nlp_result.tokens,
+            'sentiment': nlp_result.sentiment,
+            'entities': [(e.entity_type.value, e.text) for e in nlp_result.entities],
+            'syntax': nlp_result.syntax.to_dict() if nlp_result.syntax else None,
+            'original_text': user_input,
+            'standardized_text': standardized_text,
+        }
 
         # 4. 上下文信息注入
         semantic_info['recent_turns'] = self.context_manager.get_recent_turns(3)
@@ -461,6 +446,9 @@ class DialogueEngine:
             "initialized": self._initialized,
             "plugins_enabled": self.enable_plugins,
             "ltp_enabled": self.use_ltp,
+            "nlp_pipeline": {
+                "enabled": self.nlp_pipeline is not None,
+            },
             "script_engine": {
                 "enabled": self.script_engine is not None,
                 "intents_count": len(self.script_engine.intents) if self.script_engine else 0,

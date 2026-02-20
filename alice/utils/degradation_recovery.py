@@ -332,7 +332,7 @@ def example_usage():
     def check_ltp_available() -> bool:
         """检查 LTP 是否可用"""
         try:
-            from alice.nlp import LtpEngine
+            from alice.nlp.engines import LtpEngine
             engine = LtpEngine()
             return engine.is_available
         except Exception:
@@ -342,11 +342,12 @@ def example_usage():
         """尝试恢复 LTP 引擎"""
         try:
             # 重新加载 LTP 模型
-            from alice.nlp import LtpEngine
+            from alice.nlp.engines import LtpEngine
             # 清除缓存
             LtpEngine.clear_cache()
-            # 重新初始化
-            engine = LtpEngine(force_reload=True)
+            # 重新初始化（使用懒加载）
+            engine = LtpEngine(lazy_load=True)
+            engine.reset()  # 先重置
             return engine.is_available
         except Exception:
             return False
