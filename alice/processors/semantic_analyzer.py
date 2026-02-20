@@ -44,7 +44,7 @@ class SemanticAnalyzer:
         use_ltp: bool = False,
         ltp_engine: Optional[Any] = None,
         sentiment_engine: Optional[Any] = None,
-    ):
+    ) -> None:
         """
         初始化语义分析器
 
@@ -100,7 +100,7 @@ class SemanticAnalyzer:
             "她们": "third_person_group",
         }
 
-    def analyze(self, text: str) -> Dict:
+    def analyze(self, text: str) -> Dict[str, Any]:
         """
         分析文本语义
 
@@ -131,7 +131,7 @@ class SemanticAnalyzer:
 
         return analysis
 
-    def _analyze_sentiment_with_engine(self, text: str) -> Optional[Dict]:
+    def _analyze_sentiment_with_engine(self, text: str) -> Optional[Dict[str, Any]]:
         """
         使用外部情感分析引擎进行详细分析
 
@@ -174,7 +174,7 @@ class SemanticAnalyzer:
                 )
         return None
 
-    def _analyze_with_ltp(self, text: str, standardized_text: str, words: List[str]) -> Dict:
+    def _analyze_with_ltp(self, text: str, standardized_text: str, words: List[str]) -> Dict[str, Any]:
         """
         使用 LTP 增强分析
 
@@ -311,7 +311,7 @@ class SemanticAnalyzer:
         Returns:
             实体列表 [(类型，文本), ...]
         """
-        entities = []
+        entities: List[Tuple[str, str]] = []
 
         # 人称代词
         for pronoun in self.pronouns:

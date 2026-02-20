@@ -459,12 +459,13 @@ class TestDegradationMonitoring(unittest.TestCase):
 
     def test_degradation_quality_check(self):
         """测试降级质量检查"""
-        from alice.utils.degradation_monitor import DegradationQualityChecker
+        from alice.utils.degradation_monitor import DegradationQualityChecker, DegradationQualityStatus
 
         checker = DegradationQualityChecker()
 
         # 测试可接受的降级
-        result = checker.check_degradation_quality(
+        checks, status = checker.check_degradation_quality(
+            component='nlp_analysis',
             original_functionality="高级 NLP 分析",
             degraded_functionality="基础文本处理",
             impact_level="medium",
@@ -472,8 +473,9 @@ class TestDegradationMonitoring(unittest.TestCase):
         )
 
         # 应该通过基本检查
-        self.assertTrue(result['可追溯性'])
-        self.assertTrue(result['可恢复性'])
+        self.assertTrue(checks['可追溯性'])
+        self.assertTrue(checks['可恢复性'])
+        self.assertEqual(status, DegradationQualityStatus.PASS)
 
     def test_jieba_degradation_monitoring(self):
         """测试 jieba 分词降级监控"""

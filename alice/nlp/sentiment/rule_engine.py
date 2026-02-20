@@ -45,6 +45,12 @@ class RuleSentimentEngine(SentimentEngine):
         "希望", "期待", "渴望", "向往", "乐观",
         "自信", "勇敢", "坚强", "聪明", "智慧",
         "顺利", "如意", "吉祥", "美好", "和谐",
+        # 添加单字情感词以适配基础分词模式
+        "乐", "喜", "欢", "兴", "奋", "愉", "悦",
+        "福", "满", "安", "成", "优", "秀", "精", "彩",
+        "感", "谢", "温", "暖", "希", "望", "自", "信",
+        "勇", "敢", "坚", "强", "聪", "明", "智", "慧",
+        "顺", "利", "吉", "祥", "美", "好", "和", "谐",
     }
 
     # 负面情感词库
@@ -62,6 +68,12 @@ class RuleSentimentEngine(SentimentEngine):
         "讨厌", "可恶", "可恨", "恶心", "肮脏",
         "后悔", "遗憾", "抱歉", "抱歉", "内疚",
         "危险", "威胁", "伤害", "损失", "灾难",
+        # 添加单字负面情感词
+        "坏", "差", "劣", "丑", "恶", "糟", "烂",
+        "厌", "恨", "难", "伤", "悲", "痛", "苦",
+        "气", "怒", "恼", "焦", "紧", "怕", "恐",
+        "失", "绝", "沮", "颓", "消", "累", "压",
+        "危", "险", "威", "胁", "伤", "害", "损",
     }
 
     # 程度副词（用于加权）
@@ -253,16 +265,19 @@ class RuleSentimentEngine(SentimentEngine):
         if base_score == 0:
             return 0.0
 
-        degree_multiplier = 1.0
-
-        # 查找程度副词
-        matches = self.degree_pattern.findall(text)
-        for adverb in matches:
-            multiplier = self.DEGREE_ADVERBS.get(adverb, 1.0)
-            degree_multiplier = max(degree_multiplier, multiplier)
+        # 找到最大的程度副词权重
+        max_multiplier = 1.0
+        
+        # 按长度排序，优先匹配长词
+        sorted_adverbs = sorted(self.DEGREE_ADVERBS.keys(), key=len, reverse=True)
+        
+        for adverb in sorted_adverbs:
+            if adverb in text:
+                multiplier = self.DEGREE_ADVERBS[adverb]
+                max_multiplier = max(max_multiplier, multiplier)
 
         # 应用加权，但限制在 [-1.0, 1.0] 范围内
-        weighted_score = base_score * degree_multiplier
+        weighted_score = base_score * max_multiplier
         return max(-1.0, min(1.0, weighted_score))
 
     def _analyze_negation(
@@ -280,8 +295,16 @@ class RuleSentimentEngine(SentimentEngine):
         Returns:
             否定后的情感分数
         """
-        # 检查是否有否定词
-        has_negation = bool(self.negation_pattern.search(text))
+        # 检查是否有否定词（排除程度副词中的否定成分）
+        # 先移除程度副词再检查否定词
+        cleaned_text = text
+        
+        # 移除程度副词以避免误判
+        for adverb in self.DEGREE_ADVERBS.keys():
+            cleaned_text = cleaned_text.replace(adverb, "")
+        
+        # 检查剩余文本中是否有否定词
+        has_negation = bool(self.negation_pattern.search(cleaned_text))
 
         if has_negation:
             # 否定词反转情感极性

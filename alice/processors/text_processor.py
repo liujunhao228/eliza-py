@@ -8,7 +8,7 @@
 
 import logging
 import re
-from typing import List
+from typing import Dict, List
 
 from alice.utils.degradation_monitor import degradation_monitor
 from alice.utils.sanitizer import sanitize_text
@@ -34,10 +34,10 @@ class TextPreprocessor:
     - 文本清洗
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化文本预处理器"""
         # 中文标点符号映射（全角转半角）
-        self.punctuation_map = {
+        self.punctuation_map: Dict[str, str] = {
             "，": ",",
             "。": ".",
             "！": "!",
@@ -54,7 +54,7 @@ class TextPreprocessor:
         }
 
         # 全角转半角映射
-        self.fullwidth_map = {
+        self.fullwidth_map: Dict[str, str] = {
             chr(0xFF01 + i): chr(0x21 + i) for i in range(94)
         }
         self.fullwidth_map[" "] = " "
