@@ -19,7 +19,7 @@ class TextPreprocessor:
     - 文本清洗
     
     注意:
-    - 分词功能已移至 JiebaEngine
+    - 分词功能已移除
     """
     
     def __init__(self) -> None:
