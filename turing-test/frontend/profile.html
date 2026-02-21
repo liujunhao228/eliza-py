@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图灵测试 - 个人中心</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card profile-card">
+            <div class="profile-header">
+                <div class="avatar">👤</div>
+                <h1 id="userNickname">用户</h1>
+                <p class="user-since" id="userSince">加入时间：--</p>
+            </div>
+
+            <!-- 统计概览 -->
+            <div class="stats-overview">
+                <div class="stat-box">
+                    <div class="stat-number" id="totalSessions">0</div>
+                    <div class="stat-label">总对话数</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number" id="humanSessions">0</div>
+                    <div class="stat-label">真人对话</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number" id="aiSessions">0</div>
+                    <div class="stat-label">AI 对话</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number" id="accuracy">0%</div>
+                    <div class="stat-label">判断准确率</div>
+                </div>
+            </div>
+
+            <!-- 详细统计 -->
+            <div class="stats-detail-section">
+                <h3>📊 详细统计</h3>
+                <div class="detail-stats">
+                    <div class="detail-row">
+                        <span class="detail-label">已完成判断</span>
+                        <span class="detail-value" id="totalGuesses">0</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">正确判断</span>
+                        <span class="detail-value" id="correctGuesses">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 历史记录 -->
+            <div class="history-section">
+                <h3>📜 对话历史</h3>
+                <div class="history-list" id="historyList">
+                    <p class="loading">加载中...</p>
+                </div>
+            </div>
+
+            <div class="profile-actions">
+                <button onclick="goToLobby()" class="btn btn-primary">继续匹配</button>
+                <button onclick="logout()" class="btn btn-secondary">退出登录</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+        const userId = localStorage.getItem('userId');
+        const nickname = localStorage.getItem('nickname');
+        const inviteCode = localStorage.getItem('inviteCode');
+
+        if (!userId) {
+            window.location.href = '/';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('userNickname').textContent = nickname || '用户';
+            loadUserStats();
+            loadHistory();
+        });
+
+        async function loadUserStats() {
+            try {
+                const res = await fetch(`${API_BASE}/api/stats/${userId}`);
+                if (res.ok) {
+                    const stats = await res.json();
+                    document.getElementById('totalSessions').textContent = stats.total_sessions || 0;
+                    document.getElementById('humanSessions').textContent = stats.human_sessions || 0;
+                    document.getElementById('aiSessions').textContent = stats.ai_sessions || 0;
+                    document.getElementById('accuracy').textContent = (stats.accuracy || 0) + '%';
+                    document.getElementById('totalGuesses').textContent = stats.total_guesses || 0;
+                    document.getElementById('correctGuesses').textContent = stats.correct_guesses || 0;
+                }
+
+                // 获取用户信息
+                const userRes = await fetch(`${API_BASE}/api/user/${userId}`);
+                if (userRes.ok) {
+                    const user = await userRes.json();
+                    document.getElementById('userSince').textContent = '加入时间：' + formatDate(user.created_at);
+                }
+            } catch (e) {
+                console.error('加载统计失败:', e);
+            }
+        }
+
+        async function loadHistory() {
+            try {
+                const res = await fetch(`${API_BASE}/api/user/${userId}/history`);
+                if (res.ok) {
+                    const history = await res.json();
+                    const historyEl = document.getElementById('historyList');
+
+                    if (history.length === 0) {
+                        historyEl.innerHTML = '<p class="no-data">暂无对话记录</p>';
+                        return;
+                    }
+
+                    historyEl.innerHTML = history.map(h => `
+                        <div class="history-item">
+                            <div class="history-header">
+                                <span class="history-type ${h.opponent_type}">
+                                    ${h.opponent_type === 'human' ? '👤 真人' : '🤖 AI'}
+                                </span>
+                                <span class="history-time">${formatTime(h.started_at)}</span>
+                            </div>
+                            <div class="history-body">
+                                <span class="history-status ${h.status}">
+                                    ${h.status === 'completed' ? '已完成' : '进行中'}
+                                </span>
+                                ${h.survey_submitted ? '<span class="survey-badge">✅ 已提交问卷</span>' : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    document.getElementById('historyList').innerHTML = '<p class="no-data">暂无对话记录</p>';
+                }
+            } catch (e) {
+                console.error('加载历史失败:', e);
+                document.getElementById('historyList').innerHTML = '<p class="no-data">暂无对话记录</p>';
+            }
+        }
+
+        function goToLobby() {
+            window.location.href = '/lobby';
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/';
+        }
+
+        function formatDate(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleDateString('zh-CN', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+        }
+
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleString('zh-CN', { 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+        }
+    </script>
+</body>
+</html>

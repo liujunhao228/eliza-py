@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图灵测试 - 管理员后台</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1>🔧 管理员后台</h1>
+            <button onclick="goHome()" class="btn btn-secondary">返回首页</button>
+        </div>
+
+        <!-- 数据看板 -->
+        <div class="admin-section">
+            <h2>📊 实时数据看板</h2>
+            <div class="dashboard-grid">
+                <div class="dashboard-card">
+                    <div class="card-icon">👥</div>
+                    <div class="card-value" id="onlineUsers">--</div>
+                    <div class="card-label">当前在线</div>
+                </div>
+                <div class="dashboard-card">
+                    <div class="card-icon">⏳</div>
+                    <div class="card-value" id="waitingUsers">--</div>
+                    <div class="card-label">等待匹配</div>
+                </div>
+                <div class="dashboard-card">
+                    <div class="card-icon">💬</div>
+                    <div class="card-value" id="activeSessions">--</div>
+                    <div class="card-label">活跃会话</div>
+                </div>
+                <div class="dashboard-card">
+                    <div class="card-icon">🎯</div>
+                    <div class="card-value" id="totalSessions">--</div>
+                    <div class="card-label">总会话数</div>
+                </div>
+            </div>
+
+            <div class="stats-detail">
+                <h3>📈 详细统计</h3>
+                <div class="stats-table">
+                    <div class="stats-row">
+                        <span class="stats-label">真人对话次数</span>
+                        <span class="stats-value" id="humanSessions">--</span>
+                    </div>
+                    <div class="stats-row">
+                        <span class="stats-label">AI 对话次数</span>
+                        <span class="stats-value" id="aiSessions">--</span>
+                    </div>
+                    <div class="stats-row">
+                        <span class="stats-label">已完成问卷</span>
+                        <span class="stats-value" id="completedSurveys">--</span>
+                    </div>
+                    <div class="stats-row">
+                        <span class="stats-label">邀请码总数</span>
+                        <span class="stats-value" id="inviteCodesTotal">--</span>
+                    </div>
+                    <div class="stats-row">
+                        <span class="stats-label">已使用邀请码</span>
+                        <span class="stats-value" id="inviteCodesUsed">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="refreshDashboard()" class="btn btn-primary">🔄 刷新数据</button>
+        </div>
+
+        <!-- 数据导出 -->
+        <div class="admin-section">
+            <h2>📥 数据导出</h2>
+            <p class="section-desc">导出实验数据为 CSV 格式，可用于后续分析</p>
+            <div class="export-buttons">
+                <button onclick="exportData('messages')" class="btn btn-primary">
+                    💬 导出对话记录
+                </button>
+                <button onclick="exportData('surveys')" class="btn btn-primary">
+                    📝 导出问卷结果
+                </button>
+                <button onclick="exportData('sessions')" class="btn btn-primary">
+                    📊 导出会话列表
+                </button>
+                <button onclick="exportData('users')" class="btn btn-primary">
+                    👥 导出用户列表
+                </button>
+            </div>
+        </div>
+
+        <!-- 密钥管理 -->
+        <div class="admin-section">
+            <h2>🔑 密钥管理</h2>
+            <div class="key-management">
+                <div class="generate-section">
+                    <label>生成新邀请码：</label>
+                    <input type="number" id="generateCount" value="10" min="1" max="100" style="width: 80px;">
+                    <span>个</span>
+                    <button onclick="generateInviteCodes()" class="btn btn-primary">生成</button>
+                </div>
+                <div class="key-stats">
+                    <p>剩余邀请码：<strong id="remainingCodes">--</strong></p>
+                </div>
+                <button onclick="showInviteCodes()" class="btn btn-secondary">查看邀请码列表</button>
+            </div>
+        </div>
+
+        <!-- 对话日志查看 -->
+        <div class="admin-section">
+            <h2>📜 最近对话日志</h2>
+            <div class="logs-container" id="recentLogs">
+                <p class="loading">加载中...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 邀请码列表弹窗 -->
+    <div id="inviteCodesModal" class="modal" style="display: none;">
+        <div class="modal-content large">
+            <h3>📋 邀请码列表</h3>
+            <div class="invite-codes-list" id="inviteCodesList"></div>
+            <button onclick="closeInviteCodesModal()" class="btn btn-secondary" style="margin-top: 20px;">关闭</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+        let dashboardInterval = null;
+
+        // 页面加载时刷新数据
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshDashboard();
+            // 每 10 秒自动刷新
+            dashboardInterval = setInterval(refreshDashboard, 10000);
+        });
+
+        async function refreshDashboard() {
+            await loadMatchStatus();
+            await loadTotalStats();
+            await loadInviteCodeStats();
+            await loadRecentLogs();
+        }
+
+        async function loadMatchStatus() {
+            try {
+                const res = await fetch(`${API_BASE}/api/match/status`);
+                if (res.ok) {
+                    const status = await res.json();
+                    document.getElementById('waitingUsers').textContent = status.waiting_count || 0;
+                    document.getElementById('activeSessions').textContent = status.active_sessions || 0;
+                }
+            } catch (e) {
+                console.error('加载匹配状态失败:', e);
+            }
+        }
+
+        async function loadTotalStats() {
+            try {
+                // 获取所有会话统计
+                const res = await fetch(`${API_BASE}/api/admin/stats`, {
+                    headers: { 'Authorization': 'admin-token' }
+                });
+                if (res.ok) {
+                    const stats = await res.json();
+                    document.getElementById('totalSessions').textContent = stats.total_sessions || 0;
+                    document.getElementById('humanSessions').textContent = stats.human_sessions || 0;
+                    document.getElementById('aiSessions').textContent = stats.ai_sessions || 0;
+                    document.getElementById('completedSurveys').textContent = stats.completed_surveys || 0;
+                    document.getElementById('onlineUsers').textContent = stats.online_users || 0;
+                }
+            } catch (e) {
+                // 如果管理员 API 不存在，使用简化版本
+                console.log('管理员统计 API 不可用，使用简化统计');
+            }
+        }
+
+        async function loadInviteCodeStats() {
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/invite-codes`, {
+                    headers: { 'Authorization': 'admin-token' }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('inviteCodesTotal').textContent = data.total || 0;
+                    document.getElementById('inviteCodesUsed').textContent = data.used || 0;
+                    document.getElementById('remainingCodes').textContent = data.remaining || 0;
+                }
+            } catch (e) {
+                console.log('邀请码统计 API 不可用');
+            }
+        }
+
+        async function loadRecentLogs() {
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/recent-sessions?limit=10`, {
+                    headers: { 'Authorization': 'admin-token' }
+                });
+                if (res.ok) {
+                    const sessions = await res.json();
+                    const logsEl = document.getElementById('recentLogs');
+                    
+                    if (sessions.length === 0) {
+                        logsEl.innerHTML = '<p class="no-data">暂无对话记录</p>';
+                        return;
+                    }
+
+                    logsEl.innerHTML = sessions.map(s => `
+                        <div class="log-item">
+                            <div class="log-header">
+                                <span class="log-type ${s.opponent_type}">${s.opponent_type === 'human' ? '真人' : 'AI'}</span>
+                                <span class="log-status ${s.status}">${s.status}</span>
+                                <span class="log-time">${formatTime(s.started_at)}</span>
+                            </div>
+                            <div class="log-body">
+                                <span>用户 #${s.user_id}</span>
+                                ${s.opponent_id ? `<span> ↔ 用户 #${s.opponent_id}</span>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {
+                document.getElementById('recentLogs').innerHTML = '<p class="no-data">暂无对话记录</p>';
+            }
+        }
+
+        async function exportData(type) {
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/export/${type}`, {
+                    headers: { 'Authorization': 'admin-token' }
+                });
+                
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `turing-${type}-${Date.now()}.csv`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                } else {
+                    alert('导出失败，请稍后重试');
+                }
+            } catch (e) {
+                console.error('导出失败:', e);
+                alert('导出失败，请检查网络连接');
+            }
+        }
+
+        async function generateInviteCodes() {
+            const count = parseInt(document.getElementById('generateCount').value);
+            if (!count || count < 1 || count > 100) {
+                alert('请输入 1-100 之间的数字');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/invite-codes/generate`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': 'admin-token',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ count })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    alert(`成功生成 ${data.generated} 个邀请码！`);
+                    refreshDashboard();
+                } else {
+                    alert('生成失败，请稍后重试');
+                }
+            } catch (e) {
+                console.error('生成失败:', e);
+                alert('生成失败，请检查网络连接');
+            }
+        }
+
+        async function showInviteCodes() {
+            try {
+                const res = await fetch(`${API_BASE}/api/admin/invite-codes/list`, {
+                    headers: { 'Authorization': 'admin-token' }
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    const listEl = document.getElementById('inviteCodesList');
+                    
+                    if (data.codes.length === 0) {
+                        listEl.innerHTML = '<p>暂无邀请码</p>';
+                    } else {
+                        listEl.innerHTML = `
+                            <table class="invite-codes-table">
+                                <thead>
+                                    <tr>
+                                        <th>邀请码</th>
+                                        <th>状态</th>
+                                        <th>创建时间</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.codes.map(c => `
+                                        <tr>
+                                            <td><code>${c.code}</code></td>
+                                            <td>${c.is_used ? '✅ 已使用' : '⭕ 未使用'}</td>
+                                            <td>${formatTime(c.created_at)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        `;
+                    }
+                    
+                    document.getElementById('inviteCodesModal').style.display = 'flex';
+                } else {
+                    alert('获取邀请码列表失败');
+                }
+            } catch (e) {
+                console.error('获取失败:', e);
+                alert('获取失败，请检查网络连接');
+            }
+        }
+
+        function closeInviteCodesModal() {
+            document.getElementById('inviteCodesModal').style.display = 'none';
+        }
+
+        function goHome() {
+            window.location.href = '/';
+        }
+
+        function formatTime(isoString) {
+            if (!isoString) return '--';
+            const date = new Date(isoString);
+            return date.toLocaleString('zh-CN', { 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+        }
+
+        // 页面关闭时清理
+        window.addEventListener('beforeunload', () => {
+            if (dashboardInterval) clearInterval(dashboardInterval);
+        });
+    </script>
+</body>
+</html>
