@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import Dict, Optional
 from fastapi import WebSocket
 from sqlalchemy.orm import Session
-from models import Session as SessionModel, Message, User
-from ai_bot import get_bot_response
+from turing_test.backend.models import Session as SessionModel, Message, User
+from turing_test.backend.ai_bot import get_bot_response
 
 
 class ConnectionManager:

@@ -1,0 +1,26 @@
+{
+  "nlp_service": {
+    "enable_ltp": false,
+    "cache_size": 1000,
+    "cache_ttl": 3600
+  },
+  "bot_pool": {
+    "min_instances": 2,
+    "max_instances": 10,
+    "idle_timeout": 300,
+    "max_concurrent": 100
+  },
+  "alice_bot": {
+    "enable_plugins": true,
+    "cache_size": 50,
+    "context_max_turns": 20,
+    "script_file": "alice/scripts/demo.yaml",
+    "rules_file": "alice/scripts/rules/mapping.yaml"
+  },
+  "performance": {
+    "response_timeout": 10.0,
+    "max_input_length": 500,
+    "base_typing_delay": 0.5,
+    "chars_per_second": 5.0
+  }
+}

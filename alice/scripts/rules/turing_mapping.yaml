@@ -1,0 +1,101 @@
+# 图灵测试专用规则映射
+# 将用户输入映射到适当的回复类型
+
+# 欢迎相关
+- intent: 欢迎类
+  keywords: [你好, 您好, 嗨, 哈喽, 早上好, 下午好, 晚上好]
+  response_type: greetings
+
+# 身份询问
+- intent: 询问身份
+  keywords: [你是谁, 你叫什么, 你是真人吗, 你是ai吗, 你是人还是机器]
+  response_type: identity
+
+# 感谢
+- intent: 感谢
+  keywords: [谢谢, 感谢, 多谢, 辛苦了]
+  response_type: gratitude
+
+# 告别
+- intent: 告别
+  keywords: [再见, 拜拜, 溜了, 下次见, 有缘再会, 回头见]
+  response_type: ending
+
+# 表达不确定
+- intent: 不确定
+  keywords: [不确定, 不知道, 不清楚, 不太懂, 可能吧, 也许]
+  response_type: uncertainty
+
+# 表达兴趣
+- intent: 表达兴趣
+  keywords: [有趣, 好玩, 有意思, 太棒了, 真的吗, 哇]
+  response_type: interest
+
+# 表达情感
+- intent: 表达情感
+  keywords: [开心, 难过, 生气, 愤怒, 喜欢讨厌, 爱]
+  response_type: emotions
+
+# 询问意见
+- intent: 询问意见
+  keywords: [你觉得, 你认为, 你怎么看, 你的想法, 你的观点]
+  response_type: personal_opinion
+
+# 表达同意
+- intent: 表达同意
+  keywords: [同意, 赞同, 有道理, 确实, 是的, 没错]
+  response_type: agreement
+
+# 表达不同意
+- intent: 表达不同意
+  keywords: [不同意, 反对, 不对, 不是这样的, 你错了]
+  response_type: disagreement
+
+# 询问信息
+- intent: 询问信息
+  keywords: [为什么, 怎么样, 什么是, 如何, 哪里, 什么时候]
+  response_type: information_request
+
+# 个人经历
+- intent: 个人经历
+  keywords: [我, 我曾经, 我记得, 我觉得, 我认为]
+  response_type: personal_experience
+
+# 打字错误
+- intent: 打字错误
+  patterns: 
+    - "是不是想说(.+)"
+    - "应该是(.+)"
+    - "你说的是(.+)"
+    - "你是不是想说(.+)"
+  response_type: typo_correction
+
+# 对话流控制
+- intent: 对话流控制
+  keywords: [然后呢, 接着说, 继续, 讲讲, 多说点]
+  response_type: conversation_flow
+
+# 幽默相关
+- intent: 幽默
+  keywords: [哈哈, 哈哈, 笑死, 好笑, 有趣, 搞笑]
+  response_type: humor
+
+# 日常话题
+- intent: 日常话题
+  keywords: [天气, 今天, 昨天, 明天, 时间, 日期]
+  response_type: daily_topics
+
+# 学习工作
+- intent: 学习工作
+  keywords: [学习, 作业, 考试, 工作, 公司, 学校]
+  response_type: work_study
+
+# 兴趣爱好
+- intent: 兴趣爱好
+  keywords: [爱好, 兴趣, 喜欢, 爱好, 玩, 玩游戏]
+  response_type: hobbies
+
+# 默认回复
+- intent: 默认
+  keywords: []
+  response_type: default

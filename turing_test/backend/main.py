@@ -9,7 +9,7 @@ from datetime import datetime
 import os
 import platform
 
-from database import engine, get_db, Base
+from turing_test.backend.database import engine, get_db, Base
 
 # MIME 类型映射，避免使用 mimetypes 模块读取 Windows 注册表
 MIME_TYPES = {
@@ -56,14 +56,14 @@ if platform.system() == 'Windows':
             return Response(content=content, media_type=media_type)
 else:
     FixedStaticFiles = StaticFiles
-from models import User, Session as SessionModel, Message, SurveyResult, InviteCode
-from schemas import (
-    InviteCodeLogin, UserLogin, MessageSend, 
+from turing_test.backend.models import User, Session as SessionModel, Message, SurveyResult, InviteCode
+from turing_test.backend.schemas import (
+    InviteCodeLogin, UserLogin, MessageSend,
     SurveySubmit, MatchRequest, MatchStatus
 )
-from auth import verify_invite_code, use_invite_code, create_user_with_code
-from matcher import match_engine
-from websocket import manager, handle_chat_message, handle_human_message
+from turing_test.backend.auth import verify_invite_code, use_invite_code, create_user_with_code
+from turing_test.backend.matcher import match_engine
+from turing_test.backend.websocket import manager, handle_chat_message, handle_human_message
 
 # 获取项目根目录
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

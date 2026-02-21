@@ -10,9 +10,9 @@ import os
 # 添加当前目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from database import engine, Base, SessionLocal
-from auth import create_invite_codes, get_invite_code_stats
-from models import InviteCode
+from turing_test.backend.database import engine, Base, SessionLocal
+from turing_test.backend.auth import create_invite_codes, get_invite_code_stats
+from turing_test.backend.models import InviteCode
 
 def init_database():
     """创建数据库表"""

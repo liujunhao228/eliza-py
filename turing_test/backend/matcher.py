@@ -2,8 +2,8 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Set
 from sqlalchemy.orm import Session
-from models import Session as SessionModel, User
-from config import MATCH_TIMEOUT
+from turing_test.backend.models import Session as SessionModel, User
+from turing_test.backend.config import MATCH_TIMEOUT
 
 
 class MatchEngine:

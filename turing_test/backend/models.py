@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from database import Base
+from turing_test.backend.database import Base
 
 
 class InviteCode(Base):

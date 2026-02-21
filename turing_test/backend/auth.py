@@ -2,7 +2,7 @@ import random
 import string
 from typing import Optional
 from sqlalchemy.orm import Session
-from models import InviteCode
+from turing_test.backend.models import InviteCode
 
 
 def generate_invite_code(length: int = 6) -> str:
