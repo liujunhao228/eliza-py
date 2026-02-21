@@ -25,7 +25,6 @@ class CuriosityPlugin(BasePlugin):
     实现 Alice 的核心对话策略：
     - 叙事助推：维持对话流
     - 实体深度挖掘：对人、事、物表现好奇
-    - 情感镜像与验证：反射用户情绪
     - 认知探索：引导思考观点
     - Meta 对话：处理关于 Alice 的提问
 

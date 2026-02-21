@@ -8,7 +8,6 @@ YAML 脚本引擎 v2 模块
 脚本模块:
 - 叙事助推 (Narrative Continuity)
 - 实体深度挖掘 (Entity Deep-Dive)
-- 情感镜像与验证 (Emotional Mirroring)
 - 认知探索 (Cognitive Probing)
 - Meta 对话 (Meta-Conversation)
 
@@ -84,7 +83,7 @@ class YAMLScriptEngine:
     - 使用统计追踪
     
     优先级调度:
-    - P0 (90-100): 情感危机或极端情绪
+    - P0 (90-100): 非常重要
     - P1 (70-89): 实体挖掘
     - P2 (40-69): 叙事助推
     - P3 (0-39): 万能回复
