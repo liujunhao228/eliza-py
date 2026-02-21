@@ -12,5 +12,19 @@
   condition:
     entities: ["PERSON", "TITLE"]  # 匹配人名或称谓
   templates:
-    - "{PERSON}是个怎样的人呀？"
-    - "{PERSON}对你来说很重要吗？"
+    - "{PERSON}是谁？"
+    - "{PERSON}是你的什么人？"
+
+- intent: ongoing_chat
+  priority: 60
+  condition:
+    min_turns: 5  # 5 轮后匹配
+  templates:
+    - "{turn_count}轮了，还没看出来？"
+    - "快做决定吧，已经聊了{turn_count}轮了！"
+
+
+
+
+
+

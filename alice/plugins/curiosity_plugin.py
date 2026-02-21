@@ -230,9 +230,9 @@ class CuriosityPlugin(BasePlugin):
         if not intent.templates:
             return None
 
-        # 如果是 keyword_only 模板，直接返回模板内容（不进行代词替换）
+        # 如果是 keyword_only 模板，填充占位符后返回（不进行代词替换）
         if intent.keyword_only:
-            return self._select_template(intent)
+            return self._fill_placeholders(intent, context)
 
         # 非 keyword_only 模板，使用重组引擎进行代词替换
         if self.reassembly_engine:
@@ -311,7 +311,7 @@ class CuriosityPlugin(BasePlugin):
         context: Dict[str, Any],
     ) -> str:
         """
-        填充模板中的实体占位符
+        填充模板中的实体占位符和上下文变量
 
         Args:
             template: 模板字符串
@@ -332,7 +332,20 @@ class CuriosityPlugin(BasePlugin):
         # 替换占位符
         def replace_placeholder(match):
             placeholder = match.group(1).lower()
-            return entity_map.get(placeholder, match.group(0))
+            
+            # 优先检查实体
+            if placeholder in entity_map:
+                return entity_map[placeholder]
+            
+            # 检查上下文变量
+            if placeholder in context:
+                value = context[placeholder]
+                if isinstance(value, (list, dict)):
+                    return str(value)
+                return str(value) if value is not None else ""
+            
+            # 未匹配，返回原占位符（后续会被清理）
+            return match.group(0)
 
         result = re.sub(r'\{([^}]+)\}', replace_placeholder, template)
 

@@ -75,7 +75,7 @@ class YAMLFileChangeHandler(FileSystemEventHandler):
         self.on_script_change = on_script_change
         self.on_rules_change = on_rules_change
         self._last_modified: Dict[Path, float] = {}
-        self._debounce_seconds = 1.0  # 防抖时间（秒）
+        self._debounce_seconds = 2.0  # 防抖时间（秒），Windows 上需要更长时间避免文件锁问题
 
     def _should_process(self, path: Path) -> bool:
         """检查文件是否应该被处理（防抖）"""
@@ -330,8 +330,35 @@ class HotReloader:
             logger.info(f"重载脚本文件：{script_path}")
             old_intents_count = len(self.script_engine.intents)
 
-            # 重新加载脚本
-            self.script_engine._load_scripts()
+            # 重试机制：处理 Windows 上文件可能被短暂锁定的情况
+            max_retries = 3
+            retry_delay = 0.5  # 秒
+            last_error = None
+
+            for attempt in range(max_retries):
+                try:
+                    # 重新加载脚本
+                    self.script_engine._load_scripts()
+                    break  # 成功则退出重试循环
+                except InvalidConfigurationError as e:
+                    # 如果是文件为空错误，可能是文件还在写入中，稍后重试
+                    if "文件内容为空" in str(e) or "文件解析结果为空" in str(e):
+                        last_error = e
+                        if attempt < max_retries - 1:
+                            logger.warning(f"脚本文件暂时无法读取 (尝试 {attempt + 1}/{max_retries})，{retry_delay}秒后重试...")
+                            time.sleep(retry_delay)
+                        else:
+                            raise  # 最后一次重试失败，抛出异常
+                    else:
+                        raise  # 其他错误直接抛出
+                except IOError as e:
+                    # IO 错误也可能是文件被锁定
+                    last_error = e
+                    if attempt < max_retries - 1:
+                        logger.warning(f"脚本文件暂时被锁定 (尝试 {attempt + 1}/{max_retries})，{retry_delay}秒后重试...")
+                        time.sleep(retry_delay)
+                    else:
+                        raise
 
             new_intents_count = len(self.script_engine.intents)
             logger.info(

@@ -429,7 +429,8 @@ class DialogueEngine:
 
         # 添加时间上下文
         semantic_info['time_context'] = self.context_manager.get_time_context()
-        semantic_info['turn_count'] = self.context_manager.get_turn_count()
+        # turn_count 是当前轮次（即将生成的响应将是第 turn_count+1 轮）
+        semantic_info['turn_count'] = self.context_manager.get_turn_count() + 1
 
         # 添加用户画像信息
         user_profile = self.context_manager.get_user_profile()

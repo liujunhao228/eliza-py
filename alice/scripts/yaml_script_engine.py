@@ -22,6 +22,11 @@ YAML 脚本引擎 v2 模块
 - object: 宾语
 - triples: 主谓宾三元组
 - semantic_roles: 语义角色
+
+支持的上下文变量:
+- turn_count: 对话轮数
+- time_context: 时间上下文
+- user_profile: 用户画像
 """
 
 import logging
@@ -35,6 +40,7 @@ from alice.exceptions import (
     InvalidConfigurationError,
     MissingConfigurationError,
     ConfigurationError,
+    DependencyError,
 )
 
 # 尝试导入 yaml
@@ -108,11 +114,17 @@ class YAMLScriptEngine:
             raise MissingConfigurationError(f"脚本文件不存在：{script_path}")
 
         try:
-            with open(script_path, "r", encoding="utf-8") as f:
-                scripts_data = yaml.safe_load(f)
+            # 先读取文件内容为字符串，避免 Windows 上文件锁导致的空读问题
+            content = script_path.read_text(encoding="utf-8")
+            
+            # 检查文件内容是否为空
+            if not content or not content.strip():
+                raise InvalidConfigurationError(f"脚本文件内容为空：{script_path}")
+            
+            scripts_data = yaml.safe_load(content)
 
             if not scripts_data:
-                raise InvalidConfigurationError(f"脚本文件为空：{script_path}")
+                raise InvalidConfigurationError(f"脚本文件解析结果为空：{script_path}")
 
             self._parse_scripts(scripts_data, script_path)
             logger.info(f"成功加载 {len(self.intents)} 个脚本意图")
@@ -372,6 +384,19 @@ class YAMLScriptEngine:
             if len(tokens) > max_count:
                 return False
 
+        # 检查对话轮数范围
+        if "min_turns" in condition:
+            min_turns = condition["min_turns"]
+            turn_count = context.get("turn_count", 0)
+            if turn_count < min_turns:
+                return False
+
+        if "max_turns" in condition:
+            max_turns = condition["max_turns"]
+            turn_count = context.get("turn_count", 0)
+            if turn_count > max_turns:
+                return False
+
         return True
 
     def generate_response(
@@ -505,7 +530,7 @@ class YAMLScriptEngine:
                 template = template.replace(placeholder, entity_text)
 
         # 填充句法成分占位符
-        syntax = context.get("syntax", {})
+        syntax = context.get("syntax", {}) or {}
 
         # 主语
         if syntax.get("subject"):
@@ -588,6 +613,10 @@ class YAMLScriptEngine:
 
         # 填充用户画像变量占位符
         template = self._fill_user_profile_placeholders(template, context)
+
+        # 填充对话轮数占位符 {turn_count}
+        turn_count = context.get("turn_count", 0)
+        template = template.replace("{turn_count}", str(turn_count))
 
         # 清理未匹配的占位符
         template = re.sub(r"\{[^}]+\}", "", template)

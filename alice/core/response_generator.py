@@ -157,10 +157,22 @@ class ResponseGenerator:
         if not self.script_engine:
             return None
 
-        # 构建上下文
+        # 构建上下文（包含所有语义信息和上下文变量）
         context = {
+            # LTP 变量
             "entities": semantic_info.get("entities", []),
+            "tokens": semantic_info.get("tokens", []),
+            "syntax": semantic_info.get("syntax", {}),
+            "tokens_with_pos": semantic_info.get("tokens_with_pos", []),
+            "dependencies": semantic_info.get("dependencies", []),
+            "triples": semantic_info.get("triples", []),
+            "semantic_roles": semantic_info.get("semantic_roles", []),
+            # 上下文变量
             "recent_turns": semantic_info.get("recent_turns", []),
+            "time_context": semantic_info.get("time_context", {}),
+            "turn_count": semantic_info.get("turn_count", 0),
+            "user_profile": semantic_info.get("user_profile", {}),
+            "address_form": semantic_info.get("address_form", "你"),
         }
 
         # 获取脚本意图
