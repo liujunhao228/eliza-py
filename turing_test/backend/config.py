@@ -1,7 +1,11 @@
 import os
 
+# 获取后端目录
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(BACKEND_DIR)
+
 # 数据库配置
-DATABASE_URL = "sqlite:///./data/turing.db"
+DATABASE_URL = f"sqlite:///{os.path.join(PROJECT_DIR, 'data', 'turing.db')}"
 
 # 邀请码配置
 INVITE_CODE_LENGTH = 6
