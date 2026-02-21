@@ -25,10 +25,10 @@ def run_cli():
         ConfigurationError,
         InitializationError,
     )
-    from alice.config import ENABLE_HOT_RELOAD_BY_DEFAULT, HOT_RELOAD_MODE
+    from config import settings
 
     try:
-        alice = AliceBot(enable_hot_reload=ENABLE_HOT_RELOAD_BY_DEFAULT, hot_reload_mode=HOT_RELOAD_MODE)
+        alice = AliceBot(enable_hot_reload=settings.alice.hot_reload, hot_reload_mode=settings.alice.hot_reload_mode)
     except (ConfigurationError, InitializationError) as e:
         print(f"启动失败：{e}")
         sys.exit(1)

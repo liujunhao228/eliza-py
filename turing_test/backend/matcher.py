@@ -3,7 +3,10 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Set
 from sqlalchemy.orm import Session
 from turing_test.backend.models import Session as SessionModel, User
-from turing_test.backend.config import MATCH_TIMEOUT
+from config import settings
+
+
+MATCH_TIMEOUT = settings.turing.match.timeout
 
 
 class MatchEngine:

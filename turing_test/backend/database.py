@@ -1,7 +1,9 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from turing_test.backend.config import DATABASE_URL
+from config import settings
+
+DATABASE_URL = settings.turing.database.url
 
 engine = create_engine(
     DATABASE_URL,

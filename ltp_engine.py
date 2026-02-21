@@ -34,14 +34,7 @@ from typing import List, Optional, Tuple
 
 from alice.nlp.engines.ltp import LtpEngine, LtpConfig, LtpFullResult
 from alice.nlp.base import Entity
-from alice.config import (
-    LTP_ENABLE_CWS,
-    LTP_ENABLE_POS,
-    LTP_ENABLE_NER,
-    LTP_ENABLE_DEP,
-    LTP_ENABLE_SDP,
-    LTP_ENABLE_SRL,
-)
+from config import settings
 
 # 配置日志
 logging.basicConfig(
@@ -63,14 +56,15 @@ def get_ltp_engine() -> LtpEngine:
     """
     global _engine
     if _engine is None:
-        # 创建配置：从 alice.config 读取默认启用状态
+        # 创建配置：从 config 读取默认启用状态
+        ltp_cfg = settings.alice.ltp
         config = LtpConfig(
-            enable_cws=LTP_ENABLE_CWS,   # 中文分词
-            enable_pos=LTP_ENABLE_POS,   # 词性标注
-            enable_ner=LTP_ENABLE_NER,   # 命名实体识别
-            enable_dep=LTP_ENABLE_DEP,   # 依存句法分析
-            enable_sdp=LTP_ENABLE_SDP,   # 语义依存分析
-            enable_srl=LTP_ENABLE_SRL,   # 语义角色标注
+            enable_cws=ltp_cfg.enable_cws,
+            enable_pos=ltp_cfg.enable_pos,
+            enable_ner=ltp_cfg.enable_ner,
+            enable_dep=ltp_cfg.enable_dep,
+            enable_sdp=ltp_cfg.enable_sdp,
+            enable_srl=ltp_cfg.enable_srl,
         )
         _engine = LtpEngine(
             model_path=config.model_path,

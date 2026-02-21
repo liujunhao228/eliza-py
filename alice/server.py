@@ -21,7 +21,7 @@ from alice.exceptions import (
     InitializationError,
 )
 from alice.utils.sanitizer import sanitize_text
-from alice.config import ENABLE_HOT_RELOAD_BY_DEFAULT, HOT_RELOAD_MODE
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +40,8 @@ def get_alice_instance() -> AliceBot:
     if _alice_instance is None:
         try:
             _alice_instance = AliceBot(
-                enable_hot_reload=ENABLE_HOT_RELOAD_BY_DEFAULT,
-                hot_reload_mode=HOT_RELOAD_MODE,
+                enable_hot_reload=settings.alice.hot_reload,
+                hot_reload_mode=settings.alice.hot_reload_mode,
             )
             logger.info("Alice 实例已创建")
             # 显示热重载状态

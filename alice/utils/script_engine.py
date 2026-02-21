@@ -39,10 +39,10 @@ def _load_pronoun_mapping_from_yaml() -> Dict[str, str]:
     """从 YAML 配置文件加载代词映射"""
     if not YAML_AVAILABLE:
         return {}
-    
+
     # 默认映射文件路径
-    from alice.config import SCRIPTS_DIR
-    mapping_file = SCRIPTS_DIR / "mapping.yaml"
+    from config import settings
+    mapping_file = settings.alice.rules_file
     
     if not mapping_file.exists():
         return {}

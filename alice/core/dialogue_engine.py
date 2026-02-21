@@ -33,11 +33,7 @@ from alice.exceptions import (
 )
 from alice.utils.sanitizer import sanitize_text
 from alice.utils.hot_reloader import HotReloader, ReloadResult, create_hot_reloader
-from alice.config import (
-    ENABLE_LTP_BY_DEFAULT,
-    ENABLE_NER_BY_DEFAULT,
-    NER_USE_LTP_BY_DEFAULT,
-)
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -91,9 +87,9 @@ class DialogueEngine:
         """
         self.enable_plugins = enable_plugins
         # 使用配置文件的默认值，如果调用方未指定
-        self.use_ltp = use_ltp if use_ltp is not None else ENABLE_LTP_BY_DEFAULT
-        self.enable_ner = enable_ner if enable_ner is not None else ENABLE_NER_BY_DEFAULT
-        self.ner_use_ltp = ner_use_ltp if ner_use_ltp is not None else NER_USE_LTP_BY_DEFAULT
+        self.use_ltp = use_ltp if use_ltp is not None else settings.alice.enable_ltp
+        self.enable_ner = enable_ner if enable_ner is not None else settings.alice.enable_ner
+        self.ner_use_ltp = ner_use_ltp if ner_use_ltp is not None else settings.alice.ner_use_ltp
 
         # 保存配置
         self.script_file = script_file

@@ -18,13 +18,13 @@ class DictionaryManager:
     def __init__(self, dictionary_dir: Optional[Path] = None):
         """
         初始化
-        
+
         Args:
             dictionary_dir: 词典目录，None 则使用默认路径
         """
         if dictionary_dir is None:
-            from alice.config import SCRIPTS_DIR
-            dictionary_dir = SCRIPTS_DIR / "dictionaries"
+            from config import settings
+            dictionary_dir = settings.paths.scripts_dir
         
         self.dictionary_dir = dictionary_dir
         self._dictionaries: Dict[str, Dict[str, Any]] = {}

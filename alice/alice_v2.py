@@ -15,7 +15,6 @@ import time
 from typing import Any, Dict, Optional
 
 from alice.core import DialogueEngine
-from alice.managers import ConfigManager
 from alice.utils.monitor import UnifiedMonitor, DialogueLogger
 from alice.cache import IntelligentCache
 from alice.exceptions import (
@@ -25,7 +24,7 @@ from alice.exceptions import (
     TextProcessingError,
 )
 from alice.utils.sanitizer import sanitize_text
-from alice.config import ENABLE_LOGGING_BY_DEFAULT
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -66,19 +65,14 @@ class AliceBot:
             enable_hot_reload: 是否启用热重载功能
             hot_reload_mode: 热重载模式 ("auto" 或 "manual")
         """
-        # 配置管理器
-        self.config_manager = ConfigManager()
-
         # 使用配置文件的默认值，如果调用方未指定
-        self.enable_logging = enable_logging if enable_logging is not None else ENABLE_LOGGING_BY_DEFAULT
+        self.enable_logging = enable_logging if enable_logging is not None else settings.alice.enable_log
 
         # 使用默认配置（如果未指定）
-        from alice.config import DEFAULT_SCRIPT_FILE, DEFAULT_RULES_FILE
-
         if script_file is None:
-            script_file = str(DEFAULT_SCRIPT_FILE)
+            script_file = str(settings.alice.script_file)
         if rules_file is None:
-            rules_file = str(DEFAULT_RULES_FILE)
+            rules_file = str(settings.alice.rules_file)
 
         # 对话引擎
         self.dialogue_engine = DialogueEngine(
