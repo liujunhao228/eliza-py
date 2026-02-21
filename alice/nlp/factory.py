@@ -41,6 +41,12 @@ class NlpPipeline:
             engines: 引擎列表
         """
         self.engines = engines
+        # 如果包含LTP引擎，保存引用以便外部访问
+        self.ltp_engine = None
+        for engine in engines:
+            if hasattr(engine, 'analyze_full'):  # LTP引擎的特征方法
+                self.ltp_engine = engine
+                break
 
     def process(self, text: str) -> NlpResult:
         """

@@ -106,11 +106,11 @@ LTP_ENABLE_NER = True
 # 依存句法分析 (Dependency Parsing)
 LTP_ENABLE_DEP = True
 
-# 语义依存分析 (Semantic Dependency Parsing)，默认关闭
-LTP_ENABLE_SDP = False
+# 语义依存分析 (Semantic Dependency Parsing)，现在默认启用以支持新功能
+LTP_ENABLE_SDP = True
 
-# 语义角色标注 (Semantic Role Labeling)，默认关闭
-LTP_ENABLE_SRL = False
+# 语义角色标注 (Semantic Role Labeling)，现在默认启用以支持新功能
+LTP_ENABLE_SRL = True
 
 
 # =============================================================================

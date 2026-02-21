@@ -126,8 +126,8 @@ class DialogueEngine:
         if use_advanced:
             # 使用 LTP 进行分词和高级分析
             if self.use_ltp:
-                components.append('syntax')  # LTP 句法分析（包含分词）
-            if self.enable_ner:
+                components.append('ltp')  # LTP 完整分析（包含分词、词性、实体、句法、SRL、SDP）
+            elif self.enable_ner:
                 components.append('ner')  # 实体识别
         else:
             # 仅使用 jieba 分词
@@ -135,7 +135,15 @@ class DialogueEngine:
             if self.enable_ner:
                 components.append('ner')  # 基于词典的 NER
 
-        self.nlp_pipeline = self.nlp_factory.create_pipeline(components)
+        # 为 LTP 引擎配置高级功能（SRL 和 SDP）
+        ltp_kwargs = {}
+        if 'ltp' in components:
+            ltp_kwargs = {
+                'enable_srl': True,   # 启用语义角色标注
+                'enable_sdp': True,   # 启用语义依存分析
+            }
+
+        self.nlp_pipeline = self.nlp_factory.create_pipeline(components, **ltp_kwargs)
 
         self.context_manager = ContextManager()
 
@@ -413,16 +421,42 @@ class DialogueEngine:
 
         # 添加三元组（如果 LTP 引擎提供了）
         try:
-            from ltp_engine import extract_triples
-            triples = extract_triples(standardized_text)
-            if triples:
-                semantic_info['triples'] = triples
-        except Exception:
-            # 三元组提取失败不影响主流程
-            pass
-
-        # 添加语义角色（如果 LTP 引擎启用了 SRL）
-        # 注意：SRL 默认关闭，需要显式启用
+            # 检查 NLP 流水线是否包含 LTP 引擎
+            if hasattr(self.nlp_pipeline, 'ltp_engine') and self.nlp_pipeline.ltp_engine:
+                # 使用 LTP 引擎提取三元组
+                triples = self.nlp_pipeline.ltp_engine.extract_triples(standardized_text)
+                if triples:
+                    semantic_info['triples'] = triples
+                
+                # 提取语义角色（如果 LTP 启用了 SRL）
+                srl_result = self.nlp_pipeline.ltp_engine.analyze_full(standardized_text)
+                if srl_result.semantic_roles:
+                    # 转换语义角色为脚本引擎可识别的格式
+                    semantic_roles = []
+                    for role in srl_result.semantic_roles:
+                        for arg_type, arg_text, start, end in role.arguments:
+                            semantic_roles.append({
+                                'role_type': arg_type,
+                                'text': arg_text,
+                                'start': start,
+                                'end': end,
+                                'predicate': role.predicate
+                            })
+                    semantic_info['semantic_roles'] = semantic_roles
+                
+                # 提取语义依存（如果 LTP 启用了 SDP）
+                if srl_result.semantic_deps:
+                    semantic_deps = []
+                    for edge in srl_result.semantic_deps.edges:
+                        semantic_deps.append({
+                            'relation': edge.relation,
+                            'head': edge.head_idx,
+                            'dependent': edge.dependent_idx
+                        })
+                    semantic_info['semantic_deps'] = semantic_deps
+        except Exception as e:
+            # 三元组或语义分析提取失败不影响主流程
+            logger.warning(f"LTP 语义分析提取失败：{e}")
 
         # 4. 上下文信息注入
         semantic_info['recent_turns'] = self.context_manager.get_recent_turns(3)

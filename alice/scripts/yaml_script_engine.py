@@ -366,8 +366,34 @@ class YAMLScriptEngine:
             
             # 检查是否有匹配的语义角色
             for role in semantic_roles:
-                if role.get("role_type") in required_roles:
-                    return True
+                if isinstance(role, dict):
+                    # 新格式：语义角色字典
+                    if role.get("role_type") in required_roles:
+                        return True
+                elif isinstance(role, str):
+                    # 旧格式：语义角色字符串
+                    if role in required_roles:
+                        return True
+            return False
+
+        # 检查语义依存条件
+        if "semantic_deps" in condition:
+            required_deps = condition["semantic_deps"]
+            semantic_deps = context.get("semantic_deps", [])
+            
+            if not semantic_deps:
+                return False
+            
+            # 检查是否有匹配的语义依存关系
+            for dep in semantic_deps:
+                if isinstance(dep, dict):
+                    # 检查语义依存关系类型
+                    if dep.get("relation") in required_deps:
+                        return True
+                elif isinstance(dep, str):
+                    # 直接比较字符串
+                    if dep in required_deps:
+                        return True
             return False
 
         # 检查分词数量范围
@@ -603,9 +629,27 @@ class YAMLScriptEngine:
             role_type = match.group(1)
             # 找到第一个匹配语义角色的词
             for role in semantic_roles:
-                if role.get("role_type") == role_type:
-                    template = template.replace(match.group(0), role.get("text", ""))
-                    break
+                if isinstance(role, dict):
+                    # 新格式：语义角色字典
+                    if role.get("role_type") == role_type:
+                        template = template.replace(match.group(0), role.get("text", ""))
+                        break
+                elif isinstance(role, str):
+                    # 旧格式：语义角色字符串（这里不适用，跳过）
+                    continue
+
+        # 填充语义依存占位符 {sdp_REL}
+        semantic_deps = context.get("semantic_deps", [])
+        sdp_pattern = re.compile(r"\{sdp_(\w+)\}")
+        for match in sdp_pattern.finditer(template):
+            sdp_rel = match.group(1)
+            # 找到第一个匹配语义依存关系的词
+            for dep in semantic_deps:
+                if isinstance(dep, dict):
+                    # 检查语义依存关系类型
+                    if dep.get("relation") == sdp_rel:
+                        template = template.replace(match.group(0), dep.get("dependent", dep.get("word", "")))
+                        break
 
         # 填充时间变量占位符
         template = self._fill_time_placeholders(template, context)
