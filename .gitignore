@@ -74,3 +74,5 @@ target/
 /site
 
 # End of https://www.gitignore.io/api/python
+
+data/turing.db
