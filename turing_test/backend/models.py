@@ -34,6 +34,7 @@ class Session(Base):
     opponent_type = Column(String)  # 'human' or 'ai'
     opponent_id = Column(Integer, nullable=True)  # NULL if AI
     status = Column(String, default="matching")  # matching, active, completed
+    match_duration = Column(Integer, nullable=True)  # 匹配用时（秒）
     started_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
     

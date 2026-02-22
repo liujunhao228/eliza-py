@@ -22,5 +22,15 @@
     "max_input_length": 500,
     "base_typing_delay": 0.5,
     "chars_per_second": 5.0
+  },
+  "match": {
+    "time_distribution": {
+      "0-3s": 0.5,
+      "3-8s": 0.3,
+      "8-15s": 0.15,
+      "15-30s": 0.05
+    },
+    "honeypot_probability": 0.15,
+    "human_priority_probability": 0.8
   }
 }

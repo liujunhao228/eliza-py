@@ -28,10 +28,8 @@
                         </div>
                         <div class="wait-info">
                             <span id="waitTime">已等待 0 秒</span>
-                            <span id="timeoutCountdown">超时剩余 30 秒</span>
                         </div>
                     </div>
-                    <p class="hint">💡 如果等待超过 30 秒，将自动匹配 AI 对手</p>
                     <div class="queue-info" id="queueInfo">
                         当前等待人数：<span id="waitingCount">--</span>
                     </div>
@@ -227,9 +225,10 @@
                     // 匹配成功
                     clearInterval(matchInterval);
                     clearInterval(waitTimer);
+                    const totalTime = Math.floor((Date.now() - startTime) / 1000);
                     localStorage.setItem('sessionId', data.session_id);
                     localStorage.setItem('opponentType', data.opponent_type);
-                    showFound(data.opponent_type === 'human' ? '匹配到真人对手！' : '已匹配 AI 对手');
+                    showFound(data.opponent_type === 'human' ? '匹配到真人对手！' : '已匹配 AI 对手', totalTime);
                     setTimeout(() => {
                         window.location.href = '/chat';
                     }, 1500);
@@ -248,20 +247,13 @@
             let elapsed = 0;
             waitTimer = setInterval(() => {
                 elapsed++;
-                const remaining = Math.max(0, MATCH_TIMEOUT - elapsed);
                 
-                // 更新进度条
-                const progress = Math.min(100, (elapsed / MATCH_TIMEOUT) * 100);
+                // 更新进度条（装饰性，30秒填满）
+                const progress = Math.min(100, (elapsed / 30) * 100);
                 document.getElementById('progressFill').style.width = progress + '%';
                 
                 // 更新时间显示
                 document.getElementById('waitTime').textContent = `已等待 ${elapsed} 秒`;
-                document.getElementById('timeoutCountdown').textContent = `超时剩余 ${remaining} 秒`;
-                
-                // 接近超时时改变样式
-                if (remaining <= 10) {
-                    document.getElementById('progressFill').classList.add('warning');
-                }
             }, 1000);
         }
 
@@ -278,9 +270,10 @@
                 if (data.status === 'found') {
                     clearInterval(matchInterval);
                     clearInterval(waitTimer);
+                    const totalTime = Math.floor((Date.now() - startTime) / 1000);
                     localStorage.setItem('sessionId', data.session_id);
                     localStorage.setItem('opponentType', data.opponent_type);
-                    showFound(data.opponent_type === 'human' ? '匹配到真人对手！' : '已匹配 AI 对手');
+                    showFound(data.opponent_type === 'human' ? '匹配到真人对手！' : '已匹配 AI 对手', totalTime);
                     setTimeout(() => {
                         window.location.href = '/chat';
                     }, 1500);
@@ -315,10 +308,14 @@
             document.getElementById('progressFill').classList.remove('warning', 'timeout');
         }
 
-        function showFound(message) {
+        function showFound(message, matchTime = null) {
             document.getElementById('matchingSection').style.display = 'none';
             document.getElementById('foundSection').style.display = 'block';
-            document.getElementById('matchResult').textContent = message;
+            if (matchTime !== null) {
+                document.getElementById('matchResult').textContent = `${message}（用时 ${matchTime} 秒）`;
+            } else {
+                document.getElementById('matchResult').textContent = message;
+            }
         }
 
         async function matchAI() {
