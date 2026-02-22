@@ -1,122 +1,13 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>图灵测试 - 登录</title>
-    <link rel="stylesheet" href="/css/style.css">
-</head>
-<body>
-    <div class="container">
-        <div class="card login-card">
-            <h1>🧪 图灵测试社交实验</h1>
-            <p class="subtitle">你是一个对话者，还是被测试的 AI？</p>
-            
-            <div id="step1">
-                <h3>请输入邀请码</h3>
-                <input type="text" id="inviteCode" placeholder="6 位邀请码" maxlength="8" autocomplete="off">
-                <button onclick="verifyCode()" class="btn btn-primary">验证邀请码</button>
-                <p id="codeError" class="error"></p>
-            </div>
-            
-            <div id="step2" style="display: none;">
-                <h3>设置你的昵称</h3>
-                <input type="text" id="nickname" placeholder="你想使用的昵称" maxlength="20">
-                <button onclick="register()" class="btn btn-primary">开始实验</button>
-            </div>
-            
-            <div class="info-box">
-                <h4>📋 实验说明</h4>
-                <p class="experiment-intro">
-                    这是一个研究性学习项目。你将随机匹配到一位对话者，<strong>可能是真人，也可能是 AI</strong>。
-                    请通过聊天判断对方身份，并在对话结束后提交你的判断。
-                </p>
-                <h5>🔍 匹配规则</h5>
-                <ul>
-                    <li><strong>真人优先</strong>：系统会优先将你与等待中的真人匹配</li>
-                    <li><strong>AI 备选</strong>：若无真人等待或超时 30 秒，将自动匹配 AI</li>
-                    <li><strong>匿名对话</strong>：双方身份保密，直到实验结束才揭晓</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script>
-        const API_BASE = '';
-        let verifiedCode = '';
-
-        async function verifyCode() {
-            const code = document.getElementById('inviteCode').value.trim().toUpperCase();
-            const errorEl = document.getElementById('codeError');
-            
-            if (!code) {
-                errorEl.textContent = '请输入邀请码';
-                return;
-            }
-
-            try {
-                const res = await fetch(`${API_BASE}/api/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code })
-                });
-
-                if (res.ok) {
-                    verifiedCode = code;
-                    document.getElementById('step1').style.display = 'none';
-                    document.getElementById('step2').style.display = 'block';
-                    errorEl.textContent = '';
-                } else {
-                    const data = await res.json();
-                    errorEl.textContent = data.detail || '邀请码无效';
-                }
-            } catch (e) {
-                errorEl.textContent = '网络错误，请稍后重试';
-                console.error(e);
-            }
-        }
-
-        async function register() {
-            const nickname = document.getElementById('nickname').value.trim();
-            
-            if (!nickname) {
-                alert('请输入昵称');
-                return;
-            }
-
-            try {
-                const res = await fetch(`${API_BASE}/api/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code: verifiedCode, nickname })
-                });
-
-                if (res.ok) {
-                    const user = await res.json();
-                    localStorage.setItem('userId', user.id);
-                    localStorage.setItem('nickname', user.nickname);
-                    localStorage.setItem('inviteCode', verifiedCode);
-                    window.location.href = '/lobby';
-                } else {
-                    const data = await res.json();
-                    alert(data.detail || '注册失败');
-                }
-            } catch (e) {
-                alert('网络错误，请稍后重试');
-                console.error(e);
-            }
-        }
-
-        // 回车提交
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('inviteCode').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') verifyCode();
-            });
-            document.getElementById('nickname').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') register();
-            });
-        });
-    </script>
-</body>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>frontend</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
 </html>
