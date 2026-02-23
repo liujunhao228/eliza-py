@@ -1,6 +1,18 @@
-# Alice - 好奇的朋友
+# Alice & Turing Test - 双重用途研究平台
 
-一个基于 ELIZA 原理的轻量化中文聊天机器人，扮演一个永远对你充满好奇的朋友角色。
+一个基于 ELIZA 原理的轻量化中文聊天机器人 + 图灵测试社会实验平台。
+
+## 项目组成
+
+### 1. Alice - 好奇的朋友
+
+基于 ELIZA 原理的轻量化中文聊天机器人，扮演一个永远对你充满好奇的朋友角色。
+
+### 2. Turing Test - 图灵测试社会实验
+
+基于积分激励机制的博弈实验平台，研究"基于积分激励的人机辨识博弈中人类行为拟态"。
+
+---
 
 ![Python](https://img.shields.io/badge/python-3.7+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -13,6 +25,7 @@
 - 🔧 **易于定制**: YAML 脚本配置，灵活调整行为
 - 📦 **开箱即用**: 安装依赖即可运行
 - 🆕 **NLP 工厂模式**: 统一管理分词、实体识别引擎
+- 🤖 **Bot 池架构**: 共享 NLP 服务，支持多用户并发对话
 
 ## 🚀 快速开始
 
@@ -33,11 +46,14 @@ pip install ltp>=4.2.10
 ### 运行
 
 ```bash
-# 启动 Alice
+# 启动 Alice（命令行模式）
 python main.py
 
 # 或使用 Python API
 python -c "from alice.alice_v2 import AliceBot; alice = AliceBot(); print(alice.respond('你好'))"
+
+# 启动 Turing Test 后端服务
+python start_backend.py
 ```
 
 ### 示例对话
@@ -60,31 +76,51 @@ Alice: 再见！很高兴和你聊天！
 
 | 文档 | 描述 |
 |------|------|
-| [NLP 模块文档](docs/NLP 模块文档.md) | NLP 工厂和引擎使用指南 |
-| [项目模块文档](docs/项目模块文档.md) | 整体架构和模块说明 |
-| [开发者指南](docs/开发者指南.md) | 开发环境和贡献指南 |
-| [编码规范](docs/编码规范.md) | 代码规范和最佳实践 |
+| [编码规范](docs/编码规范.md) | 异常处理、优雅降级、代码风格 |
+| [配置重构说明](docs/CONFIG_REFACTORING.md) | 统一配置系统使用指南 |
+| [数据结构文档](DATA_STRUCTURES.md) | 核心数据模型和数据库 Schema |
+| [Bot 池实现](AI_BOT_POOL_IMPLEMENTATION.md) | 高并发 AI 对话架构说明 |
+| [执行计划](EXECUTION_PLAN.md) | 项目进度和任务分解 |
 
 ## 🎯 核心功能
 
-### 1. 叙事延续
+### Alice 对话功能
+
+#### 1. 叙事延续
 当用户分享经历时，Alice 会好奇地追问：
 - "后来呢？发生了什么？"
 - "那之后你做了什么？"
 
-### 2. 人物关注
+#### 2. 人物关注
 当用户提到他人时，Alice 会询问：
 - "ta 是个怎样的人？"
 - "你们关系怎么样？"
 
-### 3. 自我反思
+#### 3. 自我反思
 当用户表达观点时，Alice 会引导：
 - "为什么会有这种想法？"
 - "这个想法对你有什么影响？"
 
+### Turing Test 博弈功能
+
+#### 1. 积分系统
+- 初始积分：100 分
+- 场中判断：双倍乘数博弈
+- 信心等级：低/中/高三档
+
+#### 2. 元对话机制
+- 提及"真人"、"AI"等关键词触发
+- 高频元对话增加惩罚乘数
+- 实时积分预测显示
+
+#### 3. 钓鱼机器人
+- 伪装成真人用户的 AI
+- 威慑合谋行为
+- 形成"暗黑森林"心理博弈
+
 ## 🔧 自定义配置
 
-### 修改脚本
+### 修改 Alice 脚本
 
 编辑 `alice/scripts/emotion_responses.yaml`：
 
@@ -96,6 +132,22 @@ Alice: 再见！很高兴和你聊天！
   templates:
     - "你的自定义响应 1"
     - "你的自定义响应 2"
+```
+
+### 修改全局配置
+
+编辑 `config.yaml`：
+
+```yaml
+alice:
+  enable_ltp: true
+  max_input_length: 500
+
+turing:
+  server:
+    port: 8000
+  auth:
+    invite_code_length: 6
 ```
 
 ### 编程使用
@@ -116,17 +168,24 @@ print(response)
 | NerEngine (实体) | <10ms | ~10MB |
 | LtpEngine (句法，可选) | <100ms | ~200MB |
 | 完整对话流程 | <50ms | ~50MB |
+| Bot 池并发 | >100 请求/秒 | 动态扩展 |
 
 ## 🛠️ 开发
 
 ### 运行测试
 
 ```bash
-pip install pytest pytest-cov
+# Alice 模块测试
 pytest tests/
 
 # NLP 模块测试
 python test_nlp_refactor.py
+
+# 集成测试
+python test_integration_full.py
+
+# Bot 池测试
+python test_bot_pool.py
 ```
 
 ### 代码格式化
@@ -140,22 +199,48 @@ flake8 alice/
 
 ```
 eliza-py/
-├── alice/
-│   ├── alice_v2.py              # 主入口类
-│   ├── core/                    # 核心对话引擎
-│   ├── nlp/                     # NLP 模块（v3.0 重构）
-│   │   ├── engines/             # NLP 引擎
-│   │   └── dictionaries/        # 词典管理
-│   ├── processors/              # 处理器
-│   ├── plugins/                 # 插件系统
-│   ├── scripts/                 # YAML 脚本
-│   └── utils/                   # 工具函数
-├── docs/                        # 项目文档
-├── requirements.txt             # 依赖配置
-└── README.md                    # 项目说明
+├── alice/                          # Alice 聊天机器人核心
+│   ├── alice_v2.py                 # 主入口类
+│   ├── core/                       # 核心对话引擎
+│   ├── nlp/                        # NLP 模块
+│   │   ├── engines/                # NLP 引擎（jieba/LTP）
+│   │   └── dictionaries/           # 词典管理
+│   ├── processors/                 # 文本处理器
+│   ├── plugins/                    # 插件系统
+│   ├── scripts/                    # YAML 脚本配置
+│   ├── utils/                      # 工具函数
+│   └── cache/                      # 缓存管理
+│
+├── turing_test/                    # Turing Test 平台
+│   ├── backend/                    # 后端服务
+│   │   ├── api/                    # REST API
+│   │   ├── websocket/              # WebSocket 处理
+│   │   ├── models/                 # 数据库模型
+│   │   ├── schemas/                # API Schema
+│   │   ├── services/               # 业务服务
+│   │   └── bot_pool.py             # Bot 池管理器
+│   └── frontend/                   # Vue 3 前端（开发中）
+│       ├── src/
+│       │   ├── api/                # API 封装
+│       │   ├── components/         # 通用组件
+│       │   ├── views/              # 页面组件
+│       │   └── stores/             # 状态管理
+│       └── dist/                   # 构建输出
+│
+├── config/                         # 统一配置模块
+│   ├── __init__.py                 # 导出 settings
+│   ├── types.py                    # 配置类型定义
+│   └── loader.py                   # 配置加载器
+│
+├── docs/                           # 项目文档
+├── config.yaml                     # 主配置文件
+├── requirements.txt                # 依赖配置
+└── README.md                       # 项目说明
 ```
 
 ## 🎓 技术原理
+
+### Alice 原理
 
 Alice 基于 ELIZA 的经典"镜像反射"原理：
 
@@ -169,6 +254,47 @@ Alice 基于 ELIZA 的经典"镜像反射"原理：
 - 基于 YAML 的脚本引擎
 - 实体识别
 - 基于优先级的脚本调度
+- 共享 NLP 服务架构
+
+### Turing Test 原理
+
+图灵测试平台基于信号检测理论和演化博弈论：
+
+1. **非对称收益**: 打破合作均衡，防止合谋刷分
+2. **信心等级**: 测量用户元认知能力
+3. **元对话机制**: 高风险高回报的博弈设计
+4. **钓鱼机器人**: 威慑合谋行为，形成"暗黑森林"心理
+
+### 技术栈
+
+**后端**:
+- Python 3.7+
+- FastAPI (Turing Test 后端)
+- SQLAlchemy (ORM)
+- jieba / LTP (NLP)
+
+**前端** (开发中):
+- Vue 3 + TypeScript
+- Vite (构建工具)
+- Pinia (状态管理)
+- Element Plus (UI)
+
+**架构特性**:
+- 共享 NLP 服务（单例模式）
+- Bot 池管理（动态扩缩容）
+- WebSocket 实时通信
+- 统一配置系统
+
+## 📊 项目进度
+
+| 模块 | 进度 | 状态 |
+|------|------|------|
+| Alice 核心对话 | 100% | ✅ 已完成 |
+| NLP 引擎 | 100% | ✅ 已完成 |
+| Bot 池架构 | 100% | ✅ 已完成 |
+| Turing 后端 API | 95% | ✅ 基本完成 |
+| Turing 前端 | 60% | 🟡 开发中 |
+| 集成测试 | 90% | ✅ 基本完成 |
 
 ## 📚 参考资料
 

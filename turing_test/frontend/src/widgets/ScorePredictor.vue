@@ -64,6 +64,32 @@
       <span>元对话次数: {{ metaCount }} | </span>
       <span>元对话倍数: ×{{ formattedPrediction.metaMultiplier }}</span>
     </div>
+    
+    <!-- 计算公式说明 -->
+    <div class="formula-info">
+      <el-collapse>
+        <el-collapse-item title="📊 计算公式" name="formula">
+          <div class="formula-content">
+            <p><strong>积分计算公式：</strong></p>
+            <p>最终得分 = (基础分 × 信心倍数 × 元对话倍数) - 入场券 - 轮数惩罚</p>
+            
+            <p class="formula-section"><strong>当前状态：</strong></p>
+            <ul>
+              <li>基础分：+10（识别AI正确）或 -15（误判AI为真人）</li>
+              <li>当前轮数：{{ turn }}（轮数惩罚：第4轮开始，每轮-0.5分）</li>
+              <li>元对话次数：{{ metaCount }}</li>
+              <li>入场券：2 分（不退还）</li>
+            </ul>
+            
+            <p class="formula-section"><strong>示例（元对话 {{ metaCount }} 次，第 {{ turn }} 轮）：</strong></p>
+            <p>低信心正确：(10 × 1.0 × {{ formattedPrediction.metaMultiplier }}) - 2 - {{ formattedPrediction.turnPenalty }} = {{ formattedPrediction.lowConfidence.correct }} 分</p>
+            <p>中信心正确：(10 × 2.5 × {{ formattedPrediction.metaMultiplier }}) - 2 - {{ formattedPrediction.turnPenalty }} = {{ formattedPrediction.midConfidence.correct }} 分</p>
+            <p>高信心正确：(10 × 5.0 × {{ formattedPrediction.metaMultiplier }}) - 2 - {{ formattedPrediction.turnPenalty }} = {{ formattedPrediction.highConfidence.correct }} 分</p>
+            <p>高信心错误：(-15 × 5.0 × {{ formattedPrediction.penaltyMultiplier }}) - 2 - {{ formattedPrediction.turnPenalty }} = {{ formattedPrediction.highConfidence.wrong }} 分</p>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
+    </div>
   </div>
 </template>
 
@@ -180,5 +206,50 @@ const metaCount = computed(() => gameStore.metaConversationCount)
 .meta-info {
   border-top: none;
   padding-top: 4px;
+}
+
+.formula-info {
+  margin-top: 12px;
+}
+
+.formula-content {
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.formula-content p {
+  margin: 8px 0;
+  color: #606266;
+}
+
+.formula-content strong {
+  color: #303133;
+}
+
+.formula-section {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px dashed #dcdfe6;
+}
+
+.formula-section strong {
+  color: #409eff;
+}
+
+.formula-content ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.formula-content li {
+  margin: 4px 0;
+  color: #606266;
+}
+
+.formula-content .formula-section + ul {
+  margin-top: 8px;
 }
 </style>

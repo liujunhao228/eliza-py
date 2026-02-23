@@ -35,35 +35,35 @@ alice:
   hot_reload: true                      # 启用热重载
   hot_reload_mode: auto                 # 热重载模式 (auto/manual)
   hot_reload_poll_interval: 2.0         # 热重载轮询间隔 (秒)
-  
+
   # 文件路径 (相对于 project_root)
   script_file: alice/scripts/demo.yaml
   rules_file: alice/scripts/rules/mapping.yaml
   semantic_tags_file: alice/scripts/semantic_tags.yaml
-  
+
   # 对话上下文配置
   context_max_items: 10
   conversation_history_max_turns: 20
   ltp_cache_size_limit: 100
   dialogue_log_max_entries: 1000
-  
+
   # 性能配置
   performance_monitor_sample_rate: 1.0
   max_input_length: 500
   script_match_timeout: 100             # 毫秒
   regex_cache_size: 100
-  
+
   # 预定义响应
   fallback_responses:
     - "嗯，我明白了。这里是默认回答。"
   greeting_responses:
     - "你好！这里是默认回答"
-  
+
   # 日志配置
   log_max_size_mb: 10
   log_backup_count: 5
-  
-  # LTP 引擎配置
+
+  # LTP 引擎配置 (共享)
   ltp:
     enable_cws: true                    # 词分词
     enable_pos: true                    # 词性标注
@@ -81,43 +81,47 @@ turing:
   # 数据库配置
   database:
     url: sqlite:///data/turing.db
-  
+
   # 认证配置
   auth:
     invite_code_length: 6
-  
+    access_token_expire_minutes: 10080        # 7 天 (60 * 24 * 7)
+    algorithm: HS256
+    secret_key: "your-secret-key-change-in-production"
+    initial_score: 100
+
   # 匹配配置
   match:
     timeout: 30                         # 秒，等待真人超时后匹配 AI
-  
+
   # AI Bot 配置
   ai_bot:
     name: 小图
     typing_delay_base: 1.0              # 基础延迟 (秒)
     typing_delay_per_char: 0.05         # 每字符额外延迟 (秒)
-  
+
   # 会话配置
   session:
     min_chat_turns: 3                   # 最少对话轮数才能结束
-  
+
   # 服务器配置
   server:
     host: 0.0.0.0
     port: 8000
-  
-  # NLP 服务配置
+
+  # NLP 服务配置 (共享 LTP 引擎)
   nlp_service:
-    enable_ltp: false
+    enable_ltp: false                   # 是否启用 LTP，默认使用共享 LTP 配置
     cache_size: 1000
     cache_ttl: 3600
-  
+
   # Bot 池配置
   bot_pool:
     min_instances: 2
     max_instances: 10
     idle_timeout: 300
     max_concurrent: 100
-  
+
   # AliceBot 配置 (供 Turing 使用)
   alice_bot:
     enable_plugins: true
@@ -125,10 +129,22 @@ turing:
     context_max_turns: 20
     script_file: alice/scripts/demo.yaml
     rules_file: alice/scripts/rules/mapping.yaml
-  
+
   # 性能配置
   performance:
     response_timeout: 10.0
     max_input_length: 500
     base_typing_delay: 0.5
     chars_per_second: 5.0
+
+  # WebSocket 配置
+  websocket:
+    ping_interval: 20                   # 心跳间隔 (秒)
+    ping_timeout: 30                    # 心跳超时 (秒)
+
+  # 日志配置 (共享)
+  log:
+    level: INFO
+    file: logs/turing.log
+    max_size_mb: 10
+    backup_count: 5

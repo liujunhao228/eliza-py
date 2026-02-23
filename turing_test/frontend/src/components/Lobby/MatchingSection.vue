@@ -23,16 +23,16 @@
     <!-- 匹配提示 -->
     <div class="matching-tips">
       <div class="tip-item">
-        <span class="tip-icon">👥</span>
-        <span class="tip-text">真人优先匹配</span>
+        <span class="tip-icon">🎯</span>
+        <span class="tip-text">正在为您寻找合适的对话者</span>
       </div>
       <div class="tip-item">
         <span class="tip-icon">⏱️</span>
-        <span class="tip-text">30秒后自动匹配AI</span>
+        <span class="tip-text">请耐心等待...</span>
       </div>
       <div class="tip-item">
-        <span class="tip-icon">🎯</span>
-        <span class="tip-text">请耐心等待最佳对手</span>
+        <span class="tip-icon">🔒</span>
+        <span class="tip-text">双方身份保密</span>
       </div>
     </div>
 

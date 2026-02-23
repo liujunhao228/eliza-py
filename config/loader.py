@@ -36,6 +36,8 @@ from .types import (
     AliceBotConfig,
     PerformanceConfig,
     TuringConfig,
+    WebSocketConfig,
+    LogConfig,
 )
 
 
@@ -328,13 +330,19 @@ class ConfigLoader:
         bot_pool_cfg = cfg.get("bot_pool", {})
         alice_bot_cfg = cfg.get("alice_bot", {})
         perf_cfg = cfg.get("performance", {})
-        
+        ws_cfg = cfg.get("websocket", {})
+        log_cfg = cfg.get("log", {})
+
         return TuringConfig(
             database=DatabaseConfig(
                 url=self._get_required(db_cfg, "url", str, "turing.database"),
             ),
             auth=AuthConfig(
                 invite_code_length=self._get_required(auth_cfg, "invite_code_length", int, "turing.auth"),
+                access_token_expire_minutes=self._get_optional(auth_cfg, "access_token_expire_minutes", int, 10080, "turing.auth"),
+                algorithm=self._get_optional(auth_cfg, "algorithm", str, "HS256", "turing.auth"),
+                secret_key=self._get_optional(auth_cfg, "secret_key", str, "your-secret-key-change-in-production", "turing.auth"),
+                initial_score=self._get_optional(auth_cfg, "initial_score", int, 100, "turing.auth"),
             ),
             match=MatchConfig(
                 timeout=self._get_required(match_cfg, "timeout", int, "turing.match"),
@@ -374,6 +382,16 @@ class ConfigLoader:
                 max_input_length=self._get_required(perf_cfg, "max_input_length", int, "turing.performance"),
                 base_typing_delay=self._get_required(perf_cfg, "base_typing_delay", float, "turing.performance"),
                 chars_per_second=self._get_required(perf_cfg, "chars_per_second", float, "turing.performance"),
+            ),
+            websocket=WebSocketConfig(
+                ping_interval=self._get_optional(ws_cfg, "ping_interval", int, 20, "turing.websocket"),
+                ping_timeout=self._get_optional(ws_cfg, "ping_timeout", int, 30, "turing.websocket"),
+            ),
+            log=LogConfig(
+                level=self._get_optional(log_cfg, "level", str, "INFO", "turing.log"),
+                file=self._get_optional(log_cfg, "file", str, None, "turing.log"),
+                max_size_mb=self._get_optional(log_cfg, "max_size_mb", int, 10, "turing.log"),
+                backup_count=self._get_optional(log_cfg, "backup_count", int, 5, "turing.log"),
             ),
         )
 

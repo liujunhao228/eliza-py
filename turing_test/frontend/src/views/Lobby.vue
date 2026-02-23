@@ -91,17 +91,17 @@ function initMatchWebSocket(sessionId: number): void {
 }
 
 /**
- * 处理匹配成功
+ * 处理匹配成功（不区分真人/AI，保持匿名）
  */
 function handleMatchFound(data: any): void {
   console.log('[Lobby] 匹配成功:', data)
 
-  // 更新游戏状态
+  // 更新游戏状态（不存储对手类型，保持完全匿名）
   if (gameStore.sessionId) {
     gameStore.setSession({
       id: gameStore.sessionId,
       user_id: userStore.userId || 0,
-      opponent_type: 'human',
+      opponent_type: 'unknown', // 不泄露对手类型
       opponent_id: data.opponent?.id || 0,
       status: 'active',
       is_honeypot: false,
@@ -114,23 +114,23 @@ function handleMatchFound(data: any): void {
     })
   }
 
-  // 跳转到聊天页面
+  // 跳转到聊天页面（不透露任何信息）
   ElMessage.success('匹配成功！')
   router.push('/chat')
 }
 
 /**
- * 处理匹配超时（自动匹配 AI）
+ * 处理匹配超时（也当作匹配成功处理，不泄露信息）
  */
 function handleMatchTimeout(data: any): void {
-  console.log('[Lobby] 匹配超时，自动匹配 AI:', data)
+  console.log('[Lobby] 匹配超时:', data)
 
-  // 更新游戏状态
+  // 更新游戏状态（不存储对手类型，保持完全匿名）
   if (gameStore.sessionId) {
     gameStore.setSession({
       id: gameStore.sessionId,
       user_id: userStore.userId || 0,
-      opponent_type: 'ai',
+      opponent_type: 'unknown', // 不泄露对手类型
       opponent_id: 0,
       status: 'active',
       is_honeypot: false,
@@ -143,8 +143,8 @@ function handleMatchTimeout(data: any): void {
     })
   }
 
-  // 跳转到聊天页面
-  ElMessage.info('未找到真人对手，已为您匹配 AI 助手')
+  // 跳转到聊天页面（不透露任何信息）
+  ElMessage.success('匹配成功！')
   router.push('/chat')
 }
 

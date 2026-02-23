@@ -51,6 +51,10 @@
                 <span class="detail-value">{{ scoreBreakdown.confidence_multiplier }}×</span>
               </div>
               <div class="detail-item">
+                <span class="detail-label">元对话次数：</span>
+                <span class="detail-value">{{ metaConversationCount }} 次</span>
+              </div>
+              <div class="detail-item">
                 <span class="detail-label">元对话倍数：</span>
                 <span class="detail-value">{{ scoreBreakdown.meta_multiplier }}×</span>
               </div>
@@ -70,6 +74,83 @@
                 <span class="detail-label">最终得分：</span>
                 <span class="detail-value">{{ scoreBreakdown.final_score }}</span>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 元对话影响分析 -->
+        <div class="meta-analysis-section" v-if="metaConversationCount > 0">
+          <h2 class="section-title">元对话影响分析</h2>
+          <div class="meta-analysis-card">
+            <div class="analysis-intro">
+              <p>本次对话中使用了 <strong>{{ metaConversationCount }}</strong> 次元对话（讨论身份、AI等话题）</p>
+            </div>
+            
+            <div class="comparison-table">
+              <div class="comparison-row no-meta">
+                <div class="row-title">
+                  <span class="label-badge">无元对话</span>
+                  <span class="label-desc">假设不使用元对话</span>
+                </div>
+                <div class="row-details">
+                  <div class="detail-line">
+                    <span>有效倍数：</span>
+                    <span class="value">{{ scoreBreakdown.confidence_multiplier }} × 1.0 = {{ scoreBreakdown.confidence_multiplier }}</span>
+                  </div>
+                  <div class="detail-line">
+                    <span>最终得分：</span>
+                    <span class="value score-neutral">{{ noMetaScore }}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="comparison-arrow">
+                <span>↓</span>
+              </div>
+              
+              <div class="comparison-row with-meta">
+                <div class="row-title">
+                  <span class="label-badge active">使用元对话</span>
+                  <span class="label-desc">实际使用了{{ metaConversationCount }}次元对话</span>
+                </div>
+                <div class="row-details">
+                  <div class="detail-line">
+                    <span>有效倍数：</span>
+                    <span class="value">{{ scoreBreakdown.confidence_multiplier }} × {{ scoreBreakdown.meta_multiplier }} = {{ scoreBreakdown.effective_multiplier }}</span>
+                  </div>
+                  <div class="detail-line">
+                    <span>最终得分：</span>
+                    <span class="value" :class="scoreChangeClass">{{ scoreBreakdown.final_score }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="impact-summary">
+              <div class="impact-gain" v-if="metaGain > 0">
+                <span class="impact-icon">📈</span>
+                <span class="impact-text">
+                  元对话带来了 <strong>+{{ metaGain }}</strong> 分的增益
+                  <span class="impact-percent">（{{ metaGainPercent }}%提升）</span>
+                </span>
+              </div>
+              <div class="impact-loss" v-else>
+                <span class="impact-icon">📉</span>
+                <span class="impact-text">
+                  元对话造成了 <strong>{{ metaGain }}</strong> 分的损失
+                  <span class="impact-percent">（{{ metaGainPercent }}%下降）</span>
+                </span>
+              </div>
+            </div>
+            
+            <div class="meta-tips">
+              <el-alert
+                title="💡 元对话双刃剑"
+                type="info"
+                :closable="false"
+              >
+                <p>元对话可以大幅提升得分，但判断错误时惩罚也会加倍。谨慎使用元对话，权衡风险与收益！</p>
+              </el-alert>
             </div>
           </div>
         </div>
@@ -225,6 +306,33 @@ const opinionGuessText = computed(() => {
     'honeypot': '🎣 钓鱼机器人'
   }
   return map[opinionData.value.opponent_guess] || '未知'
+})
+
+// 元对话相关计算属性
+const metaConversationCount = computed(() => {
+  return scoreBreakdown.value?.meta_conversation_count || 0
+})
+
+const noMetaScore = computed(() => {
+  if (!scoreBreakdown.value) return 0
+  const base = scoreBreakdown.value.base_reward
+  const confidence = scoreBreakdown.value.confidence_multiplier
+  const entryFee = scoreBreakdown.value.entry_fee || 2
+  const turnPenalty = scoreBreakdown.value.turn_penalty || 0
+  // 无元对话时的得分：基础分 × 信心倍数 - 入场券 - 轮数惩罚
+  return base * confidence - entryFee - turnPenalty
+})
+
+const metaGain = computed(() => {
+  if (!scoreBreakdown.value) return 0
+  return scoreBreakdown.value.final_score - noMetaScore.value
+})
+
+const metaGainPercent = computed(() => {
+  const baseScore = noMetaScore.value
+  if (baseScore === 0) return '0'
+  const percent = ((metaGain.value / Math.abs(baseScore)) * 100).toFixed(1)
+  return percent
 })
 
 // 初始化数据
@@ -647,6 +755,178 @@ function viewHistory() {
 
 .action-button.secondary:hover {
   background: #f0f4ff;
+}
+
+/* 元对话影响分析 */
+.meta-analysis-section {
+  margin-bottom: 32px;
+}
+
+.meta-analysis-card {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid #e9ecef;
+}
+
+.analysis-intro {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.analysis-intro p {
+  margin: 0;
+  font-size: 15px;
+  color: #606266;
+  line-height: 1.6;
+}
+
+.analysis-intro strong {
+  color: #409eff;
+  font-weight: 600;
+}
+
+.comparison-table {
+  margin-bottom: 20px;
+}
+
+.comparison-row {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  border: 2px solid #e0e0e0;
+  margin-bottom: 8px;
+}
+
+.comparison-row.no-meta {
+  border-color: #d0d0d0;
+}
+
+.comparison-row.with-meta {
+  border-color: #409eff;
+  background: #f0f9ff;
+}
+
+.row-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.label-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #e0e0e0;
+  color: #666;
+}
+
+.label-badge.active {
+  background: #409eff;
+  color: white;
+}
+
+.label-desc {
+  font-size: 13px;
+  color: #909399;
+}
+
+.row-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 12px;
+}
+
+.detail-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #606266;
+}
+
+.detail-line span:first-child {
+  min-width: 80px;
+  color: #909399;
+}
+
+.detail-line .value {
+  font-weight: 500;
+  color: #303133;
+}
+
+.detail-line .value.score-neutral {
+  color: #606266;
+}
+
+.detail-line .value.score-positive {
+  color: #67c23a;
+}
+
+.detail-line .value.score-negative {
+  color: #f56c6c;
+}
+
+.comparison-arrow {
+  text-align: center;
+  font-size: 24px;
+  color: #909399;
+  margin: 8px 0;
+}
+
+.impact-summary {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.impact-gain,
+.impact-loss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 16px;
+}
+
+.impact-gain {
+  color: #67c23a;
+}
+
+.impact-loss {
+  color: #f56c6c;
+}
+
+.impact-icon {
+  font-size: 24px;
+}
+
+.impact-text {
+  color: #606266;
+  line-height: 1.6;
+}
+
+.impact-text strong {
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.impact-percent {
+  margin-left: 8px;
+  font-size: 14px;
+  color: #909399;
+}
+
+.meta-tips :deep(.el-alert__content) {
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 /* 响应式设计 */

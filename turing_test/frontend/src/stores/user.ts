@@ -6,7 +6,8 @@ import { STORAGE_KEYS } from '@/utils/constants'
 export const useUserStore = defineStore('user', () => {
   // 状态
   const userId = ref<number | null>(parseInt(localStorage.getItem(STORAGE_KEYS.USER_ID) || '0') || null)
-  const nickname = ref<string>(localStorage.getItem(STORAGE_KEYS.NICKNAME) || '')
+  const username = ref<string>(localStorage.getItem(STORAGE_KEYS.NICKNAME) || '')
+  const nickname = ref<string>(localStorage.getItem(STORAGE_KEYS.NICKNAME) || '')  // 兼容旧字段
   const inviteCode = ref<string>(localStorage.getItem(STORAGE_KEYS.INVITE_CODE) || '')
   const score = ref<number>(parseInt(localStorage.getItem(STORAGE_KEYS.USER_SCORE) || '100'))
   const stats = ref<UserStats | null>(null)
@@ -18,6 +19,7 @@ export const useUserStore = defineStore('user', () => {
     if (!userId.value) return null
     return {
       id: userId.value,
+      username: username.value,
       nickname: nickname.value,
       invite_code: inviteCode.value,
       score: score.value,
@@ -28,13 +30,14 @@ export const useUserStore = defineStore('user', () => {
   // 方法
   function setUser(user: User) {
     userId.value = user.id
-    nickname.value = user.nickname
+    username.value = user.username || user.nickname || ''
+    nickname.value = user.nickname || user.username || ''
     inviteCode.value = user.invite_code
     score.value = user.score || 100
 
-    // 持久化到localStorage
+    // 持久化到 localStorage
     localStorage.setItem(STORAGE_KEYS.USER_ID, user.id.toString())
-    localStorage.setItem(STORAGE_KEYS.NICKNAME, user.nickname)
+    localStorage.setItem(STORAGE_KEYS.NICKNAME, nickname.value)
     localStorage.setItem(STORAGE_KEYS.INVITE_CODE, user.invite_code)
     localStorage.setItem(STORAGE_KEYS.USER_SCORE, (user.score || 100).toString())
   }
@@ -54,13 +57,14 @@ export const useUserStore = defineStore('user', () => {
 
   function logout() {
     userId.value = null
+    username.value = ''
     nickname.value = ''
     inviteCode.value = ''
     score.value = 100
     stats.value = null
     scoreHistory.value = []
 
-    // 清除localStorage
+    // 清除 localStorage
     localStorage.removeItem(STORAGE_KEYS.USER_ID)
     localStorage.removeItem(STORAGE_KEYS.NICKNAME)
     localStorage.removeItem(STORAGE_KEYS.INVITE_CODE)
@@ -71,16 +75,17 @@ export const useUserStore = defineStore('user', () => {
   return {
     // 状态
     userId,
+    username,
     nickname,
     inviteCode,
     score,
     stats,
     scoreHistory,
-    
+
     // 计算属性
     isLoggedIn,
     currentUser,
-    
+
     // 方法
     setUser,
     updateScore,

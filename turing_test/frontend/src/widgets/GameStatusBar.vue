@@ -18,7 +18,17 @@
     <!-- 轮数惩罚 -->
     <div class="status-item turn-penalty" v-if="turn > 3">
       <span class="icon">⚠️</span>
-      <span>轮数惩罚: {{ turnPenalty.toFixed(1) }} 分</span>
+      <el-tooltip placement="top" :show-after="500">
+        <template #content>
+          <div class="tooltip-content">
+            <p><strong>轮数惩罚机制：</strong></p>
+            <p>• 前3轮：免惩罚</p>
+            <p>• 第4轮开始：每轮扣除 0.5 分</p>
+            <p>• 当前第 {{ turn }} 轮，惩罚 = {{ turnPenalty.toFixed(1) }} 分</p>
+          </div>
+        </template>
+        <span>轮数惩罚: {{ turnPenalty.toFixed(1) }} 分</span>
+      </el-tooltip>
     </div>
     
     <!-- 高频元对话警告 -->
@@ -104,5 +114,23 @@ const turnPenalty = computed(() => {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
+}
+
+.tooltip-content {
+  min-width: 200px;
+  padding: 8px 0;
+}
+
+.tooltip-content p {
+  margin: 4px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #606266;
+}
+
+.tooltip-content p strong {
+  color: #303133;
+  display: block;
+  margin-bottom: 4px;
 }
 </style>

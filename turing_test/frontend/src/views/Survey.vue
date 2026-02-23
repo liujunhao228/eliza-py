@@ -32,41 +32,7 @@
 
           <!-- 信心等级 -->
           <el-form-item label="信心等级" prop="confidence_level" required>
-            <div class="confidence-selector">
-              <el-radio
-                v-model="surveyForm.confidence_level"
-                value="low"
-                class="confidence-radio low"
-              >
-                <div class="confidence-content">
-                  <span class="confidence-label">低信心</span>
-                  <span class="confidence-range">(50%-70%)</span>
-                  <span class="confidence-reward">×1.0</span>
-                </div>
-              </el-radio>
-              <el-radio
-                v-model="surveyForm.confidence_level"
-                value="mid"
-                class="confidence-radio mid"
-              >
-                <div class="confidence-content">
-                  <span class="confidence-label">中信心</span>
-                  <span class="confidence-range">(71%-90%)</span>
-                  <span class="confidence-reward">×2.5</span>
-                </div>
-              </el-radio>
-              <el-radio
-                v-model="surveyForm.confidence_level"
-                value="high"
-                class="confidence-radio high"
-              >
-                <div class="confidence-content">
-                  <span class="confidence-label">高信心</span>
-                  <span class="confidence-range">(91%-100%)</span>
-                  <span class="confidence-reward">×5.0</span>
-                </div>
-              </el-radio>
-            </div>
+            <ConfidenceSelector v-model="surveyForm.confidence_level" />
           </el-form-item>
 
           <!-- 流畅度评分 -->
@@ -153,6 +119,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useGameStore } from '@/stores/game'
 import type { SurveyData } from '@/types'
 import { submitSurvey as submitSurveyAPI } from '@/api/survey'
+import ConfidenceSelector from '@/components/Survey/ConfidenceSelector.vue'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -312,76 +279,6 @@ onMounted(() => {
   color: #333;
 }
 
-/* 信心等级选择器 */
-.confidence-selector {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.confidence-radio {
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  padding: 16px 20px;
-  transition: all 0.3s;
-  cursor: pointer;
-  width: 100%;
-}
-
-.confidence-radio:hover {
-  border-color: #667eea;
-  background-color: #f5f5f5;
-}
-
-.confidence-radio.is-checked {
-  border-color: #667eea;
-  background-color: #f0f4ff;
-}
-
-.confidence-radio.low.is-checked {
-  border-color: #4caf50;
-  background-color: #f1f8f4;
-}
-
-.confidence-radio.mid.is-checked {
-  border-color: #ff9800;
-  background-color: #fff8f1;
-}
-
-.confidence-radio.high.is-checked {
-  border-color: #f44336;
-  background-color: #fef1f1;
-}
-
-.confidence-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.confidence-label {
-  font-size: 16px;
-  font-weight: 500;
-  color: #333;
-  flex: 1;
-}
-
-.confidence-range {
-  color: #666;
-  font-size: 14px;
-  margin-right: 16px;
-}
-
-.confidence-reward {
-  background-color: #667eea;
-  color: white;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: bold;
-}
-
 /* 流畅度评分 */
 .rating-stars {
   font-size: 32px;
@@ -484,16 +381,6 @@ onMounted(() => {
 
   .guess-radio {
     min-width: auto;
-  }
-
-  .confidence-content {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-
-  .confidence-range {
-    margin-right: 0;
   }
 }
 </style>

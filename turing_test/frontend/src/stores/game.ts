@@ -8,7 +8,7 @@ import { STORAGE_KEYS } from '@/utils/constants'
 export const useGameStore = defineStore('game', () => {
   // 状态
   const sessionId = ref<number | null>(parseInt(localStorage.getItem(STORAGE_KEYS.SESSION_ID) || '0') || null)
-  const opponentType = ref<'human' | 'ai' | 'honeypot' | null>(null)
+  const opponentType = ref<'human' | 'ai' | 'honeypot' | 'unknown' | null>(null)
   const turn = ref<number>(0)
   const metaConversationCount = ref<number>(0)
   const messages = ref<MessageDisplay[]>([])

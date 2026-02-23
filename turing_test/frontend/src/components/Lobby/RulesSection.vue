@@ -28,44 +28,69 @@
       <h2>📜 实验规则</h2>
       
       <el-collapse v-model="activeNames" accordion>
-        <el-collapse-item title="1. 基本规则" name="1">
+        <el-collapse-item title="1. 入场券制度" name="1">
           <div class="rule-content">
-            <p>• 每次对话限 6 轮，共 12 条消息（双方各 6 条）</p>
-            <p>• 对话结束后，你需要判断对方是真人还是 AI</p>
-            <p>• 系统会根据你的判断准确率给予积分奖励</p>
-            <p>• 判断正确且高置信度可获得最高 100 分</p>
+            <p>• <strong>每局消耗</strong>：2 积分入场券</p>
+            <p>• <strong>初始积分</strong>：100 分</p>
+            <p>• <strong>不退还</strong>：无论胜负，入场券不退还</p>
+            <p>• <strong>最低轮数</strong>：至少对话 3 轮后才能结束</p>
           </div>
         </el-collapse-item>
 
-        <el-collapse-item title="2. 积分机制" name="2">
+        <el-collapse-item title="2. 判断与积分" name="2">
           <div class="rule-content">
-            <p>• <strong>基础分</strong>：判断正确得 50 分，错误扣 20 分</p>
-            <p>• <strong>置信度加成</strong>：</p>
+            <p>• <strong>识别 AI 正确</strong>：+10 分</p>
+            <p>• <strong>误判 AI 为真人</strong>：-15 分</p>
+            <p>• <strong>识别人类正确</strong>：+10 分</p>
+            <p>• <strong>误判人类为 AI</strong>：-10 分</p>
+            <p>• <strong>轮数惩罚</strong>：第 4 轮开始，每轮扣除 0.5 分</p>
+          </div>
+        </el-collapse-item>
+
+        <el-collapse-item title="3. 信心等级机制" name="3">
+          <div class="rule-content">
+            <p><strong>信心等级会影响积分倍数：</strong></p>
             <ul>
-              <li>高置信度（80-100%）：+30 分</li>
-              <li>中置信度（50-79%）：+15 分</li>
-              <li>低置信度（20-49%）：+5 分</li>
+              <li>低信心 (50%-70%)：×1.0 倍数</li>
+              <li>中信心 (71%-90%)：×2.5 倍数</li>
+              <li>高信心 (91%-100%)：×5.0 倍数</li>
             </ul>
-            <p>• <strong>流畅度奖励</strong>：根据对方回复流畅度给予额外奖励</p>
-            <p>• <strong>最高得分</strong>：100 分（判断正确 + 高置信度 + 高流畅度）</p>
+            <p class="warning">⚠️ 风险提示：高信心判断错误将受到 5 倍惩罚！</p>
           </div>
         </el-collapse-item>
 
-        <el-collapse-item title="3. 匹配规则" name="3">
+        <el-collapse-item title="4. 元对话双刃剑机制" name="4">
           <div class="rule-content">
-            <p>• <strong>真人优先</strong>：系统优先匹配等待中的真人玩家</p>
-            <p>• <strong>AI 备选</strong>：若无真人或超时 30 秒，自动匹配 AI</p>
+            <p><strong>什么是元对话？</strong></p>
+            <p>指讨论身份、真人、机器、AI等话题的行为</p>
+            <p><strong>每次元对话会增加倍数：</strong></p>
+            <ul>
+              <li>判断正确时：基础分 × (1 + 次数×0.2)</li>
+              <li>判断错误时：基础分 × (1 + 次数×0.3)</li>
+            </ul>
+            <p class="example">
+              <strong>示例：</strong>元对话 3 次，高信心判断正确<br>
+              → (+10 × 5.0 × 1.6) - 2 - 1.5 = +76.5 分<br>
+              → 如果判断错误：(-15 × 5.0 × 1.9) - 2 - 1.5 = -144.5 分
+            </p>
+            <p class="warning">🚨 高频元对话（>5次）会增加遇到钓鱼机器人的风险！</p>
+          </div>
+        </el-collapse-item>
+
+        <el-collapse-item title="5. 场中判断机制" name="5">
+          <div class="rule-content">
+            <p>• 对话过程中可以随时进行场中判断</p>
+            <p>• <strong>判断正确</strong>：双倍奖励（基础分 × 2.0）</p>
+            <p>• <strong>判断错误</strong>：1.5倍惩罚（基础分 × 1.5）</p>
+            <p>• 对话立即结束，无需填写后续问卷</p>
+          </div>
+        </el-collapse-item>
+
+        <el-collapse-item title="6. 匹配规则" name="6">
+          <div class="rule-content">
             <p>• <strong>匿名对话</strong>：双方身份保密，直到实验结束才揭晓</p>
-            <p>• <strong>公平性</strong>：AI 的回复由真实的图灵测试机器人生成</p>
-          </div>
-        </el-collapse-item>
-
-        <el-collapse-item title="4. 场中判断" name="4">
-          <div class="rule-content">
-            <p>• 在对话过程中，如果你已经确定对方身份</p>
-            <p>• 可以点击"立即结束并提交判断"</p>
-            <p>• <strong>注意</strong>：提前结束会按照当前轮数计算积分</p>
-            <p>• 建议：充分对话后再判断，以提高准确率</p>
+            <p>• <strong>完全随机</strong>：你可能会遇到真人、AI 或钓鱼机器人</p>
+            <p>• <strong>自由策略</strong>：不预设任何角色，你可以自由选择对话策略</p>
           </div>
         </el-collapse-item>
       </el-collapse>
@@ -216,6 +241,28 @@ function handleStartMatch() {
 .rule-content li {
   margin: 4px 0;
   color: #606266;
+}
+
+.rule-content .warning {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fef0f0;
+  border-left: 4px solid #f56c6c;
+  border-radius: 4px;
+  color: #f56c6c;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.rule-content .example {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f0f9ff;
+  border-left: 4px solid #409eff;
+  border-radius: 4px;
+  color: #409eff;
+  font-size: 14px;
+  line-height: 1.8;
 }
 
 .action-section {

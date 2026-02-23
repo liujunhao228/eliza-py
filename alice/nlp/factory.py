@@ -62,6 +62,10 @@ class NlpPipeline:
 
         for engine in self.engines:
             try:
+                # 跳过 None 引擎
+                if engine is None:
+                    continue
+                    
                 if not engine.is_available:
                     continue
 
@@ -218,7 +222,7 @@ class NlpFactory:
         self,
         use_ltp: bool = True,
         **kwargs,
-    ) -> Optional[SyntaxAnalyzer]:
+    ) -> Optional[Any]:
         """
         创建实体识别器
 
@@ -236,7 +240,10 @@ class NlpFactory:
             return None
 
         # 使用 LTP 引擎进行实体识别
-        return self.create_syntax_analyzer(**kwargs)
+        analyzer = self.create_syntax_analyzer(**kwargs)
+        if analyzer and hasattr(analyzer, 'is_available') and not analyzer.is_available:
+            return None
+        return analyzer
 
     def create_pipeline(
         self,
@@ -280,17 +287,24 @@ class NlpFactory:
                     if use_advanced:
                         logger.debug("使用高级功能，跳过 jieba 分词，由 LTP 处理分词")
                         continue
-                    engines.append(self.create_segmenter(use_ltp=False))
+                    engine = self.create_segmenter(use_ltp=False)
+                    if engine:  # 确保引擎创建成功
+                        engines.append(engine)
                 elif component == 'syntax':
                     analyzer = self.create_syntax_analyzer(**kwargs)
-                    if analyzer:
+                    if analyzer:  # 确保引擎创建成功
                         engines.append(analyzer)
                 elif component == 'ner':
-                    engines.append(self.create_entity_recognizer(use_ltp=True, **kwargs))
+                    recognizer = self.create_entity_recognizer(use_ltp=True, **kwargs)
+                    if recognizer:  # 确保引擎创建成功
+                        engines.append(recognizer)
                 elif component == 'ltp':
                     # 完整 LTP 分析
                     ltp_engine = self._create_ltp_engine(**kwargs)
-                    engines.append(ltp_engine)
+                    if ltp_engine and ltp_engine.is_available:  # 确保引擎创建成功且可用
+                        engines.append(ltp_engine)
+                    else:
+                        logger.warning(f"LTP 引擎不可用，跳过组件：{component}")
                 else:
                     logger.warning(f"未知组件：{component}")
             except Exception as e:

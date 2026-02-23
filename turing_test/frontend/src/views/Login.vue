@@ -6,7 +6,7 @@
         <p class="subtitle">你是一个对话者，还是被测试的 AI？</p>
       </div>
 
-      <!-- 步骤1：验证邀请码 -->
+      <!-- 步骤 1：验证邀请码 -->
       <div v-if="step === 1" class="step">
         <h3>请输入邀请码</h3>
         <el-input
@@ -29,7 +29,7 @@
         <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
       </div>
 
-      <!-- 步骤2：设置昵称 -->
+      <!-- 步骤 2：登录 -->
       <div v-if="step === 2" class="step">
         <h3>设置你的昵称</h3>
         <el-input
@@ -38,13 +38,13 @@
           maxlength="20"
           size="large"
           clearable
-          @keyup.enter="register"
+          @keyup.enter="registerUser"
         />
         <el-button
           type="primary"
           size="large"
           :loading="loading"
-          @click="register"
+          @click="registerUser"
           class="btn-full"
         >
           开始实验
@@ -75,7 +75,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { verifyInviteCode, registerUser } from '@/api/auth'
+import { login, register, verifyInviteCode } from '@/api/auth'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -108,8 +108,8 @@ async function verifyCode() {
   }
 }
 
-// 注册用户
-async function register() {
+// 登录/注册
+async function registerUser() {
   if (!nickname.value.trim()) {
     ElMessage.warning('请输入昵称')
     return
@@ -118,12 +118,13 @@ async function register() {
   loading.value = true
 
   try {
-    const user = await registerUser(inviteCode.value.trim().toUpperCase(), nickname.value.trim())
+    // 直接登录，如果用户不存在会自动创建
+    const user = await login(inviteCode.value.trim().toUpperCase())
     userStore.setUser(user)
     ElMessage.success('登录成功！')
     router.push('/lobby')
   } catch (error: any) {
-    ElMessage.error(error.message || '注册失败')
+    ElMessage.error(error.message || '登录失败')
   } finally {
     loading.value = false
   }

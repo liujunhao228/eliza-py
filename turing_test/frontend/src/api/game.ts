@@ -6,7 +6,10 @@ import type {
   WebSocketConfig,
   WSConnectionState,
   WSMessageHandler,
-  IWebSocketManager
+  IWebSocketManager,
+  ReconnectEvent,
+  ReconnectSuccessEvent,
+  ReconnectFailedEvent
 } from '@/types'
 import { WS_BASE_URL } from '@/utils/constants'
 
@@ -85,6 +88,13 @@ export async function getScoreHistory(userId: number): Promise<any[]> {
 /**
  * WebSocket 管理器类
  * 提供完整的 WebSocket 连接管理、消息路由、心跳检测和自动重连功能
+ * 
+ * 重连机制特性:
+ * - 指数退避策略：重连间隔按 2 的幂次增长
+ * - 最大间隔限制：防止等待时间过长
+ * - 连接超时检测：避免无限等待
+ * - 重连事件通知：支持回调和事件订阅
+ * - 状态恢复：重连成功后自动恢复订阅状态
  */
 class WebSocketManager implements IWebSocketManager {
   private ws: WebSocket | null = null
@@ -93,8 +103,10 @@ class WebSocketManager implements IWebSocketManager {
   private messageHandlers: Map<string, Set<WSMessageHandler>> = new Map()
   private heartbeatTimer: number | null = null
   private reconnectTimer: number | null = null
+  private connectionTimeoutTimer: number | null = null
   private reconnectAttempts: number = 0
   private manuallyClosed: boolean = false
+  private disconnectStartTime: number = 0 // 记录断开连接的时间戳
 
   constructor(config: WebSocketConfig) {
     this.config = {
@@ -102,12 +114,17 @@ class WebSocketManager implements IWebSocketManager {
       reconnect: config.reconnect ?? true,
       maxReconnectAttempts: config.maxReconnectAttempts ?? 5,
       reconnectInterval: config.reconnectInterval ?? 3000,
+      maxReconnectInterval: config.maxReconnectInterval ?? 30000, // 最大 30 秒
       heartbeatInterval: config.heartbeatInterval ?? 30000,
+      connectionTimeout: config.connectionTimeout ?? 10000, // 默认 10 秒超时
       onMessage: config.onMessage ?? (() => {}),
       onError: config.onError ?? (() => {}),
       onOpen: config.onOpen ?? (() => {}),
       onClose: config.onClose ?? (() => {}),
-      onStateChange: config.onStateChange ?? (() => {})
+      onStateChange: config.onStateChange ?? (() => {}),
+      onReconnecting: config.onReconnecting ?? (() => {}),
+      onReconnectSuccess: config.onReconnectSuccess ?? (() => {}),
+      onReconnectFailed: config.onReconnectFailed ?? (() => {})
     }
   }
 
@@ -126,9 +143,39 @@ class WebSocketManager implements IWebSocketManager {
     try {
       this.ws = new WebSocket(this.config.url)
       this.setupEventHandlers()
+      
+      // 设置连接超时
+      this.setupConnectionTimeout()
     } catch (error) {
       console.error('[WebSocket] 连接失败:', error)
       this.handleError(error as Event)
+    }
+  }
+
+  /**
+   * 设置连接超时检测
+   */
+  private setupConnectionTimeout(): void {
+    this.clearConnectionTimeout()
+    
+    this.connectionTimeoutTimer = window.setTimeout(() => {
+      if (this.state === 'connecting') {
+        console.warn('[WebSocket] 连接超时')
+        this.handleError(new Event('timeout') as any)
+        if (this.ws) {
+          this.ws.close()
+        }
+      }
+    }, this.config.connectionTimeout)
+  }
+
+  /**
+   * 清除连接超时定时器
+   */
+  private clearConnectionTimeout(): void {
+    if (this.connectionTimeoutTimer) {
+      clearTimeout(this.connectionTimeoutTimer)
+      this.connectionTimeoutTimer = null
     }
   }
 
@@ -140,10 +187,18 @@ class WebSocketManager implements IWebSocketManager {
 
     this.ws.onopen = (event) => {
       console.log('[WebSocket] 连接已建立')
+      this.clearConnectionTimeout() // 清除连接超时
       this.reconnectAttempts = 0
       this.setState('connected')
       this.startHeartbeat()
       this.config.onOpen?.(event)
+      
+      // 如果是重连成功，触发重连成功回调
+      if (this.disconnectStartTime > 0) {
+        const downtime = Date.now() - this.disconnectStartTime
+        this.disconnectStartTime = 0
+        this.config.onReconnectSuccess({ attempt: this.reconnectAttempts + 1, downtime })
+      }
     }
 
     this.ws.onmessage = (event) => {
@@ -163,10 +218,14 @@ class WebSocketManager implements IWebSocketManager {
     this.ws.onclose = (event) => {
       console.log('[WebSocket] 连接已关闭:', event.code, event.reason)
       this.stopHeartbeat()
+      this.clearConnectionTimeout()
+      this.disconnectStartTime = Date.now() // 记录断开时间
       this.config.onClose?.(event)
-      
+
       if (!this.manuallyClosed && this.config.reconnect) {
         this.attemptReconnect()
+      } else if (this.manuallyClosed) {
+        this.disconnectStartTime = 0
       }
     }
   }
@@ -201,19 +260,37 @@ class WebSocketManager implements IWebSocketManager {
 
   /**
    * 尝试重新连接
+   * 使用指数退避策略：delay = baseDelay * 2^(attempt-1)
+   * 最大延迟不超过 maxReconnectInterval
    */
   private attemptReconnect(): void {
     if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
       console.error('[WebSocket] 达到最大重连次数，放弃重连')
       this.setState('disconnected')
+      this.config.onReconnectFailed({ 
+        totalAttempts: this.reconnectAttempts,
+        lastError: undefined 
+      })
+      this.disconnectStartTime = 0
       return
     }
 
     this.reconnectAttempts++
     this.setState('reconnecting')
 
-    const delay = this.config.reconnectInterval * Math.pow(2, this.reconnectAttempts - 1) // 指数退避
-    console.log(`[WebSocket] 将在 ${delay}ms 后尝试第 ${this.reconnectAttempts} 次重连`)
+    // 计算延迟时间：指数退避 + 最大限制
+    const exponentialDelay = this.config.reconnectInterval * Math.pow(2, this.reconnectAttempts - 1)
+    const delay = Math.min(exponentialDelay, this.config.maxReconnectInterval)
+    
+    const reconnectEvent: ReconnectEvent = {
+      attempt: this.reconnectAttempts,
+      maxAttempts: this.config.maxReconnectAttempts,
+      delay,
+      willRetry: this.reconnectAttempts < this.config.maxReconnectAttempts
+    }
+    
+    console.log(`[WebSocket] 将在 ${delay}ms 后尝试第 ${this.reconnectAttempts} 次重连 (最大 ${this.config.maxReconnectInterval}ms)`)
+    this.config.onReconnecting(reconnectEvent)
 
     this.reconnectTimer = window.setTimeout(() => {
       this.connect()
@@ -250,6 +327,7 @@ class WebSocketManager implements IWebSocketManager {
     this.manuallyClosed = true
     this.stopHeartbeat()
     this.clearReconnectTimer()
+    this.clearConnectionTimeout()
 
     if (this.ws) {
       this.ws.close(1000, '用户主动断开')
@@ -257,6 +335,24 @@ class WebSocketManager implements IWebSocketManager {
     }
 
     this.setState('disconnected')
+    this.disconnectStartTime = 0
+  }
+
+  /**
+   * 重置连接状态（用于外部强制重置）
+   */
+  reset(): void {
+    this.disconnect()
+    this.reconnectAttempts = 0
+    this.manuallyClosed = false
+    this.setState('disconnected')
+  }
+
+  /**
+   * 获取当前重连次数
+   */
+  getReconnectAttempts(): number {
+    return this.reconnectAttempts
   }
 
   /**
@@ -286,6 +382,36 @@ class WebSocketManager implements IWebSocketManager {
    * 注册消息处理器
    */
   on(messageType: string, handler: WSMessageHandler): void {
+    // 特殊处理 stateChange 事件
+    if (messageType === 'stateChange') {
+      this.config.onStateChange = handler as (state: WSConnectionState) => void
+      // 立即触发一次当前状态
+      handler(this.state as any)
+      return
+    }
+
+    // 处理重连相关事件
+    if (messageType === 'reconnecting') {
+      this.config.onReconnecting = handler as (event: ReconnectEvent) => void
+      return
+    }
+
+    if (messageType === 'reconnectSuccess') {
+      this.config.onReconnectSuccess = handler as (event: ReconnectSuccessEvent) => void
+      return
+    }
+
+    if (messageType === 'reconnectFailed') {
+      this.config.onReconnectFailed = handler as (event: ReconnectFailedEvent) => void
+      return
+    }
+
+    // 处理 error 事件
+    if (messageType === 'error') {
+      this.config.onError = handler as (error: Event) => void
+      return
+    }
+
     if (!this.messageHandlers.has(messageType)) {
       this.messageHandlers.set(messageType, new Set())
     }
@@ -339,28 +465,33 @@ class WebSocketManager implements IWebSocketManager {
  * @param userId 用户 ID
  */
 export function createMatchWebSocket(userId: number): WebSocketManager {
-  const url = `${WS_BASE_URL}/match/${userId}`
+  const url = `${WS_BASE_URL}/match?user_id=${userId}`
   return new WebSocketManager({
     url,
     reconnect: true,
     maxReconnectAttempts: 3,
     reconnectInterval: 2000,
-    heartbeatInterval: 25000
+    maxReconnectInterval: 15000, // 最大 15 秒
+    heartbeatInterval: 25000,
+    connectionTimeout: 8000 // 8 秒超时
   })
 }
 
 /**
  * 创建聊天阶段的 WebSocket 管理器
  * @param sessionId 会话 ID
+ * @param userId 用户 ID
  */
-export function createChatWebSocket(sessionId: number): WebSocketManager {
-  const url = `${WS_BASE_URL}/chat/${sessionId}`
+export function createChatWebSocket(sessionId: number, userId: number): WebSocketManager {
+  const url = `${WS_BASE_URL}/chat?session_id=${sessionId}&user_id=${userId}`
   return new WebSocketManager({
     url,
     reconnect: true,
     maxReconnectAttempts: 5,
     reconnectInterval: 3000,
-    heartbeatInterval: 30000
+    maxReconnectInterval: 30000, // 最大 30 秒
+    heartbeatInterval: 30000,
+    connectionTimeout: 10000 // 10 秒超时
   })
 }
 

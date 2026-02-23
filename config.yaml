@@ -85,10 +85,76 @@ turing:
   # 认证配置
   auth:
     invite_code_length: 6
+    access_token_expire_minutes: 10080        # 7 天 (60 * 24 * 7)
+    algorithm: HS256
+    secret_key: "your-secret-key-change-in-production"
+    initial_score: 100
   
   # 匹配配置
   match:
     timeout: 30                         # 秒，等待真人超时后匹配 AI
+    # 匹配时间分布（真人/AI 使用相同分布，消除时间线索）
+    time_distribution:
+      fast: { min: 0, max: 3, probability: 0.5 }      # 50%: 0-3 秒
+      normal: { min: 3, max: 8, probability: 0.3 }    # 30%: 3-8 秒
+      slow: { min: 8, max: 15, probability: 0.15 }    # 15%: 8-15 秒
+      very_slow: { min: 15, max: 30, probability: 0.05 }  # 5%: 15-30 秒
+    # 钓鱼机器人配置
+    honeypot_probability: 0.15          # 15% 的 AI 匹配是钓鱼机器人
+    honeypot_high_meta_probability: 0.30  # 高频元对话时钓鱼机器人概率
+
+  # 元对话关键词配置（统一用于元对话检测和场中判断触发）
+  meta_keywords:
+    # 身份相关
+    - '真人'
+    - '机器'
+    - 'AI'
+    - '机器人'
+    - '人工智能'
+    - '程序'
+    - '算法'
+    - '人类'
+    - '人'
+    - '电脑'
+    - '计算'
+    # 身份判断相关
+    - '你是'
+    - '我是'
+    - '身份'
+    - '真假'
+    - '还是'
+    - '到底'
+
+  # 场中判断配置
+  mid_game:
+    enabled: true
+    # 触发关键词（使用 meta_keywords 统一列表）
+    multiplier_correct: 2.0             # 判断正确倍数
+    multiplier_wrong: 1.5               # 判断错误倍数
+    max_per_session: 1                  # 每局最多触发次数
+
+  # 积分配置
+  score:
+    entry_fee: 2                        # 入场券
+    min_free_turns: 3                   # 免费轮数
+    turn_penalty_rate: 0.5              # 轮数惩罚率（分/轮）
+    # 基础奖励/惩罚
+    base_reward:
+      ai_correct: 10                    # 识别 AI 正确
+      ai_wrong: -15                     # 误判 AI
+      human_correct: 20                 # 识别真人正确
+      human_wrong: -10                  # 误判真人
+      honeypot_correct: 30              # 识破钓鱼机器人（场中判断）
+      honeypot_wrong: -50               # 被钓鱼机器人欺骗
+    # 信心等级乘数
+    confidence_multiplier:
+      low: 1.0
+      mid: 2.5
+      high: 5.0
+    # 元对话乘数
+    meta_multiplier:
+      correct_rate: 0.2                 # 判断正确时每次元对话增加 20%
+      wrong_rate: 0.3                   # 判断错误时每次元对话增加 30%
   
   # AI Bot 配置
   ai_bot:
@@ -132,3 +198,15 @@ turing:
     max_input_length: 500
     base_typing_delay: 0.5
     chars_per_second: 5.0
+
+  # WebSocket 配置
+  websocket:
+    ping_interval: 20                   # 心跳间隔 (秒)
+    ping_timeout: 30                    # 心跳超时 (秒)
+
+  # 日志配置 (共享)
+  log:
+    level: INFO
+    file: logs/turing.log
+    max_size_mb: 10
+    backup_count: 5

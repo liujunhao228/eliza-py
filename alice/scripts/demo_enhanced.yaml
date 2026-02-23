@@ -12,7 +12,7 @@
   priority: 75
   condition:
     entities: ["PERSON", "TITLE"]  # 匹配人名或称谓
-    keywords: ["我"]
+    keywords: ["我叫"]
   templates:
     - "{PERSON}，你好呀！"
     - "原来是{PERSON}。你这么闲？"

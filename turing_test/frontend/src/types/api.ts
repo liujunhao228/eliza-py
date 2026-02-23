@@ -9,17 +9,24 @@ export interface ApiResponse<T = any> {
 // 用户相关类型
 export interface User {
   id: number
-  nickname: string
+  username: string
+  nickname?: string  // 兼容旧字段
   invite_code: string
   created_at: string
   score?: number
+  total_score_earned?: number
+  total_score_lost?: number
+  highest_score?: number
+  lowest_score?: number
+  risk_preference?: string
+  last_login_at?: string
 }
 
 // 会话相关类型
 export interface Session {
   id: number
   user_id: number
-  opponent_type: 'human' | 'ai' | 'honeypot'
+  opponent_type: 'human' | 'ai' | 'honeypot' | 'unknown'
   opponent_id?: number
   status: 'matching' | 'active' | 'completed'
   is_honeypot?: boolean
@@ -68,7 +75,7 @@ export interface ScoreBreakdown {
 // 场中判断响应类型
 export interface MidGameJudgmentResponse {
   is_correct: boolean
-  opponent_type: 'human' | 'ai' | 'honeypot'
+  opponent_type: 'human' | 'ai' | 'honeypot' | 'unknown'
   final_score: number
   score_breakdown: ScoreBreakdown
   opponent_guess?: string
@@ -78,7 +85,7 @@ export interface MidGameJudgmentResponse {
 // 问卷提交响应类型
 export interface SurveyResponse {
   is_correct: boolean
-  opponent_type: 'human' | 'ai' | 'honeypot'
+  opponent_type: 'human' | 'ai' | 'honeypot' | 'unknown'
   final_score: number
   score_breakdown: ScoreBreakdown
   opponent_guess?: string
@@ -121,7 +128,7 @@ export interface MatchStatus {
 export interface MatchResponse {
   status: 'found' | 'waiting' | 'timeout'
   session_id?: number
-  opponent_type?: 'human' | 'ai'
+  opponent_type?: 'human' | 'ai' | 'unknown'
   message?: string
 }
 

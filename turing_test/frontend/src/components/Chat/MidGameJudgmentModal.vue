@@ -46,6 +46,40 @@
             <div class="card-value negative">-{{ Math.round(potentialPenalty) }}</div>
           </div>
         </div>
+        
+        <!-- 计算详情 -->
+        <div class="calculation-details">
+          <el-collapse>
+            <el-collapse-item title="📊 计算详情" name="calculation">
+              <div class="calculation-content">
+                <p><strong>场中判断规则：</strong></p>
+                <ul>
+                  <li>✅ 判断正确：基础分 × 2.0（双倍奖励）</li>
+                  <li>❌ 判断错误：基础分 × 1.5（1.5倍惩罚）</li>
+                </ul>
+                
+                <p class="calc-section"><strong>计算公式：</strong></p>
+                <p>最终得分 = (基础分 × 场中倍数 × 元对话倍数) - 入场券 - 轮数惩罚</p>
+                
+                <p class="calc-section"><strong>当前状态：</strong></p>
+                <ul>
+                  <li>当前轮数：{{ gameStore.turn }}</li>
+                  <li>元对话次数：{{ gameStore.metaConversationCount }}</li>
+                  <li>元对话倍数：×{{ gameStore.metaConversationCount > 0 ? (1 + gameStore.metaConversationCount * 0.2).toFixed(1) : '1.0' }}</li>
+                  <li>轮数惩罚：{{ gameStore.turn > 3 ? ((gameStore.turn - 3) * 0.5).toFixed(1) + ' 分' : '0 分' }}</li>
+                </ul>
+                
+                <p class="calc-section"><strong>示例（假设高信心）：</strong></p>
+                <p class="correct-calc">
+                  判断正确：(10 × 2.0 × {{ (1 + gameStore.metaConversationCount * 0.2).toFixed(1) }}) - 2 - {{ (gameStore.turn > 3 ? ((gameStore.turn - 3) * 0.5).toFixed(1) : '0') }} = +{{ potentialReward.toFixed(1) }} 分
+                </p>
+                <p class="wrong-calc">
+                  判断错误：(-15 × 1.5 × {{ (1 + gameStore.metaConversationCount * 0.3).toFixed(1) }}) - 2 - {{ (gameStore.turn > 3 ? ((gameStore.turn - 3) * 0.5).toFixed(1) : '0') }} = -{{ potentialPenalty.toFixed(1) }} 分
+                </p>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
+        </div>
       </div>
 
       <!-- 选择按钮 -->
@@ -267,7 +301,59 @@ function handleCancel() {
   text-align: center;
 }
 
-/* 响应式设计 */
+/* 计算详情样式 */
+  .calculation-details {
+    margin-top: 16px;
+  }
+
+  .calculation-content {
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .calculation-content p {
+    margin: 8px 0;
+    color: #606266;
+  }
+
+  .calculation-content strong {
+    color: #303133;
+  }
+
+  .calc-section {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px dashed #dcdfe6;
+  }
+
+  .calc-section strong {
+    color: #409eff;
+  }
+
+  .calculation-content ul {
+    margin: 8px 0;
+    padding-left: 20px;
+  }
+
+  .calculation-content li {
+    margin: 4px 0;
+    color: #606266;
+  }
+
+  .correct-calc {
+    color: #67c23a;
+    font-weight: 500;
+  }
+
+  .wrong-calc {
+    color: #f56c6c;
+    font-weight: 500;
+  }
+
+  /* 响应式设计 */
 @media (max-width: 768px) {
   .prediction-grid {
     grid-template-columns: 1fr;
