@@ -90,8 +90,8 @@ class SharedNLPService:
         logger.info(f"✅ NLP 服务初始化完成")
         logger.info(f"   - LTP: {'✅' if self._ltp_available else '❌'}")
         logger.info(f"   - jieba: {'✅' if self._jieba_available else '❌'}")
-        logger.info(f"   - 缓存大小: {settings.NLP_CACHE_SIZE}")
-        logger.info(f"   - 缓存过期时间: {settings.NLP_CACHE_TTL}秒")
+        logger.info(f"   - 缓存大小: {settings.turing.nlp_service.cache_size}")
+        logger.info(f"   - 缓存过期时间: {settings.turing.nlp_service.cache_ttl}秒")
 
     def _initialize_ltp(self):
         """初始化 LTP"""
@@ -125,7 +125,7 @@ class SharedNLPService:
             if key in self._cache:
                 cached_data, timestamp = self._cache[key]
                 # 检查是否过期
-                if time.time() - timestamp < settings.NLP_CACHE_TTL:
+                if time.time() - timestamp < settings.turing.nlp_service.cache_ttl:
                     self._cache_hits += 1
                     return cached_data
                 else:
@@ -139,8 +139,8 @@ class SharedNLPService:
         """设置缓存"""
         with self._cache_lock:
             # 如果缓存已满，删除最旧的一半
-            if len(self._cache) >= settings.NLP_CACHE_SIZE:
-                keys_to_delete = list(self._cache.keys())[:settings.NLP_CACHE_SIZE // 2]
+            if len(self._cache) >= settings.turing.nlp_service.cache_size:
+                keys_to_delete = list(self._cache.keys())[:settings.turing.nlp_service.cache_size // 2]
                 for k in keys_to_delete:
                     del self._cache[k]
 
@@ -152,7 +152,7 @@ class SharedNLPService:
             current_time = time.time()
             keys_to_delete = [
                 key for key, (_, timestamp) in self._cache.items()
-                if current_time - timestamp > settings.NLP_CACHE_TTL
+                if current_time - timestamp > settings.turing.nlp_service.cache_ttl
             ]
             for key in keys_to_delete:
                 del self._cache[key]
@@ -327,7 +327,7 @@ class SharedNLPService:
             "ltp_available": self._ltp_available,
             "jieba_available": self._jieba_available,
             "cache_stats": self.get_cache_stats(),
-            "cache_enabled": settings.NLP_CACHE_SIZE > 0,
+            "cache_enabled": settings.turing.nlp_service.cache_size > 0,
         }
 
 

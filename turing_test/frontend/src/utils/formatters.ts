@@ -5,9 +5,9 @@
  */
 export function formatTime(isoString: string): string {
   const date = new Date(isoString)
-  return date.toLocaleTimeString('zh-CN', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
+  return date.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit'
   })
 }
 
@@ -38,7 +38,7 @@ export function formatDateTime(isoString: string): string {
 }
 
 /**
- * 格式化积分显示（正数显示+，负数显示-）
+ * 格式化积分显示（正数显示 +，负数显示 -）
  */
 export function formatScore(score: number): string {
   return score > 0 ? `+${score}` : `${score}`
@@ -52,7 +52,7 @@ export function formatPercentage(value: number, decimals: number = 1): string {
 }
 
 /**
- * 格式化持续时间（秒转为分钟:秒）
+ * 格式化持续时间（秒转为分钟：秒）
  */
 export function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60)
@@ -61,7 +61,7 @@ export function formatDuration(seconds: number): string {
 }
 
 /**
- * 转义HTML特殊字符
+ * 转义 HTML 特殊字符
  */
 export function escapeHtml(text: string): string {
   const div = document.createElement('div')
@@ -82,4 +82,27 @@ export function truncateText(text: string, maxLength: number): string {
  */
 export function formatNumber(num: number): string {
   return num.toLocaleString('zh-CN')
+}
+
+/**
+ * 根据字符串生成 Hash 颜色（HSL）
+ * 用于头像背景色生成
+ */
+export function stringToColor(str: string): string {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  
+  // 生成 HSL 颜色（固定饱和度和亮度，只变化色相）
+  const hue = Math.abs(hash) % 360
+  return `hsl(${hue}, 70%, 50%)`
+}
+
+/**
+ * 获取名称首字母（大写）
+ */
+export function getInitials(name: string): string {
+  if (!name) return '?'
+  return name.charAt(0).toUpperCase()
 }

@@ -130,6 +130,10 @@ function handleStartMatch() {
 </script>
 
 <style scoped>
+/* ==============================================
+   RulesSection 样式 - 使用主题系统
+   ============================================== */
+
 .rules-section {
   max-width: 800px;
   margin: 0 auto;
@@ -143,22 +147,22 @@ function handleStartMatch() {
 
 .header h1 {
   font-size: 32px;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 10px;
 }
 
 .subtitle {
   font-size: 16px;
-  color: #666;
+  color: var(--text-secondary);
   margin: 0;
 }
 
 .user-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16px;
+  background: var(--color-primary-gradient);
+  border-radius: var(--rounded-2xl);
   padding: 24px;
   margin-bottom: 30px;
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+  box-shadow: var(--shadow-lg);
 }
 
 .user-info {
@@ -171,7 +175,7 @@ function handleStartMatch() {
   width: 60px;
   height: 60px;
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
+  border-radius: var(--rounded-full);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -206,16 +210,17 @@ function handleStartMatch() {
 }
 
 .rules-card {
-  background: white;
-  border-radius: 16px;
+  background: var(--bg-surface);
+  border-radius: var(--rounded-2xl);
   padding: 30px;
   margin-bottom: 30px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-primary);
 }
 
 .rules-card h2 {
   font-size: 22px;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 20px;
 }
 
@@ -226,11 +231,11 @@ function handleStartMatch() {
 
 .rule-content p {
   margin: 8px 0;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 .rule-content strong {
-  color: #667eea;
+  color: var(--color-primary-600);
 }
 
 .rule-content ul {
@@ -240,16 +245,16 @@ function handleStartMatch() {
 
 .rule-content li {
   margin: 4px 0;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 .rule-content .warning {
   margin-top: 12px;
   padding: 12px;
-  background: #fef0f0;
-  border-left: 4px solid #f56c6c;
-  border-radius: 4px;
-  color: #f56c6c;
+  background: var(--color-red-50);
+  border-left: 4px solid var(--color-red-500);
+  border-radius: var(--rounded-sm);
+  color: var(--color-error);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -257,10 +262,10 @@ function handleStartMatch() {
 .rule-content .example {
   margin-top: 12px;
   padding: 12px;
-  background: #f0f9ff;
-  border-left: 4px solid #409eff;
-  border-radius: 4px;
-  color: #409eff;
+  background: var(--color-primary-50);
+  border-left: 4px solid var(--color-primary-600);
+  border-radius: var(--rounded-sm);
+  color: var(--color-primary-700);
   font-size: 14px;
   line-height: 1.8;
 }
@@ -276,16 +281,17 @@ function handleStartMatch() {
   height: 56px;
   font-size: 18px;
   font-weight: bold;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--color-primary-gradient);
   border: none;
-  border-radius: 28px;
+  border-radius: var(--rounded-full);
   transition: all 0.3s;
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+  color: white;
 }
 
 .btn-start:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 30px rgba(102, 126, 234, 0.5);
+  box-shadow: 0 6px 30px rgba(99, 102, 241, 0.5);
 }
 
 .btn-icon {
@@ -295,7 +301,41 @@ function handleStartMatch() {
 
 .hint-text {
   margin-top: 16px;
-  color: #909399;
+  color: var(--text-tertiary);
   font-size: 14px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .rules-section {
+    padding: 15px;
+  }
+
+  .header h1 {
+    font-size: 24px;
+  }
+
+  .user-card {
+    padding: 20px;
+  }
+
+  .user-info {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .avatar {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+
+  .rules-card {
+    padding: 20px;
+  }
+
+  .btn-start {
+    max-width: 100%;
+  }
 }
 </style>

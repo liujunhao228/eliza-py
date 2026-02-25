@@ -21,6 +21,17 @@ from config import settings
 router = APIRouter()
 
 
+def _normalize_opponent_type(opponent_type: str) -> str:
+    """
+    规范化对手类型，将 honeypot 隐藏为 ai
+    
+    这是为了向用户隐藏钓鱼机器人的存在，用户只需知道对手是"AI"或"真人"即可
+    """
+    if opponent_type == "honeypot":
+        return "ai"
+    return opponent_type
+
+
 # =============================================================================
 # 路由
 # =============================================================================
@@ -173,7 +184,7 @@ async def get_user_sessions(
     return [
         {
             "id": session.id,
-            "opponent_type": session.opponent_type,
+            "opponent_type": _normalize_opponent_type(session.opponent_type),
             "is_honeypot": session.is_honeypot,
             "final_score": session.final_score,
             "turn_count": session.turn_count,
@@ -182,3 +193,53 @@ async def get_user_sessions(
         }
         for session in sessions
     ]
+
+
+@router.get(
+    "/{user_id}/profile",
+    response_model=dict,
+    summary="获取用户完整档案",
+    description="获取用户的完整信息，包括基本信息、统计数据和积分历史",
+)
+async def get_user_profile(
+    user_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """获取用户完整档案"""
+    from turing_test.backend.models import User, UserStats, ScoreHistory
+
+    # 检查用户是否存在
+    result = await db.execute(
+        select(User).where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="用户不存在"
+        )
+
+    # 获取用户统计
+    result = await db.execute(
+        select(UserStats).where(UserStats.user_id == user_id)
+    )
+    user_stats = result.scalar_one_or_none()
+
+    # 获取最近的积分历史（最近 10 条）
+    result = await db.execute(
+        select(ScoreHistory)
+        .where(ScoreHistory.user_id == user_id)
+        .order_by(ScoreHistory.created_at.desc())
+        .limit(10)
+    )
+    score_history = result.scalars().all()
+
+    return {
+        "user": UserResponse.model_validate(user),
+        "stats": UserStatsResponse.model_validate(user_stats) if user_stats else None,
+        "score_history": [
+            ScoreHistoryResponse.model_validate(record)
+            for record in score_history
+        ],
+    }

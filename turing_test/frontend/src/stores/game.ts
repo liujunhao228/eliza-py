@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { GameState, MessageDisplay, ScorePrediction, Session } from '@/types'
-import { calculateScorePrediction } from '@/utils/scoreCalculator'
+import type { GameState, MessageDisplay, Session } from '@/types'
 import { MIN_CHAT_TURNS } from '@/utils/constants'
 import { STORAGE_KEYS } from '@/utils/constants'
 
@@ -12,14 +11,19 @@ export const useGameStore = defineStore('game', () => {
   const turn = ref<number>(0)
   const metaConversationCount = ref<number>(0)
   const messages = ref<MessageDisplay[]>([])
-  const currentScorePrediction = ref<ScorePrediction | null>(null)
   const triggeredMidGame = ref<boolean>(false)
   const isHoneypot = ref<boolean>(false)
   const sessionStartedAt = ref<Date | null>(null)
+  
+  // 轮流发送状态
+  const isUserTurn = ref<boolean>(true)
+  
+  // 正在输入状态
+  const isOpponentTyping = ref<boolean>(false)
 
   // 计算属性
   const canEndChat = computed(() => {
-    // 双方各MIN_CHAT_TURNS句才算完成一轮
+    // 双方各 MIN_CHAT_TURNS 句才算完成一轮
     return turn.value >= MIN_CHAT_TURNS * 2
   })
 
@@ -27,15 +31,6 @@ export const useGameStore = defineStore('game', () => {
     turn: turn.value,
     metaConversationCount: metaConversationCount.value,
     messages: messages.value,
-    currentScorePrediction: currentScorePrediction.value || {
-      lowConfidence: { correct: 0, wrong: 0 },
-      midConfidence: { correct: 0, wrong: 0 },
-      highConfidence: { correct: 0, wrong: 0 },
-      metaMultiplier: 1.0,
-      penaltyMultiplier: 1.0,
-      turnPenalty: 0,
-      entryFee: 2
-    },
     triggeredMidGame: triggeredMidGame.value,
     canEndChat: canEndChat.value
   }))
@@ -47,7 +42,9 @@ export const useGameStore = defineStore('game', () => {
     isHoneypot.value = session.is_honeypot || false
     triggeredMidGame.value = session.triggered_mid_game || false
     metaConversationCount.value = session.meta_conversation_count || 0
-    
+    isUserTurn.value = true // 新会话开始时总是用户先发送
+    isOpponentTyping.value = false
+
     if (session.started_at) {
       sessionStartedAt.value = new Date(session.started_at)
     }
@@ -58,13 +55,20 @@ export const useGameStore = defineStore('game', () => {
 
   function addMessage(message: MessageDisplay) {
     messages.value.push(message)
-    
-    // 更新轮数（用户或对手发送都算）
+
+    // 更新轮数（仅用户或对手发送的消息计入，system 消息不计入）
     if (message.sender === 'user' || message.sender === 'opponent') {
       turn.value++
-      updateScorePrediction()
+      
+      // 切换回合
+      if (message.sender === 'user') {
+        isUserTurn.value = false // 用户发送后，轮到对手
+      } else {
+        isUserTurn.value = true // 对手发送后，轮到用户
+        isOpponentTyping.value = false // 对手发送消息后，停止"正在输入"状态
+      }
     }
-    
+
     // 检查元对话
     if (message.isMetaConversation) {
       incrementMetaCount(message.metaKeyword || '未知')
@@ -72,30 +76,54 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function setInitialMessages(msgs: MessageDisplay[]) {
-    messages.value = msgs
-    turn.value = msgs.filter(m => m.sender === 'user' || m.sender === 'opponent').length
-    const metaCount = msgs.filter(m => m.isMetaConversation).length
-    metaConversationCount.value = metaCount
-    updateScorePrediction()
+    // 先清空现有消息和状态，确保数据一致性
+    messages.value = []
+    turn.value = 0
+    metaConversationCount.value = 0
+    isUserTurn.value = true // 默认用户回合
+    isOpponentTyping.value = false
+
+    // 逐条添加消息，确保正确计算轮数和元对话次数
+    msgs.forEach(message => {
+      messages.value.push(message)
+      // 仅用户或对手发送的消息计入轮数
+      if (message.sender === 'user' || message.sender === 'opponent') {
+        turn.value++
+      }
+      // 检查元对话
+      if (message.isMetaConversation) {
+        metaConversationCount.value++
+      }
+    })
+    
+    // 根据最后一条消息判断当前回合
+    if (msgs.length > 0) {
+      const lastMessage = msgs[msgs.length - 1]
+      if (lastMessage) {
+        isUserTurn.value = lastMessage.sender !== 'user'
+      }
+    }
   }
 
   function incrementMetaCount(_keyword?: string) {
     metaConversationCount.value++
-    updateScorePrediction()
-    
+
     // 检查是否触发场中判断
     if (!triggeredMidGame.value && metaConversationCount.value > 0) {
       // 可以在这里触发场中判断提示
     }
   }
 
-  function updateScorePrediction() {
-    const currentTurns = Math.floor(turn.value / 2) // 轮数 = 消息数 / 2
-    currentScorePrediction.value = calculateScorePrediction(currentTurns, metaConversationCount.value)
-  }
-
   function setTriggeredMidGame(value: boolean) {
     triggeredMidGame.value = value
+  }
+  
+  function setUserTurn(turn: boolean) {
+    isUserTurn.value = turn
+  }
+  
+  function setOpponentTyping(typing: boolean) {
+    isOpponentTyping.value = typing
   }
 
   function reset() {
@@ -104,10 +132,11 @@ export const useGameStore = defineStore('game', () => {
     turn.value = 0
     metaConversationCount.value = 0
     messages.value = []
-    currentScorePrediction.value = null
     triggeredMidGame.value = false
     isHoneypot.value = false
     sessionStartedAt.value = null
+    isUserTurn.value = true
+    isOpponentTyping.value = false
 
     localStorage.removeItem(STORAGE_KEYS.SESSION_ID)
     localStorage.removeItem(STORAGE_KEYS.OPPONENT_TYPE)
@@ -120,22 +149,24 @@ export const useGameStore = defineStore('game', () => {
     turn,
     metaConversationCount,
     messages,
-    currentScorePrediction,
     triggeredMidGame,
     isHoneypot,
     sessionStartedAt,
-    
+    isUserTurn,
+    isOpponentTyping,
+
     // 计算属性
     canEndChat,
     gameState,
-    
+
     // 方法
     setSession,
     addMessage,
     setInitialMessages,
     incrementMetaCount,
-    updateScorePrediction,
     setTriggeredMidGame,
+    setUserTurn,
+    setOpponentTyping,
     reset
   }
 })

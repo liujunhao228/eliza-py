@@ -1,0 +1,59 @@
+# Lua脚本元数据配置
+# 用于定义各个脚本的配置信息
+
+scripts:
+  - name: "advanced_greeting"
+    version: "1.0.0"
+    priority: 90
+    description: "高级问候脚本，支持时间问候和个性化响应"
+    author: "Alice Team"
+    dependencies: []
+    tags: ["greeting", "basic", "social"]
+    enabled: true
+    max_execution_time: 1.0
+    sandbox_mode: true
+    variables:
+      greeting_threshold: 80
+      personalize_response: true
+
+  - name: "entity_analysis"
+    version: "1.0.0"
+    priority: 85
+    description: "实体深度分析脚本，基于LTP分析"
+    author: "Alice Team"
+    dependencies: ["ltp_engine"]
+    tags: ["entity", "ltp", "analysis"]
+    enabled: true
+    max_execution_time: 2.0
+    sandbox_mode: true
+    variables:
+      min_entity_count: 2
+      syntax_analysis_enabled: true
+
+  - name: "conversation_flow"
+    version: "1.0.0"
+    priority: 75
+    description: "对话流程控制脚本"
+    author: "Alice Team"
+    dependencies: []
+    tags: ["flow", "control", "conversation"]
+    enabled: true
+    max_execution_time: 1.5
+    sandbox_mode: true
+    variables:
+      max_conversation_turns: 20
+      auto_reset_conversation: true
+
+  - name: "sentiment_analysis"
+    version: "1.0.0"
+    priority: 70
+    description: "情感分析脚本"
+    author: "Alice Team"
+    dependencies: []
+    tags: ["sentiment", "emotion", "analysis"]
+    enabled: true
+    max_execution_time: 1.0
+    sandbox_mode: true
+    variables:
+      positive_threshold: 0.7
+      negative_threshold: -0.7

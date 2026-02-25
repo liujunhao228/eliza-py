@@ -1,6 +1,6 @@
 <template>
   <div class="login-container">
-    <div class="login-card">
+    <BaseCard class="login-card">
       <div class="header">
         <h1>🧪 图灵测试社交实验</h1>
         <p class="subtitle">你是一个对话者，还是被测试的 AI？</p>
@@ -9,46 +9,49 @@
       <!-- 步骤 1：验证邀请码 -->
       <div v-if="step === 1" class="step">
         <h3>请输入邀请码</h3>
-        <el-input
+        <BaseInput
           v-model="inviteCode"
           placeholder="6 位邀请码"
-          maxlength="8"
+          :maxlength="8"
           size="large"
           clearable
-          @keyup.enter="verifyCode"
+          @keydown.enter="verifyCode"
         />
-        <el-button
+        <BaseButton
           type="primary"
           size="large"
           :loading="loading"
+          block
           @click="verifyCode"
-          class="btn-full"
         >
           验证邀请码
-        </el-button>
+        </BaseButton>
         <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
       </div>
 
-      <!-- 步骤 2：登录 -->
+      <!-- 步骤 2：设置昵称 -->
       <div v-if="step === 2" class="step">
         <h3>设置你的昵称</h3>
-        <el-input
+        <BaseInput
           v-model="nickname"
-          placeholder="你想使用的昵称"
-          maxlength="20"
+          :placeholder="defaultNickname"
+          :maxlength="20"
+          :minlength="2"
           size="large"
           clearable
-          @keyup.enter="registerUser"
+          @keydown.enter="registerUser"
         />
-        <el-button
+        <p class="hint-text">昵称长度 2-20 个字符，仅支持中文、英文、数字和#符号</p>
+        <BaseButton
           type="primary"
           size="large"
           :loading="loading"
+          block
           @click="registerUser"
-          class="btn-full"
         >
           开始实验
-        </el-button>
+        </BaseButton>
+        <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
       </div>
 
       <!-- 实验说明 -->
@@ -66,16 +69,16 @@
           <li><strong>匿名对话</strong>：双方身份保密，直到实验结束才揭晓</li>
         </ul>
       </div>
-    </div>
+    </BaseCard>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { login, register, verifyInviteCode } from '@/api/auth'
+import { login, verifyInviteCode } from '@/api/auth'
+import { BaseCard, BaseInput, BaseButton } from '@/components/common'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -86,6 +89,27 @@ const inviteCode = ref('')
 const nickname = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
+
+// 生成默认昵称
+const defaultNickname = `访客#${Math.floor(100 + Math.random() * 900)}`
+
+// 验证昵称格式
+function validateNickname(nick: string): boolean {
+  // 长度检查
+  if (nick.length < 2 || nick.length > 20) {
+    errorMessage.value = '昵称长度应为 2-20 个字符'
+    return false
+  }
+  
+  // 格式检查（仅允许中文、英文、数字、#）
+  const nicknameRegex = /^[\u4e00-\u9fa5a-zA-Z0-9#]+$/
+  if (!nicknameRegex.test(nick)) {
+    errorMessage.value = '昵称仅支持中文、英文、数字和#符号'
+    return false
+  }
+  
+  return true
+}
 
 // 验证邀请码
 async function verifyCode() {
@@ -100,6 +124,8 @@ async function verifyCode() {
   try {
     await verifyInviteCode(inviteCode.value.trim().toUpperCase())
     step.value = 2
+    // 设置默认昵称
+    nickname.value = defaultNickname
     errorMessage.value = ''
   } catch (error: any) {
     errorMessage.value = error.message || '邀请码无效'
@@ -111,20 +137,25 @@ async function verifyCode() {
 // 登录/注册
 async function registerUser() {
   if (!nickname.value.trim()) {
-    ElMessage.warning('请输入昵称')
+    errorMessage.value = '请输入昵称'
+    return
+  }
+
+  // 验证昵称格式
+  if (!validateNickname(nickname.value.trim())) {
     return
   }
 
   loading.value = true
 
   try {
-    // 直接登录，如果用户不存在会自动创建
-    const user = await login(inviteCode.value.trim().toUpperCase())
+    // 直接登录，如果用户不存在会自动创建，同时传递昵称
+    const user = await login(inviteCode.value.trim().toUpperCase(), nickname.value.trim())
     userStore.setUser(user)
-    ElMessage.success('登录成功！')
+    errorMessage.value = ''
     router.push('/lobby')
   } catch (error: any) {
-    ElMessage.error(error.message || '登录失败')
+    errorMessage.value = error.message || '登录失败'
   } finally {
     loading.value = false
   }
@@ -132,21 +163,27 @@ async function registerUser() {
 </script>
 
 <style scoped>
+/* ==============================================
+   Login 视图样式 - 使用主题系统
+   ============================================== */
+
 .login-container {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
+  background: var(--bg-primary);
 }
 
 .login-card {
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  background: var(--bg-surface);
+  border-radius: var(--rounded-2xl);
+  box-shadow: var(--shadow-2xl);
   padding: 40px;
   max-width: 480px;
   width: 100%;
+  border: 1px solid var(--border-primary);
 }
 
 .header {
@@ -156,13 +193,13 @@ async function registerUser() {
 
 .header h1 {
   font-size: 28px;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 10px;
 }
 
 .subtitle {
   font-size: 16px;
-  color: #666;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -172,7 +209,7 @@ async function registerUser() {
 
 .step h3 {
   font-size: 18px;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 20px;
   text-align: center;
 }
@@ -182,50 +219,66 @@ async function registerUser() {
   margin-top: 16px;
   font-size: 16px;
   padding: 12px 20px;
+  background: var(--color-primary-gradient);
+  border: none;
+  color: white;
+}
+
+.btn-full:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
 }
 
 .error-message {
-  color: #f56c6c;
+  color: var(--color-error);
   text-align: center;
   margin-top: 12px;
   font-size: 14px;
 }
 
+.hint-text {
+  color: var(--text-secondary);
+  text-align: center;
+  margin-top: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
 .info-box {
-  background: #f5f7fa;
-  border-radius: 8px;
+  background: var(--bg-tertiary);
+  border-radius: var(--rounded-md);
   padding: 20px;
-  border-left: 4px solid #667eea;
+  border-left: 4px solid var(--color-primary-600);
 }
 
 .info-box h4 {
   font-size: 16px;
-  color: #333;
+  color: var(--text-primary);
   margin: 0 0 12px 0;
 }
 
 .info-box h5 {
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
   margin: 16px 0 8px 0;
 }
 
 .experiment-intro {
   font-size: 14px;
-  color: #606266;
+  color: var(--text-secondary);
   line-height: 1.6;
   margin: 0 0 16px 0;
 }
 
 .experiment-intro strong {
-  color: #667eea;
+  color: var(--color-primary-600);
 }
 
 .info-box ul {
   margin: 0;
   padding-left: 20px;
   font-size: 14px;
-  color: #606266;
+  color: var(--text-secondary);
   line-height: 1.8;
 }
 
@@ -234,6 +287,21 @@ async function registerUser() {
 }
 
 .info-box strong {
-  color: #667eea;
+  color: var(--color-primary-600);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .login-card {
+    padding: 30px;
+  }
+
+  .header h1 {
+    font-size: 24px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+  }
 }
 </style>

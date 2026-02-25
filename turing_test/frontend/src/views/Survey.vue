@@ -204,9 +204,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ==============================================
+   Survey 视图样式 - 使用主题系统
+   ============================================== */
+
 .survey-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--color-primary-gradient);
   padding: 20px;
   display: flex;
   align-items: center;
@@ -219,10 +223,11 @@ onMounted(() => {
 }
 
 .survey-card {
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  background: var(--bg-surface);
+  border-radius: var(--rounded-2xl);
+  box-shadow: var(--shadow-2xl);
   padding: 40px;
+  border: 1px solid var(--border-primary);
 }
 
 .survey-title {
@@ -230,12 +235,12 @@ onMounted(() => {
   font-weight: bold;
   text-align: center;
   margin-bottom: 8px;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .survey-subtitle {
   text-align: center;
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 40px;
   font-size: 16px;
 }
@@ -250,21 +255,21 @@ onMounted(() => {
 .guess-radio {
   flex: 1;
   min-width: 120px;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 2px solid var(--border-secondary);
+  border-radius: var(--rounded-md);
   padding: 16px;
   transition: all 0.3s;
   cursor: pointer;
 }
 
 .guess-radio:hover {
-  border-color: #667eea;
-  background-color: #f5f5f5;
+  border-color: var(--color-primary-600);
+  background-color: var(--bg-tertiary);
 }
 
 .guess-radio.is-checked {
-  border-color: #667eea;
-  background-color: #f0f4ff;
+  border-color: var(--color-primary-600);
+  background-color: var(--color-primary-50);
 }
 
 .guess-icon {
@@ -276,7 +281,7 @@ onMounted(() => {
 .guess-text {
   font-size: 16px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
 }
 
 /* 流畅度评分 */
@@ -286,13 +291,13 @@ onMounted(() => {
 
 /* 提示文本 */
 .hint-text {
-  color: #666;
+  color: var(--text-secondary);
   font-size: 14px;
   margin-bottom: 12px;
   padding: 12px;
-  background-color: #f5f5f5;
-  border-radius: 8px;
-  border-left: 4px solid #667eea;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--rounded-md);
+  border-left: 4px solid var(--color-primary-600);
 }
 
 /* 角色选项 */
@@ -303,8 +308,8 @@ onMounted(() => {
 }
 
 .role-radio {
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 2px solid var(--border-secondary);
+  border-radius: var(--rounded-md);
   padding: 16px 20px;
   transition: all 0.3s;
   cursor: pointer;
@@ -312,13 +317,13 @@ onMounted(() => {
 }
 
 .role-radio:hover {
-  border-color: #667eea;
-  background-color: #f5f5f5;
+  border-color: var(--color-primary-600);
+  background-color: var(--bg-tertiary);
 }
 
 .role-radio.is-checked {
-  border-color: #667eea;
-  background-color: #f0f4ff;
+  border-color: var(--color-primary-600);
+  background-color: var(--color-primary-50);
 }
 
 .role-icon {
@@ -330,13 +335,13 @@ onMounted(() => {
 .role-text {
   font-size: 15px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
   line-height: 1.5;
 }
 
 /* 文本输入框 */
 .text-input :deep(.el-textarea__inner) {
-  border-radius: 8px;
+  border-radius: var(--rounded-md);
   font-size: 15px;
   line-height: 1.6;
 }
@@ -347,14 +352,15 @@ onMounted(() => {
   height: 48px;
   font-size: 18px;
   font-weight: bold;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: var(--rounded-md);
+  background: var(--color-primary-gradient);
   border: none;
+  color: white;
 }
 
 .submit-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
 }
 
 .submit-button:active {

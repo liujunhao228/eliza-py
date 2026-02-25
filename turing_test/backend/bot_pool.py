@@ -9,23 +9,27 @@ AliceBot 池管理器
 - 动态扩缩容
 - 故障转移
 - 空闲实例清理
+- 支持多 Bot 配置模板
 """
 
 import threading
 import time
+from pathlib import Path
 from typing import Dict, List, Optional
 from loguru import logger
 
 from alice.bots.lightweight_alice_bot import LightweightAliceBot
 from alice.services.shared_nlp_service import SharedNLPService
+from config import BotTemplate
 
 
 class BotInstanceInfo:
     """Bot 实例信息"""
 
-    def __init__(self, bot: LightweightAliceBot):
+    def __init__(self, bot: LightweightAliceBot, template_id: str = "default"):
         self.bot = bot
         self.bot_id = id(bot)
+        self.template_id = template_id  # Bot 使用的模板 ID
         self.created_at = time.time()
         self.last_used_at = time.time()
         self.request_count = 0
@@ -51,6 +55,7 @@ class BotInstanceInfo:
         """获取实例统计信息"""
         return {
             "bot_id": self.bot_id,
+            "template_id": self.template_id,
             "created_at": self.created_at,
             "last_used_at": self.last_used_at,
             "request_count": self.request_count,
@@ -63,18 +68,22 @@ class AliceBotPool:
     """
     AliceBot 池管理器
 
-    管理多个轻量级 AliceBot 实例，支持负载均衡。
+    管理多个轻量级 AliceBot 实例，支持负载均衡和多配置模板。
 
     使用示例:
         # 初始化
         nlp_service = SharedNLPService()
-        pool = AliceBotPool(nlp_service)
+        templates = {"default": template1, "honeypot": template2}
+        pool = AliceBotPool(nlp_service, templates=templates)
 
-        # 获取 Bot
+        # 获取 Bot (使用默认模板)
         bot = pool.acquire()
         if bot:
             response = bot.respond("你好")
             pool.release(bot)
+
+        # 获取特定模板的 Bot
+        bot = pool.acquire(template_id="honeypot")
 
         # 关闭
         pool.shutdown()
@@ -83,6 +92,8 @@ class AliceBotPool:
     def __init__(
         self,
         nlp_service: SharedNLPService,
+        templates: Optional[Dict[str, BotTemplate]] = None,
+        default_template: str = "default",
         min_instances: int = 2,
         max_instances: int = 10,
         idle_timeout: int = 300,
@@ -95,20 +106,33 @@ class AliceBotPool:
 
         Args:
             nlp_service: 共享 NLP 服务
+            templates: Bot 模板字典 (模板 ID -> BotTemplate)
+            default_template: 默认模板 ID
             min_instances: 最小实例数
             max_instances: 最大实例数
             idle_timeout: 空闲超时时间（秒）
-            script_file: 脚本文件路径
-            rules_file: 规则文件路径
-            enable_plugins: 是否启用插件
+            script_file: 脚本文件路径 (向后兼容，不使用模板时有效)
+            rules_file: 规则文件路径 (向后兼容，不使用模板时有效)
+            enable_plugins: 是否启用插件 (向后兼容，不使用模板时有效)
         """
         self.nlp_service = nlp_service
+        self.templates = templates or {}
+        self.default_template = default_template
         self.min_instances = min_instances
         self.max_instances = max_instances
         self.idle_timeout = idle_timeout
-        self.script_file = script_file
-        self.rules_file = rules_file
-        self.enable_plugins = enable_plugins
+
+        # 向后兼容：如果没有模板，使用默认配置创建
+        if not self.templates:
+            self.templates = {
+                "default": BotTemplate(
+                    id="default",
+                    name="Default",
+                    script_file=Path(script_file) if script_file else None,
+                    rules_file=Path(rules_file) if rules_file else None,
+                    enable_plugins=enable_plugins,
+                )
+            }
 
         # 实例池
         self._instances: Dict[int, BotInstanceInfo] = {}
@@ -142,31 +166,46 @@ class AliceBotPool:
         )
 
     def _initialize_pool(self):
-        """初始化 Bot 池，创建最小实例数"""
+        """初始化 Bot 池，创建最小实例数（使用默认模板）"""
         with self._lock:
             for i in range(self.min_instances):
-                self._create_instance()
+                self._create_instance(self.default_template)
 
-    def _create_instance(self) -> Optional[BotInstanceInfo]:
-        """创建一个新的 Bot 实例"""
+    def _create_instance(self, template_id: Optional[str] = None) -> Optional[BotInstanceInfo]:
+        """创建一个新的 Bot 实例
+
+        Args:
+            template_id: 模板 ID，None 则使用默认模板
+
+        Returns:
+            Bot 实例信息，创建失败则返回 None
+        """
+        # 获取模板
+        tid = template_id or self.default_template
+        template = self.templates.get(tid)
+
+        if not template:
+            logger.error(f"创建 Bot 实例失败：模板不存在 '{tid}'")
+            return None
+
         try:
             bot = LightweightAliceBot(
                 nlp_service=self.nlp_service,
-                script_file=self.script_file,
-                rules_file=self.rules_file,
+                script_file=str(template.script_file) if template.script_file else None,
+                rules_file=str(template.rules_file) if template.rules_file else None,
                 enable_logging=False,  # 减少日志开销
-                enable_plugins=self.enable_plugins,
-                cache_size=50,
+                enable_plugins=template.enable_plugins,
+                cache_size=template.cache_size,
                 use_ltp=False,  # 禁用 LTP 以避免重复加载
             )
 
             if bot and bot._initialized:
-                info = BotInstanceInfo(bot)
+                info = BotInstanceInfo(bot, template_id=tid)
                 self._instances[info.bot_id] = info
                 self._available.append(info.bot_id)
                 self._stats["total_creates"] += 1
 
-                logger.debug(f"创建 Bot 实例 {info.bot_id}")
+                logger.debug(f"创建 Bot 实例 {info.bot_id} (模板：{tid})")
                 return info
             else:
                 logger.warning("Bot 实例创建失败：初始化未完成")
@@ -206,33 +245,34 @@ class AliceBotPool:
             logger.debug(f"销毁 Bot 实例 {bot_id}")
             return True
 
-    def acquire(self, timeout: Optional[float] = None) -> Optional[LightweightAliceBot]:
+    def acquire(self, template_id: Optional[str] = None, timeout: Optional[float] = None) -> Optional[LightweightAliceBot]:
         """
         获取一个可用的 Bot 实例
 
         Args:
+            template_id: 模板 ID，None 则使用默认模板
             timeout: 等待超时时间（秒），None 表示立即返回
 
         Returns:
             Bot 实例，如果无法获取则返回 None
         """
+        tid = template_id or self.default_template
         start_time = time.time()
 
         while True:
             with self._lock:
-                # 首先尝试从可用池中获取
-                if self._available:
-                    bot_id = self._available.pop(0)
-                    info = self._instances[bot_id]
+                # 首先尝试从可用池中获取（优先相同模板的实例）
+                available_bot = self._find_available_instance(tid)
+                if available_bot:
+                    bot_id, info = available_bot
                     info.mark_busy()
                     self._stats["total_acquires"] += 1
-
-                    logger.debug(f"获取 Bot 实例 {bot_id}")
+                    logger.debug(f"获取 Bot 实例 {bot_id} (模板：{info.template_id})")
                     return info.bot
 
                 # 如果可用池为空且未达到最大实例数，创建新实例
                 if len(self._instances) < self.max_instances:
-                    info = self._create_instance()
+                    info = self._create_instance(tid)
                     if info:
                         info.mark_busy()
                         self._stats["total_acquires"] += 1
@@ -242,18 +282,44 @@ class AliceBotPool:
                 if timeout is None:
                     # 不等待，直接返回 None
                     self._stats["failed_acquires"] += 1
-                    logger.warning("Bot 池已满且无可用实例")
+                    logger.warning(f"Bot 池已满且无可用实例 (模板：{tid})")
                     return None
 
                 # 检查是否超时
                 elapsed = time.time() - start_time
                 if elapsed >= timeout:
                     self._stats["failed_acquires"] += 1
-                    logger.warning(f"获取 Bot 实例超时（{timeout}秒）")
+                    logger.warning(f"获取 Bot 实例超时（{timeout}秒，模板：{tid}）")
                     return None
 
             # 等待一小段时间后重试
             time.sleep(0.1)
+
+    def _find_available_instance(self, template_id: str) -> Optional[tuple]:
+        """
+        查找可用的 Bot 实例
+
+        Args:
+            template_id: 优先查找的模板 ID
+
+        Returns:
+            (bot_id, info) 元组，如果没有可用实例则返回 None
+        """
+        # 优先查找相同模板的实例
+        for bot_id in self._available:
+            info = self._instances.get(bot_id)
+            if info and info.template_id == template_id:
+                self._available.remove(bot_id)
+                return (bot_id, info)
+
+        # 其次查找其他模板的实例
+        for bot_id in self._available:
+            info = self._instances.get(bot_id)
+            if info:
+                self._available.remove(bot_id)
+                return (bot_id, info)
+
+        return None
 
     def release(self, bot: LightweightAliceBot):
         """
@@ -378,6 +444,8 @@ def get_bot_pool() -> Optional[AliceBotPool]:
 
 def init_bot_pool(
     nlp_service: SharedNLPService,
+    templates: Optional[Dict[str, BotTemplate]] = None,
+    default_template: str = "default",
     min_instances: int = 2,
     max_instances: int = 10,
     idle_timeout: int = 300,
@@ -390,12 +458,14 @@ def init_bot_pool(
 
     Args:
         nlp_service: 共享 NLP 服务
+        templates: Bot 模板字典 (模板 ID -> BotTemplate)
+        default_template: 默认模板 ID
         min_instances: 最小实例数
         max_instances: 最大实例数
         idle_timeout: 空闲超时时间（秒）
-        script_file: 脚本文件路径
-        rules_file: 规则文件路径
-        enable_plugins: 是否启用插件
+        script_file: 脚本文件路径 (向后兼容)
+        rules_file: 规则文件路径 (向后兼容)
+        enable_plugins: 是否启用插件 (向后兼容)
 
     Returns:
         AliceBotPool 实例
@@ -406,6 +476,8 @@ def init_bot_pool(
         if _bot_pool_instance is None:
             _bot_pool_instance = AliceBotPool(
                 nlp_service=nlp_service,
+                templates=templates,
+                default_template=default_template,
                 min_instances=min_instances,
                 max_instances=max_instances,
                 idle_timeout=idle_timeout,
@@ -413,7 +485,7 @@ def init_bot_pool(
                 rules_file=rules_file,
                 enable_plugins=enable_plugins,
             )
-            logger.info(f"✅ 全局 Bot 池已初始化")
+            logger.info(f"✅ 全局 Bot 池已初始化 (模板数：{len(templates) if templates else 1})")
         else:
             logger.warning("全局 Bot 池已存在，重复初始化被忽略")
 

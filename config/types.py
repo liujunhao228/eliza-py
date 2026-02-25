@@ -7,7 +7,7 @@
 - paths: 路径配置
 - alice: Alice 模块配置
 - turing: Turing 测试模块配置
-- shared: 共享配置 (LTP、NLP 等)
+- modules: 模块引用配置
 """
 
 from dataclasses import dataclass, field
@@ -27,7 +27,8 @@ class PathsConfig:
     turing_dir: Path
     log_dir: Path
     data_dir: Path
-    scripts_dir: Path
+    bots_dir: Path
+    scripts_dir: Optional[Path] = None
 
 
 # =============================================================================
@@ -38,7 +39,7 @@ class PathsConfig:
 class LtpConfig:
     """
     LTP 引擎配置 (共享)
-    
+
     用于 Alice 和 Turing 共享的 LTP 句法分析配置
     """
     # 任务启用开关
@@ -48,19 +49,19 @@ class LtpConfig:
     enable_dep: bool = True           # 依存句法分析
     enable_sdp: bool = True           # 语义依存分析
     enable_srl: bool = True           # 语义角色标注
-    
+
     # 性能配置
     cache_size: int = 50
     max_length: int = 512
-    
+
     # 模型配置
     model_path: Optional[str] = None
     device: Optional[str] = None      # 'cpu', 'cuda', 'cuda:0'
     batch_size: int = 32
-    
+
     # 缓存目录
     cache_dir: Optional[str] = None
-    
+
     def get_enabled_tasks(self) -> List[str]:
         """获取启用的任务列表"""
         tasks = []
@@ -87,43 +88,48 @@ class LtpConfig:
 class AliceConfig:
     """Alice 模块配置"""
     # 功能开关
-    enable_ltp: bool
-    enable_ner: bool
-    enable_log: bool
-    ner_use_ltp: bool
-    hot_reload: bool
-    hot_reload_mode: str
-    hot_reload_poll_interval: float
-    
+    enable_ltp: bool = True
+    enable_ner: bool = True
+    enable_log: bool = True
+    ner_use_ltp: bool = True
+    hot_reload: bool = True
+    enable_lua_engine: bool = False  # 新增：是否启用Lua脚本引擎
+    hot_reload_mode: str = "auto"
+    hot_reload_poll_interval: float = 2.0
+
     # 文件路径
-    script_file: Path
-    rules_file: Path
-    semantic_tags_file: Path
-    
+    script_file: Optional[Path] = None
+    rules_file: Optional[Path] = None
+    semantic_tags_file: Optional[Path] = None
+    lua_script_dir: Optional[Path] = None  # 新增：Lua脚本目录
+
     # 对话上下文配置
-    context_max_items: int
-    conversation_history_max_turns: int
-    ltp_cache_size_limit: int
-    dialogue_log_max_entries: int
-    
+    context_max_items: int = 10
+    conversation_history_max_turns: int = 20
+    ltp_cache_size_limit: int = 100
+    dialogue_log_max_entries: int = 1000
+
     # 性能配置
-    performance_monitor_sample_rate: float
-    max_input_length: int
-    script_match_timeout: int
-    regex_cache_size: int
-    
+    performance_monitor_sample_rate: float = 1.0
+    max_input_length: int = 500
+    script_match_timeout: int = 100  # 毫秒
+    regex_cache_size: int = 100
+    lua_cache_size: int = 100  # 新增：Lua脚本缓存大小
+    lua_execution_timeout: float = 1.0  # 新增：Lua脚本执行超时
+    lua_sandbox_enabled: bool = True  # 新增：是否启用Lua沙箱
+
     # 预定义响应
-    fallback_responses: List[str]
-    greeting_responses: List[str]
-    
+    fallback_responses: List[str] = field(default_factory=list)
+    greeting_responses: List[str] = field(default_factory=list)
+
     # 日志配置
-    log_dir: Path
-    log_max_size_mb: int
-    log_backup_count: int
-    log_level: str
-    
+    log_dir: Optional[Path] = None
+    log_max_size_mb: int = 10
+    log_backup_count: int = 5
+    log_level: str = "INFO"
+
     # LTP 配置 (引用共享配置)
-    ltp: LtpConfig
+    ltp: Optional[LtpConfig] = None
 
 
 # =============================================================================
@@ -147,17 +153,18 @@ class AuthConfig:
 
 
 @dataclass
+class TimeDistributionConfig:
+    """时间分布配置"""
+    min: float
+    max: float
+    probability: float
+
+
+@dataclass
 class MatchConfig:
     """匹配配置"""
     timeout: int  # 秒
-    # 匹配时间分布（真人/AI 使用相同分布，消除时间线索）
-    time_distribution: Dict[str, Dict[str, float]] = field(default_factory=lambda: {
-        "fast": {"min": 0, "max": 3, "probability": 0.5},
-        "normal": {"min": 3, "max": 8, "probability": 0.3},
-        "slow": {"min": 8, "max": 15, "probability": 0.15},
-        "very_slow": {"min": 15, "max": 30, "probability": 0.05},
-    })
-    # 钓鱼机器人配置
+    time_distribution: Dict[str, Dict[str, float]] = field(default_factory=dict)
     honeypot_probability: float = 0.15
     honeypot_high_meta_probability: float = 0.30
 
@@ -185,10 +192,30 @@ class ServerConfig:
 
 @dataclass
 class NlpServiceConfig:
-    """NLP 服务配置 (共享)"""
+    """NLP 服务配置"""
     enable_ltp: bool
     cache_size: int
     cache_ttl: int
+
+
+@dataclass
+class ScoreConfig:
+    """积分配置"""
+    entry_fee: int
+    min_free_turns: int
+    turn_penalty_rate: float
+    base_reward: Dict[str, int] = field(default_factory=dict)
+    confidence_multiplier: Dict[str, float] = field(default_factory=dict)
+    meta_multiplier: Dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class MidGameConfig:
+    """场中判断配置"""
+    enabled: bool = True
+    multiplier_correct: float = 2.0
+    multiplier_wrong: float = 1.5
+    max_per_session: int = 1
 
 
 @dataclass
@@ -198,6 +225,7 @@ class BotPoolConfig:
     max_instances: int
     idle_timeout: int
     max_concurrent: int
+    default_template: str = "default"
 
 
 @dataclass
@@ -212,7 +240,7 @@ class AliceBotConfig:
 
 @dataclass
 class PerformanceConfig:
-    """性能配置 (共享)"""
+    """性能配置"""
     response_timeout: float
     max_input_length: int
     base_typing_delay: float
@@ -228,7 +256,7 @@ class WebSocketConfig:
 
 @dataclass
 class LogConfig:
-    """日志配置 (共享)"""
+    """日志配置"""
     level: str = "INFO"
     file: Optional[str] = None
     max_size_mb: int = 10
@@ -250,6 +278,40 @@ class TuringConfig:
     performance: PerformanceConfig
     websocket: WebSocketConfig
     log: LogConfig
+    score: Optional[ScoreConfig] = None
+    mid_game: Optional[MidGameConfig] = None
+    meta_keywords: List[str] = field(default_factory=list)
+
+
+# =============================================================================
+# 模块引用配置
+# =============================================================================
+
+@dataclass
+class ModuleRefConfig:
+    """模块引用配置"""
+    config_file: str
+
+
+@dataclass
+class BotPoolRefConfig:
+    """Bot 池引用配置"""
+    config_dir: str
+    default_template: str
+
+
+@dataclass
+class TuringModuleRefConfig:
+    """Turing 模块引用配置"""
+    config_file: str
+    bot_pool: Optional[BotPoolRefConfig] = None
+
+
+@dataclass
+class ModulesConfig:
+    """模块配置"""
+    alice: ModuleRefConfig
+    turing: TuringModuleRefConfig
 
 
 # =============================================================================
@@ -262,6 +324,6 @@ class Settings:
     debug: bool
     log_level: str
     paths: PathsConfig
+    modules: ModulesConfig
     alice: AliceConfig
     turing: TuringConfig
-    shared_ltp: LtpConfig = field(default_factory=LtpConfig)

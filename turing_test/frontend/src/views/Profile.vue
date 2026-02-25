@@ -3,22 +3,24 @@
     <!-- 头部 -->
     <div class="profile-header">
       <h1>📊 我的战绩</h1>
-      <button @click="handleLogout" class="btn-logout">
+      <BaseButton type="info" size="small" @click="handleLogout">
         🚪 退出登录
-      </button>
+      </BaseButton>
     </div>
 
     <!-- 加载状态 -->
-    <div v-if="loading" class="loading-state">
-      <div class="spinner"></div>
-      <p>加载中...</p>
-    </div>
+    <BaseLoading v-if="loading" :loading="true" text="加载中..." />
 
     <!-- 错误状态 -->
-    <div v-else-if="error" class="error-state">
-      <p>{{ error }}</p>
-      <button @click="loadData" class="btn btn-primary">重试</button>
-    </div>
+    <BaseEmpty
+      v-else-if="error"
+      :title="error"
+      size="medium"
+    >
+      <template #action>
+        <BaseButton type="primary" @click="loadData">重试</BaseButton>
+      </template>
+    </BaseEmpty>
 
     <!-- 主要内容 -->
     <div v-else class="profile-content">
@@ -140,13 +142,6 @@
               </div>
               <span class="type-count">{{ stats?.ai_sessions || 0 }}</span>
             </div>
-            <div class="type-item honeypot">
-              <span class="type-label">钓鱼机器人</span>
-              <div class="type-bar">
-                <div class="type-fill" :style="{ width: getPercentage(stats?.honeypot_sessions || 0) + '%' }"></div>
-              </div>
-              <span class="type-count">{{ stats?.honeypot_sessions || 0 }}</span>
-            </div>
           </div>
         </div>
 
@@ -182,11 +177,16 @@
       <!-- 历史记录 -->
       <div class="history-section">
         <h3>📜 对话历史</h3>
-        
-        <div v-if="!history || history.length === 0" class="empty-history">
-          <p>还没有对话记录</p>
-          <button @click="goToLobby" class="btn btn-primary">开始第一局</button>
-        </div>
+
+        <BaseEmpty
+          v-if="!history || history.length === 0"
+          title="还没有对话记录"
+          size="small"
+        >
+          <template #action>
+            <BaseButton type="primary" @click="goToLobby">开始第一局</BaseButton>
+          </template>
+        </BaseEmpty>
 
         <div v-else class="history-list">
           <div 
@@ -220,45 +220,42 @@
 
       <!-- 返回按钮 -->
       <div class="action-buttons">
-        <button @click="goToLobby" class="btn btn-primary btn-large">
+        <BaseButton type="primary" size="large" @click="goToLobby">
           🚀 返回大厅
-        </button>
+        </BaseButton>
       </div>
     </div>
 
     <!-- 详情对话框 -->
-    <div v-if="showDetailModal" class="modal-overlay" @click="closeDetailModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>对话详情</h3>
-          <button @click="closeDetailModal" class="btn-close">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="detail-item">
-            <span class="detail-label">对话时间：</span>
-            <span>{{ formatDate(selectedSession?.created_at || '') }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">对手类型：</span>
-            <span :class="selectedSession?.opponent_type">
-              {{ getTypeLabel(selectedSession?.opponent_type || '') }}
-            </span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">元对话次数：</span>
-            <span>{{ selectedSession?.meta_conversation_count || 0 }} 次</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">对话时长：</span>
-            <span>{{ formatDuration(selectedSession?.match_duration) }}</span>
-          </div>
-          <div v-if="selectedSession?.triggered_mid_game" class="detail-item">
-            <span class="detail-label">场中判断：</span>
-            <span>是</span>
-          </div>
-        </div>
+    <BaseModal
+      v-model="showDetailModal"
+      title="对话详情"
+      size="medium"
+      :show-footer="false"
+    >
+      <div class="detail-item">
+        <span class="detail-label">对话时间：</span>
+        <span>{{ formatDate(selectedSession?.created_at || '') }}</span>
       </div>
-    </div>
+      <div class="detail-item">
+        <span class="detail-label">对手类型：</span>
+        <span :class="selectedSession?.opponent_type">
+          {{ getTypeLabel(selectedSession?.opponent_type || '') }}
+        </span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">元对话次数：</span>
+        <span>{{ selectedSession?.meta_conversation_count || 0 }} 次</span>
+      </div>
+      <div class="detail-item">
+        <span class="detail-label">对话时长：</span>
+        <span>{{ formatDuration(selectedSession?.match_duration) }}</span>
+      </div>
+      <div v-if="selectedSession?.triggered_mid_game" class="detail-item">
+        <span class="detail-label">场中判断：</span>
+        <span>是</span>
+      </div>
+    </BaseModal>
   </div>
 </template>
 
@@ -268,6 +265,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { getUserFullProfile } from '@/api/profile'
 import type { Session } from '@/types'
+import { BaseButton, BaseLoading, BaseEmpty, BaseModal } from '@/components/common'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -359,7 +357,7 @@ const getTypeLabel = (type: string): string => {
   const labels: Record<string, string> = {
     'human': '👤 真人',
     'ai': '🤖 AI',
-    'honeypot': '🎣 钓鱼机器人'
+    'honeypot': '🤖 AI' // 钓鱼机器人隐藏为 AI
   }
   return labels[type] || type
 }
@@ -392,12 +390,6 @@ const viewSessionDetail = (session: Session) => {
   showDetailModal.value = true
 }
 
-// 关闭详情对话框
-const closeDetailModal = () => {
-  showDetailModal.value = false
-  selectedSession.value = null
-}
-
 // 返回大厅
 const goToLobby = () => {
   router.push('/lobby')
@@ -418,6 +410,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ==============================================
+   Profile.vue 样式 - 使用主题系统
+   ============================================== */
 .profile-container {
   max-width: 800px;
   margin: 0 auto;
@@ -436,62 +431,20 @@ onMounted(() => {
 .profile-header h1 {
   font-size: 28px;
   font-weight: bold;
-  color: #333;
+  color: var(--text-primary);
   margin: 0;
-}
-
-.btn-logout {
-  padding: 10px 20px;
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #666;
-  transition: all 0.3s;
-}
-
-.btn-logout:hover {
-  background-color: #e0e0e0;
-  color: #333;
-}
-
-/* 加载状态 */
-.loading-state,
-.error-state {
-  text-align: center;
-  padding: 60px 20px;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #409eff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 20px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.error-state {
-  color: #f56c6c;
 }
 
 /* 用户信息卡片 */
 .user-info-card {
   display: flex;
   align-items: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--color-primary-gradient);
+  color: var(--bg-surface);
   padding: 30px;
-  border-radius: 16px;
+  border-radius: var(--rounded-2xl);
   margin-bottom: 30px;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: var(--shadow-lg);
 }
 
 .user-avatar {
@@ -502,7 +455,7 @@ onMounted(() => {
   width: 80px;
   height: 80px;
   background-color: rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
+  border-radius: var(--rounded-full);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -536,17 +489,17 @@ onMounted(() => {
 }
 
 .stats-card {
-  background-color: white;
-  border-radius: 12px;
+  background-color: var(--bg-surface);
+  border-radius: var(--rounded-xl);
   padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
 }
 
 .stats-card h3 {
   margin: 0 0 20px 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .stats-grid {
@@ -558,13 +511,13 @@ onMounted(() => {
 .stat-item {
   text-align: center;
   padding: 15px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--rounded-md);
 }
 
 .stat-item.highlight {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--color-primary-gradient);
+  color: var(--bg-surface);
 }
 
 .stat-item.highlight .stat-label {
@@ -572,31 +525,31 @@ onMounted(() => {
 }
 
 .stat-item.success {
-  background-color: #f0f9ff;
-  border: 1px solid #e0f2fe;
+  background-color: var(--color-primary-50);
+  border: 1px solid var(--color-primary-100);
 }
 
 .stat-item.warning {
-  background-color: #fef2f2;
-  border: 1px solid #fee2e2;
+  background-color: var(--color-red-50);
+  border: 1px solid var(--color-red-100);
 }
 
 .stat-value {
   display: block;
   font-size: 24px;
   font-weight: bold;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 5px;
 }
 
 .highlight .stat-value {
-  color: white;
+  color: var(--bg-surface);
 }
 
 .stat-label {
   display: block;
   font-size: 12px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 /* 类型分布 */
@@ -618,15 +571,15 @@ onMounted(() => {
 .confidence-label {
   min-width: 80px;
   font-size: 14px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .type-bar,
 .confidence-bar {
   flex: 1;
   height: 8px;
-  background-color: #f0f0f0;
-  border-radius: 4px;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--rounded-sm);
   overflow: hidden;
 }
 
@@ -637,27 +590,23 @@ onMounted(() => {
 }
 
 .human .type-fill {
-  background-color: #4caf50;
+  background-color: var(--color-green-500);
 }
 
 .ai .type-fill {
-  background-color: #2196f3;
-}
-
-.honeypot .type-fill {
-  background-color: #f44336;
+  background-color: var(--color-primary-500);
 }
 
 .low .confidence-fill {
-  background-color: #ff9800;
+  background-color: var(--color-amber-500);
 }
 
 .mid .confidence-fill {
-  background-color: #2196f3;
+  background-color: var(--color-primary-500);
 }
 
 .high .confidence-fill {
-  background-color: #4caf50;
+  background-color: var(--color-green-500);
 }
 
 .type-count,
@@ -666,15 +615,15 @@ onMounted(() => {
   text-align: right;
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 
 /* 历史记录 */
 .history-section {
-  background-color: white;
-  border-radius: 12px;
+  background-color: var(--bg-surface);
+  border-radius: var(--rounded-xl);
   padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-md);
   margin-bottom: 30px;
 }
 
@@ -682,228 +631,13 @@ onMounted(() => {
   margin: 0 0 20px 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .empty-history {
   text-align: center;
   padding: 40px 20px;
-  color: #999;
-}
-
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.history-item {
-  padding: 15px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.history-item:hover {
-  background-color: #e9ecef;
-  transform: translateX(5px);
-}
-
-.history-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.history-date {
-  font-size: 14px;
-  color: #666;
-}
-
-.history-type {
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.history-type.human {
-  background-color: #e8f5e9;
-  color: #4caf50;
-}
-
-.history-type.ai {
-  background-color: #e3f2fd;
-  color: #2196f3;
-}
-
-.history-type.honeypot {
-  background-color: #ffebee;
-  color: #f44336;
-}
-
-.history-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.history-stats {
-  display: flex;
-  gap: 10px;
-}
-
-.stat-badge {
-  padding: 4px 8px;
-  background-color: white;
-  border-radius: 4px;
-  font-size: 12px;
-  color: #666;
-}
-
-.mid-game-badge {
-  padding: 4px 8px;
-  background-color: #fff3e0;
-  border-radius: 4px;
-  font-size: 12px;
-  color: #ff9800;
-  font-weight: 500;
-}
-
-/* 操作按钮 */
-.action-buttons {
-  display: flex;
-  justify-content: center;
-  gap: 15px;
-}
-
-.btn {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btn-primary {
-  background-color: #409eff;
-  color: white;
-}
-
-.btn-primary:hover {
-  background-color: #66b1ff;
-}
-
-.btn-large {
-  padding: 15px 40px;
-  font-size: 18px;
-}
-
-.btn-secondary {
-  background-color: #f5f5f5;
-  color: #666;
-  border: 1px solid #ddd;
-}
-
-.btn-secondary:hover {
-  background-color: #e0e0e0;
-  color: #333;
-}
-
-/* 详情对话框 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background-color: white;
-  border-radius: 12px;
-  padding: 30px;
-  max-width: 500px;
-  width: 90%;
-  max-height: 80vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #333;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: #999;
-  cursor: pointer;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-close:hover {
-  color: #333;
-}
-
-.modal-body {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.detail-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.detail-label {
-  font-weight: 500;
-  color: #666;
-}
-
-.detail-item span:last-child {
-  font-weight: 600;
-  color: #333;
-}
-
-.human {
-  color: #4caf50;
-}
-
-.ai {
-  color: #2196f3;
-}
-
-.honeypot {
-  color: #f44336;
+  color: var(--text-tertiary);
 }
 
 /* 响应式设计 */

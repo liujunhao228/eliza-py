@@ -1,103 +1,151 @@
 <template>
   <div class="chat-input-container">
-    <el-input
-      v-model="inputText"
-      type="textarea"
-      :rows="2"
-      :disabled="disabled"
-      placeholder="输入消息..."
-      :maxlength="500"
-      show-word-limit
-      @keydown.enter.prevent="handleEnter"
-      resize="none"
-    />
-    
-    <div class="input-actions">
-      <div class="input-tips">
-        <el-tooltip content="提示：谨慎使用元对话，会提高风险" placement="top">
-          <el-icon class="tip-icon"><QuestionFilled /></el-icon>
+    <!-- 输入区域 -->
+    <div class="input-wrapper">
+      <el-input
+        v-model="inputText"
+        type="textarea"
+        :rows="2"
+        :disabled="disabled"
+        :placeholder="placeholder"
+        :maxlength="MAX_MESSAGE_LENGTH"
+        show-word-limit
+        resize="none"
+        @keydown="handleKeyDown"
+        @input="handleInput"
+        class="custom-textarea"
+        :class="{ 'is-warning': isMetaConversation }"
+        :aria-label="placeholder"
+      />
+    </div>
+
+    <!-- 操作按钮区域 -->
+    <div class="actions-wrapper">
+      <div class="left-actions">
+        <!-- 提示信息 -->
+        <el-tooltip
+          content="使用元对话会提高风险系数"
+          placement="top"
+          effect="light"
+          transition="fade"
+        >
+          <div class="tip-icon" role="button" tabindex="0" aria-label="提示信息">
+            <el-icon><InfoFilled /></el-icon>
+          </div>
         </el-tooltip>
       </div>
-      
-      <el-button
-        type="primary"
-        :disabled="disabled || !inputText.trim() || isSending"
-        :loading="isSending"
-        @click="handleSend"
-      >
-        <template #icon>
-          <el-icon><Promotion /></el-icon>
-        </template>
-        发送
-      </el-button>
+
+      <div class="right-actions">
+        <!-- 发送按钮 -->
+        <BaseButton
+          type="primary"
+          :disabled="disabled || !inputText.trim() || sending"
+          :loading="sending"
+          @click="handleSend"
+          class="send-button"
+          :aria-label="`${inputText ? '发送消息' : '请输入消息后发送'}`"
+        >
+          <template #icon>
+            <el-icon><Promotion /></el-icon>
+          </template>
+          发送
+        </BaseButton>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { QuestionFilled, Promotion } from '@element-plus/icons-vue'
+import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
+import { InfoFilled, Promotion } from '@element-plus/icons-vue'
+import { BaseButton } from '@/components/common'
+import { MAX_MESSAGE_LENGTH, META_KEYWORDS, SENSITIVE_WORDS } from '@/utils/constants'
 
 interface Props {
   disabled?: boolean
+  sending?: boolean
+  placeholder?: string
 }
 
 interface Emits {
   (e: 'send', content: string): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  disabled: false,
+  sending: false,
+  placeholder: '输入消息...'
+})
+
 const emit = defineEmits<Emits>()
 
 const inputText = ref('')
 const isSending = ref(false)
 
-// 处理回车发送
-function handleEnter(event: KeyboardEvent) {
-  // Shift+Enter 换行，Enter 发送
-  if (!event.shiftKey) {
-    handleSend()
+// 检测是否为元对话
+const isMetaConversation = computed(() => {
+  const content = inputText.value.toLowerCase()
+  return META_KEYWORDS.some(keyword => content.includes(keyword))
+})
+
+// 检测敏感词
+function checkSensitiveWords(text: string): string | null {
+  for (const word of SENSITIVE_WORDS) {
+    if (text.includes(word)) {
+      return word
+    }
+  }
+  return null
+}
+
+// 自动调整高度
+// Element Plus 的 el-input 在 v-model 变化时会自动调整高度，无需手动调用
+
+// 处理键盘事件
+function handleKeyDown(event: KeyboardEvent) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    if (!props.sending && inputText.value.trim()) {
+      handleSend()
+    }
+  }
+}
+
+// 处理输入变化
+function handleInput() {
+  // 如果检测到元对话，显示警告
+  if (isMetaConversation.value && !props.sending) {
+    ElMessage.warning('检测到元对话内容，可能会提高风险系数')
   }
 }
 
 // 发送消息
 async function handleSend() {
+  if (!inputText.value.trim()) {
+    ElMessage.warning('请输入消息内容')
+    return
+  }
+
+  if (isSending.value || props.sending) return
+
   const content = inputText.value.trim()
-  
-  if (!content) {
+
+  // 敏感词检测
+  const sensitiveWord = checkSensitiveWords(content)
+  if (sensitiveWord) {
+    ElMessage.warning(`消息包含敏感词：${sensitiveWord}`)
     return
-  }
-
-  if (props.disabled) {
-    ElMessage.warning('当前不能发送消息')
-    return
-  }
-
-  // 检查元对话关键词
-  const metaKeywords = ['你是', '你是AI', '你是机器人', '你是人类', '你是真人', 
-                        '你是人吗', '你是机器人吗', '你是AI吗',
-                        '是AI吗', '是人吗', '是机器人吗',
-                        '告诉我你是', '你的身份', '你是不是']
-  
-  const hasMetaKeyword = metaKeywords.some(keyword => 
-    content.toLowerCase().includes(keyword.toLowerCase())
-  )
-
-  if (hasMetaKeyword) {
-    ElMessage.warning('检测到元对话，谨慎使用会增加风险！')
   }
 
   isSending.value = true
-  emit('send', content)
-  
-  // 清空输入框
-  inputText.value = ''
-  
-  // 重置发送状态
-  setTimeout(() => {
+
+  try {
+    emit('send', content)
+    inputText.value = '' // 清空输入
+  } finally {
     isSending.value = false
-  }, 500)
+  }
 }
 </script>
 
@@ -105,61 +153,251 @@ async function handleSend() {
 .chat-input-container {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  background: var(--bg-surface);
+  padding: 16px 20px;
+  border-radius: var(--rounded-lg);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-primary);
+  border-top: 2px solid var(--color-primary);
+  animation: slideUp 0.3s ease-out;
+  min-height: 80px;
 }
 
-.input-actions {
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 自定义文本框样式 */
+:deep(.custom-textarea) {
+  --el-input-bg-color: var(--bg-surface);
+  --el-input-border-color: var(--border-primary);
+  --el-input-text-color: var(--text-primary);
+  --el-input-focus-border-color: var(--color-primary);
+  --el-input-focus-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+:deep(.custom-textarea .el-textarea__inner) {
+  border-radius: 8px;
+  font-size: 15px;
+  line-height: 1.5;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  transition: all 0.2s ease;
+  resize: none;
+  min-height: 44px;
+  max-height: 120px;
+}
+
+:deep(.custom-textarea .el-textarea__inner:focus) {
+  background: var(--bg-surface);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+:deep(.custom-textarea .el-textarea__inner:hover) {
+  background: var(--bg-tertiary);
+}
+
+/* 元对话警告样式 */
+:deep(.custom-textarea.is-warning) {
+  --el-input-border-color: var(--color-warning);
+}
+
+:deep(.custom-textarea.is-warning .el-textarea__inner) {
+  border-color: var(--color-warning);
+  background: var(--color-warning-50);
+}
+
+/* 操作按钮区域 */
+.actions-wrapper {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
 }
 
-.input-tips {
+.left-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #909399;
-  font-size: 12px;
 }
 
+.right-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 提示图标 */
 .tip-icon {
-  cursor: help;
-  font-size: 16px;
-}
-
-/* 文本区域样式优化 */
-:deep(.el-textarea__inner) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
-  font-size: 14px;
-  line-height: 1.6;
-  resize: none;
+  background: var(--color-primary-100);
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-:deep(.el-textarea__inner:focus) {
-  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+.tip-icon:hover {
+  background: var(--color-primary-200);
+  transform: translateY(-1px);
 }
 
-/* 按钮样式 */
-:deep(.el-button) {
-  padding: 8px 20px;
-  border-radius: 8px;
-  font-weight: 500;
+.tip-icon:active {
+  transform: translateY(0);
+}
+
+.tip-icon:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 发送按钮 - 使用 BaseButton 组件，这里只需要覆盖特定样式 */
+.send-button {
+  min-width: 80px;
 }
 
 /* 响应式设计 */
-@media (max-width: 768px) {
-  .input-actions {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
+/* 超小屏 - 手机竖屏 */
+@media (max-width: 359px) {
+  .chat-input-container {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-xs);
+    min-height: 60px;
   }
 
-  .input-tips {
+  .actions-wrapper {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+  }
+
+  .left-actions {
     justify-content: center;
   }
 
-  :deep(.el-button) {
+  .right-actions {
     width: 100%;
+  }
+
+  .send-button {
+    width: 100%;
+    height: 40px;
+    font-size: var(--text-sm);
+  }
+
+  :deep(.custom-textarea .el-textarea__inner) {
+    font-size: var(--text-sm);
+    padding: var(--spacing-sm);
+    min-height: 40px;
+  }
+
+  .tip-icon {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* 小屏 - 手机横屏 */
+@media (max-width: 479px) {
+  .chat-input-container {
+    padding: var(--spacing-md);
+    gap: var(--spacing-sm);
+    min-height: 65px;
+  }
+
+  .send-button {
+    width: 100%;
+    height: 42px;
+  }
+
+  :deep(.custom-textarea .el-textarea__inner) {
+    min-height: 45px;
+  }
+}
+
+/* 中屏 - 小平板 */
+@media (max-width: 639px) {
+  .chat-input-container {
+    padding: var(--spacing-md);
+    gap: var(--spacing-md);
+    min-height: 70px;
+  }
+
+  .actions-wrapper {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  .send-button {
+    width: 100%;
+    height: 44px;
+  }
+
+  :deep(.custom-textarea .el-textarea__inner) {
+    padding: var(--spacing-md);
+    font-size: var(--text-base);
+  }
+}
+
+/* 平板 - 竖屏平板 */
+@media (max-width: 767px) {
+  .chat-input-container {
+    padding: var(--spacing-lg);
+    gap: var(--spacing-md);
+    min-height: 75px;
+  }
+
+  .chat-input-container {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+
+  .send-button {
+    width: auto;
+    height: 46px;
+  }
+}
+
+/* 平板大屏 - 横屏平板 */
+@media (max-width: 1023px) {
+  .chat-input-container {
+    padding: var(--spacing-lg);
+    min-height: 80px;
+  }
+
+  .actions-wrapper {
+    gap: var(--spacing-md);
+  }
+
+  .send-button {
+    width: auto;
+  }
+}
+
+/* 桌面端优化 */
+@media (min-width: 1440px) {
+  .chat-input-container {
+    min-height: 90px;
+  }
+
+  :deep(.custom-textarea .el-textarea__inner) {
+    font-size: var(--text-lg);
   }
 }
 </style>

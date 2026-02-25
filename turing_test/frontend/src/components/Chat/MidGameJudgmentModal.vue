@@ -2,134 +2,71 @@
   <el-dialog
     v-model="dialogVisible"
     title="场中判断"
-    width="500px"
+    width="600px"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
     :show-close="false"
+    class="mid-game-dialog"
   >
     <div class="mid-game-content">
-      <!-- 说明文字 -->
-      <div class="description">
-        <el-alert
-          title="场中判断机会"
-          type="info"
-          :closable="false"
-          show-icon
-        >
-          <p>你现在可以进行场中判断！</p>
-          <p class="highlight">双倍奖励，双倍风险</p>
-        </el-alert>
-      </div>
-
-      <!-- 规则说明 -->
-      <div class="rules-section">
-        <h4>规则说明：</h4>
-        <ul>
-          <li>✅ <strong>判断正确</strong>：获得双倍积分奖励</li>
-          <li>❌ <strong>判断错误</strong>：扣除双倍积分惩罚</li>
-          <li>⚠️ <strong>风险提示</strong>：元对话次数会增加惩罚倍数</li>
-        </ul>
-      </div>
-
-      <!-- 积分预测 -->
-      <div class="prediction-section">
-        <h4>积分预测：</h4>
-        <div class="prediction-grid">
-          <div class="prediction-card correct">
-            <div class="card-icon">✓</div>
-            <div class="card-label">判断正确</div>
-            <div class="card-value positive">+{{ Math.round(potentialReward) }}</div>
-          </div>
-          <div class="prediction-card wrong">
-            <div class="card-icon">✗</div>
-            <div class="card-label">判断错误</div>
-            <div class="card-value negative">-{{ Math.round(potentialPenalty) }}</div>
-          </div>
+      <!-- 主标题区域 -->
+      <div class="header-section">
+        <div class="title-icon">
+          <el-icon><Trophy /></el-icon>
         </div>
-        
-        <!-- 计算详情 -->
-        <div class="calculation-details">
-          <el-collapse>
-            <el-collapse-item title="📊 计算详情" name="calculation">
-              <div class="calculation-content">
-                <p><strong>场中判断规则：</strong></p>
-                <ul>
-                  <li>✅ 判断正确：基础分 × 2.0（双倍奖励）</li>
-                  <li>❌ 判断错误：基础分 × 1.5（1.5倍惩罚）</li>
-                </ul>
-                
-                <p class="calc-section"><strong>计算公式：</strong></p>
-                <p>最终得分 = (基础分 × 场中倍数 × 元对话倍数) - 入场券 - 轮数惩罚</p>
-                
-                <p class="calc-section"><strong>当前状态：</strong></p>
-                <ul>
-                  <li>当前轮数：{{ gameStore.turn }}</li>
-                  <li>元对话次数：{{ gameStore.metaConversationCount }}</li>
-                  <li>元对话倍数：×{{ gameStore.metaConversationCount > 0 ? (1 + gameStore.metaConversationCount * 0.2).toFixed(1) : '1.0' }}</li>
-                  <li>轮数惩罚：{{ gameStore.turn > 3 ? ((gameStore.turn - 3) * 0.5).toFixed(1) + ' 分' : '0 分' }}</li>
-                </ul>
-                
-                <p class="calc-section"><strong>示例（假设高信心）：</strong></p>
-                <p class="correct-calc">
-                  判断正确：(10 × 2.0 × {{ (1 + gameStore.metaConversationCount * 0.2).toFixed(1) }}) - 2 - {{ (gameStore.turn > 3 ? ((gameStore.turn - 3) * 0.5).toFixed(1) : '0') }} = +{{ potentialReward.toFixed(1) }} 分
-                </p>
-                <p class="wrong-calc">
-                  判断错误：(-15 × 1.5 × {{ (1 + gameStore.metaConversationCount * 0.3).toFixed(1) }}) - 2 - {{ (gameStore.turn > 3 ? ((gameStore.turn - 3) * 0.5).toFixed(1) : '0') }} = -{{ potentialPenalty.toFixed(1) }} 分
-                </p>
-              </div>
-            </el-collapse-item>
-          </el-collapse>
-        </div>
+        <h2>场中判断机会</h2>
+        <p class="subtitle">立即揭晓对手身份</p>
       </div>
 
       <!-- 选择按钮 -->
       <div class="choice-section">
-        <h4>请选择：</h4>
+        <h3>请选择你的判断：</h3>
         <div class="choice-buttons">
-          <el-button
-            type="success"
-            size="large"
-            :loading="isSubmitting"
+          <button
+            class="choice-btn human-btn"
+            :disabled="isSubmitting"
             @click="handleChoice('human')"
+            aria-label="判断对手是人类"
           >
-            <template #icon>
-              <el-icon><User /></el-icon>
-            </template>
-            我认为是人类
-          </el-button>
-          
-          <el-button
-            type="danger"
-            size="large"
-            :loading="isSubmitting"
+            <div class="btn-icon">👤</div>
+            <div class="btn-text">
+              <strong>人类</strong>
+              <span>我相信是人类</span>
+            </div>
+          </button>
+
+          <button
+            class="choice-btn ai-btn"
+            :disabled="isSubmitting"
             @click="handleChoice('ai')"
+            aria-label="判断对手是 AI"
           >
-            <template #icon>
-              <el-icon><Monitor /></el-icon>
-            </template>
-            我认为是AI
-          </el-button>
+            <div class="btn-icon">🤖</div>
+            <div class="btn-text">
+              <strong>AI</strong>
+              <span>我相信是 AI</span>
+            </div>
+          </button>
         </div>
       </div>
 
       <!-- 取消按钮 -->
       <div class="cancel-section">
-        <el-button
-          text
-          type="info"
+        <button
+          class="cancel-btn"
           @click="handleCancel"
+          :disabled="isSubmitting"
         >
           暂不判断，继续对话
-        </el-button>
+        </button>
       </div>
     </div>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { User, Monitor } from '@element-plus/icons-vue'
-import { useGameStore } from '@/stores/game'
+import { ref } from 'vue'
+import { Trophy } from '@element-plus/icons-vue'
 
 interface Emits {
   (e: 'confirm', choice: 'human' | 'ai'): void
@@ -137,230 +74,238 @@ interface Emits {
 }
 
 const emit = defineEmits<Emits>()
-const gameStore = useGameStore()
 
 const dialogVisible = ref(true)
 const isSubmitting = ref(false)
 
-// 计算潜在奖励和惩罚
-const potentialReward = computed(() => {
-  if (!gameStore.currentScorePrediction) return 0
-  // 场中判断双倍奖励
-  const baseReward = Math.max(
-    gameStore.currentScorePrediction.highConfidence.correct,
-    gameStore.currentScorePrediction.midConfidence.correct
-  )
-  return baseReward * 2
-})
-
-const potentialPenalty = computed(() => {
-  if (!gameStore.currentScorePrediction) return 0
-  // 场中判断双倍惩罚
-  const basePenalty = Math.max(
-    Math.abs(gameStore.currentScorePrediction.highConfidence.wrong),
-    Math.abs(gameStore.currentScorePrediction.midConfidence.wrong)
-  )
-  return basePenalty * 2
-})
-
 // 处理选择
 function handleChoice(choice: 'human' | 'ai') {
+  if (isSubmitting.value) return
   isSubmitting.value = true
   emit('confirm', choice)
 }
 
 // 处理取消
 function handleCancel() {
+  if (isSubmitting.value) return
   dialogVisible.value = false
   emit('cancel')
 }
 </script>
 
 <style scoped>
+.mid-game-dialog {
+  --el-dialog-bg-color: var(--bg-surface);
+  --el-dialog-border-radius: 16px;
+  --el-dialog-padding-primary: 24px;
+}
+
 .mid-game-content {
-  padding: 20px 0;
+  padding: 0;
 }
 
-.description {
-  margin-bottom: 24px;
-}
-
-.description .highlight {
-  font-weight: bold;
-  color: #f56c6c;
-  font-size: 16px;
-  margin: 8px 0;
-}
-
-.rules-section {
-  margin-bottom: 24px;
-  padding: 16px;
-  background: #f5f7fa;
-  border-radius: 8px;
-}
-
-.rules-section h4 {
-  margin: 0 0 12px 0;
-  color: #303133;
-  font-size: 14px;
-}
-
-.rules-section ul {
-  margin: 0;
-  padding-left: 20px;
-  list-style: none;
-}
-
-.rules-section li {
-  margin: 8px 0;
-  color: #606266;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.prediction-section {
-  margin-bottom: 24px;
-}
-
-.prediction-section h4 {
-  margin: 0 0 12px 0;
-  color: #303133;
-  font-size: 14px;
-}
-
-.prediction-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.prediction-card {
-  padding: 16px;
-  border-radius: 8px;
+/* 标题区域 */
+.header-section {
   text-align: center;
-  transition: all 0.3s;
+  margin-bottom: 32px;
 }
 
-.prediction-card.correct {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  border: 1px solid #bae6fd;
-}
-
-.prediction-card.wrong {
-  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-  border: 1px solid #fecaca;
-}
-
-.card-icon {
+.title-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-warning-gradient);
+  border-radius: 50%;
+  color: white;
   font-size: 32px;
-  font-weight: bold;
-  margin-bottom: 8px;
+  animation: bounce 2s ease-in-out infinite;
 }
 
-.card-label {
-  font-size: 14px;
-  color: #606266;
-  margin-bottom: 8px;
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
-.card-value {
-  font-size: 24px;
-  font-weight: bold;
+.header-section h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
 }
 
-.card-value.positive {
-  color: #67c23a;
+.subtitle {
+  font-size: 16px;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
-.card-value.negative {
-  color: #f56c6c;
-}
-
+/* 选择按钮区域 */
 .choice-section {
-  margin-bottom: 24px;
+  margin-bottom: 32px;
 }
 
-.choice-section h4 {
-  margin: 0 0 12px 0;
-  color: #303133;
-  font-size: 14px;
+.choice-section h3 {
+  font-size: 18px;
+  color: var(--text-primary);
+  margin: 0 0 20px 0;
+  text-align: center;
 }
 
 .choice-buttons {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 20px;
 }
 
-.choice-buttons :deep(.el-button) {
-  height: 60px;
-  font-size: 16px;
+.choice-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 20px;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--border-primary);
 }
 
+.choice-btn:hover:not(:disabled) {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.choice-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.human-btn {
+  background: var(--color-success-50);
+  border-color: var(--color-success-200);
+}
+
+.human-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--color-success-gradient);
+}
+
+.ai-btn {
+  background: var(--color-error-50);
+  border-color: var(--color-error-200);
+}
+
+.ai-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--color-error-gradient);
+}
+
+.btn-icon {
+  font-size: 48px;
+}
+
+.btn-text {
+  text-align: center;
+}
+
+.btn-text strong {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+
+.btn-text span {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+/* 取消按钮 */
 .cancel-section {
   text-align: center;
 }
 
-/* 计算详情样式 */
-  .calculation-details {
-    margin-top: 16px;
-  }
+.cancel-btn {
+  padding: 12px 32px;
+  border: 2px solid var(--border-primary);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
 
-  .calculation-content {
-    padding: 12px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    font-size: 13px;
-    line-height: 1.6;
-  }
+.cancel-btn:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  border-color: var(--border-secondary);
+}
 
-  .calculation-content p {
-    margin: 8px 0;
-    color: #606266;
-  }
+.cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
-  .calculation-content strong {
-    color: #303133;
-  }
-
-  .calc-section {
-    margin-top: 12px;
-    padding-top: 8px;
-    border-top: 1px dashed #dcdfe6;
-  }
-
-  .calc-section strong {
-    color: #409eff;
-  }
-
-  .calculation-content ul {
-    margin: 8px 0;
-    padding-left: 20px;
-  }
-
-  .calculation-content li {
-    margin: 4px 0;
-    color: #606266;
-  }
-
-  .correct-calc {
-    color: #67c23a;
-    font-weight: 500;
-  }
-
-  .wrong-calc {
-    color: #f56c6c;
-    font-weight: 500;
-  }
-
-  /* 响应式设计 */
-@media (max-width: 768px) {
-  .prediction-grid {
-    grid-template-columns: 1fr;
+/* 响应式设计 */
+@media (max-width: 640px) {
+  .mid-game-dialog {
+    width: 95% !important;
+    margin: 0 auto;
   }
 
   .choice-buttons {
     grid-template-columns: 1fr;
+  }
+
+  .header-section h2 {
+    font-size: 24px;
+  }
+
+  .choice-btn {
+    padding: 20px 16px;
+  }
+}
+
+/* 动画效果 */
+.choice-btn {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.choice-btn:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

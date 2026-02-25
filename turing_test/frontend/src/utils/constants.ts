@@ -11,6 +11,7 @@ export const MAX_TURNS = 15
 export const ENTRY_FEE = 2
 export const TURN_PENALTY_RATE = 0.5
 export const MIN_FREE_TURNS = 3
+export const MAX_MESSAGE_LENGTH = 50 // 消息最大长度
 
 // 信心等级乘数
 export const CONFIDENCE_MULTIPLIER = {
@@ -19,16 +20,22 @@ export const CONFIDENCE_MULTIPLIER = {
   high: 5.0
 } as const
 
-// 元对话关键词
+// 元对话关键词（与文档保持一致）
 export const META_KEYWORDS = [
   '真人', '机器', 'AI', '机器人', '人工智能',
-  '程序', '算法', '人类', '人', '电脑', '计算',
-  '你是', '我是', '身份', '真假', '还是', '到底'
+  '程序', '算法', '人类', '人', '电脑', '计算'
 ]
 
 // 场中判断关键词
 export const IDENTITY_KEYWORDS = [
   '机器人', 'AI', '程序', '机器', '人工智能', '代码', '算法'
+]
+
+// 敏感词列表
+export const SENSITIVE_WORDS = [
+  '微信', 'QQ', '电话', '手机', '邮箱', '邮件',
+  'http://', 'https://', 'www.', '.com', '.cn',
+  '傻', '笨', '猪', '滚', '废物', '白痴'
 ]
 
 // LocalStorage键名

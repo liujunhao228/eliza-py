@@ -54,6 +54,9 @@ class ConnectionManager:
         self._heartbeat_interval = 30  # 心跳间隔（秒）
         self._heartbeat_timeout = 60  # 心跳超时（秒）
 
+        # 用户断开连接标志
+        self._disconnecting_users: Set[int] = set()
+
     async def start_heartbeat_monitor(self):
         """启动心跳监控任务"""
         if self._heartbeat_task is None:
@@ -98,13 +101,13 @@ class ConnectionManager:
                             }
                         })
                     except Exception as e:
-                        logger.error(f"发送心跳给用户 {user_id} 失败: {e}")
+                        logger.error(f"发送心跳给用户 {user_id} 失败：{e}")
                         await self.disconnect(user_id)
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"心跳监控错误: {e}", exc_info=True)
+                logger.error(f"心跳监控错误：{e}", exc_info=True)
 
     async def connect(self, user_id: int, websocket: WebSocket):
         """连接用户"""
@@ -118,7 +121,7 @@ class ConnectionManager:
             # 更新统计
             self.total_connections += 1
 
-            logger.info(f"✅ 用户 {user_id} 已连接 (总连接数: {len(self.active_connections)})")
+            logger.info(f"✅ 用户 {user_id} 已连接 (总连接数：{len(self.active_connections)})")
 
             # 发送连接确认消息
             await websocket.send_json({
@@ -130,30 +133,46 @@ class ConnectionManager:
             })
 
         except Exception as e:
-            logger.error(f"用户 {user_id} 连接失败: {e}", exc_info=True)
+            logger.error(f"用户 {user_id} 连接失败：{e}", exc_info=True)
             raise
 
     def disconnect(self, user_id: int):
         """断开用户连接"""
-        if user_id in self.active_connections:
-            connection = self.active_connections[user_id]
-            connection.is_alive = False
+        if user_id in self._disconnecting_users:
+            # 已经在断开中，避免重复处理
+            return
+            
+        # 标记为用户正在断开，防止重入
+        self._disconnecting_users.add(user_id)
+        
+        try:
+            if user_id in self.active_connections:
+                connection = self.active_connections[user_id]
+                connection.is_alive = False
 
-            # 清理会话关联
-            if connection.session_id is not None:
-                self._remove_user_from_session(user_id, connection.session_id)
+                # 清理会话关联
+                if connection.session_id is not None:
+                    self._remove_user_from_session(user_id, connection.session_id)
 
-            del self.active_connections[user_id]
-            self.total_disconnections += 1
+                del self.active_connections[user_id]
+                self.total_disconnections += 1
 
-            logger.info(
-                f"❌ 用户 {user_id} 已断开连接 "
-                f"(总连接数: {len(self.active_connections)}, "
-                f"连接时长: {(datetime.utcnow() - connection.connected_at).total_seconds():.1f}秒)"
-            )
+                logger.info(
+                    f"❌ 用户 {user_id} 已断开连接 "
+                    f"(总连接数：{len(self.active_connections)}, "
+                    f"连接时长：{(datetime.utcnow() - connection.connected_at).total_seconds():.1f}秒)"
+                )
+        finally:
+            # 移除断开标志
+            self._disconnecting_users.discard(user_id)
 
     async def send_personal_message(self, user_id: int, message: dict):
         """发送个人消息"""
+        if user_id in self._disconnecting_users:
+            # 用户正在断开连接，不再发送消息
+            logger.debug(f"send_personal_message: 用户 {user_id} 正在断开连接，跳过")
+            return False
+
         if user_id not in self.active_connections:
             logger.warning(f"用户 {user_id} 不在线，无法发送消息")
             return False
@@ -166,9 +185,10 @@ class ConnectionManager:
         try:
             await connection.websocket.send_json(message)
             self.total_messages_sent += 1
+            logger.debug(f"send_personal_message: 用户 {user_id} 发送成功，type={message.get('type')}")
             return True
         except Exception as e:
-            logger.error(f"发送消息给用户 {user_id} 失败: {e}")
+            logger.error(f"发送消息给用户 {user_id} 失败：{e}")
             await self.disconnect(user_id)
             return False
 
@@ -187,12 +207,12 @@ class ConnectionManager:
                     self.total_messages_sent += 1
                     sent_count += 1
                 except Exception as e:
-                    logger.error(f"广播消息给用户 {user_id} 失败: {e}")
+                    logger.error(f"广播消息给用户 {user_id} 失败：{e}")
                     await self.disconnect(user_id)
                     failed_count += 1
 
         if failed_count > 0:
-            logger.warning(f"广播完成: 发送 {sent_count}, 失败 {failed_count}")
+            logger.warning(f"广播完成：发送 {sent_count}, 失败 {failed_count}")
 
         return sent_count
 
@@ -207,7 +227,8 @@ class ConnectionManager:
             success = await self.send_personal_message(user_id, message)
             if success:
                 sent_count += 1
-
+        
+        logger.debug(f"send_to_session: session_id={session_id}, users={list(self.session_users[session_id])}, sent_count={sent_count}")
         return sent_count
 
     def set_user_session(self, user_id: int, session_id: int):
@@ -236,8 +257,16 @@ class ConnectionManager:
 
     def is_user_connected(self, user_id: int) -> bool:
         """检查用户是否在线"""
+        # 如果用户正在断开连接中，视为未连接
+        if user_id in self._disconnecting_users:
+            return False
         connection = self.active_connections.get(user_id)
         return connection is not None and connection.is_alive
+
+    def get_user_websocket(self, user_id: int) -> Optional[WebSocket]:
+        """获取用户的 WebSocket 连接"""
+        connection = self.active_connections.get(user_id)
+        return connection.websocket if connection else None
 
     def get_online_count(self) -> int:
         """获取在线用户数"""

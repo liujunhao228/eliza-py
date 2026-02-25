@@ -143,8 +143,8 @@ async def chat_websocket(
                     # 处理消息
                     await manager.handle_message(user_id, data)
 
-                    # 处理聊天消息
-                    if data.get("type") == "chat":
+                    # 处理聊天消息（支持 'chat' 和 'message' 两种类型）
+                    if data.get("type") in ["chat", "message"]:
                         await handle_chat_message(
                             user_id, session, data, db
                         )
@@ -165,6 +165,11 @@ async def chat_websocket(
                         # 心跳响应由 manager 处理
                         pass
 
+                    # 处理连接确认（客户端可能收到 connected 消息）
+                    elif data.get("type") == "connected":
+                        # 连接确认消息，客户端处理
+                        pass
+
                     # 处理未知消息类型
                     else:
                         logger.warning(f"收到未知消息类型：{data.get('type')}")
@@ -178,28 +183,39 @@ async def chat_websocket(
 
                 except json.JSONDecodeError:
                     logger.warning(f"用户 {user_id} 发送了无效的 JSON")
-                    await manager.send_personal_message(user_id, {
-                        "type": "error",
-                        "data": {
-                            "error_code": "INVALID_JSON",
-                            "message": "消息格式错误，请发送有效的 JSON",
-                        }
-                    })
+                    if manager.is_user_connected(user_id):
+                        await manager.send_personal_message(user_id, {
+                            "type": "error",
+                            "data": {
+                                "error_code": "INVALID_JSON",
+                                "message": "消息格式错误，请发送有效的 JSON",
+                            }
+                        })
+                except WebSocketDisconnect:
+                    logger.info(f"用户 {user_id} 连接已断开")
+                    break  # 退出消息循环
                 except Exception as e:
+                    # 检查是否是连接关闭相关的错误
+                    error_str = str(e).lower()
+                    if 'close' in error_str or 'disconnect' in error_str or 'connection was closed' in error_str:
+                        logger.info(f"用户 {user_id} 连接已关闭：{e}")
+                        break  # 退出循环，不再尝试发送消息
                     logger.error(f"处理用户 {user_id} 消息时出错：{e}", exc_info=True)
-                    await manager.send_personal_message(user_id, {
-                        "type": "error",
-                        "data": {
-                            "error_code": "PROCESSING_ERROR",
-                            "message": "处理消息时出错，请重试",
-                        }
-                    })
+                    if manager.is_user_connected(user_id):
+                        await manager.send_personal_message(user_id, {
+                            "type": "error",
+                            "data": {
+                                "error_code": "PROCESSING_ERROR",
+                                "message": "处理消息时出错，请重试",
+                            }
+                        })
 
         except WebSocketDisconnect:
             logger.info(f"用户 {user_id} 正常断开连接")
         except Exception as e:
             logger.error(f"聊天 WebSocket 错误：{e}", exc_info=True)
         finally:
+            # 确保清理资源
             manager.disconnect(user_id)
 
 
@@ -225,12 +241,13 @@ async def handle_chat_message(
         })
         return
 
-    if len(content) > settings.MAX_INPUT_LENGTH:
+    max_length = settings.turing.performance.max_input_length
+    if len(content) > max_length:
         await manager.send_personal_message(user_id, {
             "type": "error",
             "data": {
                 "error_code": "MESSAGE_TOO_LONG",
-                "message": f"消息长度不能超过 {settings.MAX_INPUT_LENGTH} 字符",
+                "message": f"消息长度不能超过 {max_length} 字符",
             }
         })
         return
@@ -254,11 +271,17 @@ async def handle_chat_message(
         logger.info(f"检测到元对话，关键词：{keyword}")
 
     await db.commit()
+    
+    # 获取消息 ID
+    await db.refresh(message)
+    
+    logger.debug(f"handle_chat_message: 用户消息已保存，message_id={message.id}")
 
     # 转发消息到会话中的其他用户
     await manager.send_to_session(session.id, {
         "type": "chat",
         "data": {
+            "id": message.id,
             "sender": "user",
             "content": content,
             "timestamp": datetime.utcnow().isoformat(),
@@ -268,7 +291,10 @@ async def handle_chat_message(
 
     # 如果是 AI 对手，生成响应
     if session.opponent_type in ["ai", "honeypot"]:
+        logger.debug(f"开始处理 AI 响应：session_id={session.id}, opponent_type={session.opponent_type}, is_honeypot={session.is_honeypot}")
         await handle_ai_response(session.id, content, db)
+    else:
+        logger.debug(f"跳过 AI 响应：session_id={session.id}, opponent_type={session.opponent_type}")
 
 
 async def handle_mid_game_judgment(
@@ -405,15 +431,34 @@ async def handle_ai_response(
     """
     from turing_test.backend.models import Message, Session
     from sqlalchemy import select
+    from turing_test.backend.websocket.manager import manager
+
+    # 获取会话中的用户 ID
+    session_users = manager.session_users.get(session_id, set())
+    user_ids = list(session_users)
+    
+    logger.debug(f"handle_ai_response: session_id={session_id}, session_users={session_users}, user_ids={user_ids}")
+    logger.debug(f"handle_ai_response: 用户连接状态={[(uid, manager.is_user_connected(uid)) for uid in user_ids]}")
+
+    # 检查是否还有在线用户
+    if not user_ids or not any(manager.is_user_connected(uid) for uid in user_ids):
+        logger.warning(f"会话 {session_id} 中没有在线用户，跳过 AI 响应")
+        return
 
     # 发送打字提示
-    await manager.send_to_session(session_id, {
+    typing_sent = await manager.send_to_session(session_id, {
         "type": "typing",
         "data": {
             "sender": "opponent",
             "is_typing": True,
         }
     })
+    
+    logger.debug(f"handle_ai_response: 打字提示发送结果={typing_sent}")
+
+    if typing_sent == 0:
+        logger.warning(f"会话 {session_id} 中没有可接收消息的用户，跳过 AI 响应")
+        return
 
     try:
         # 调用 AI Bot 服务生成响应
@@ -471,22 +516,33 @@ async def handle_ai_response(
     session.turn_count += 2  # 一轮包括用户和对手各一条消息
 
     await db.commit()
+    
+    # 获取消息 ID 用于前端显示
+    await db.refresh(message)
+    message_id = message.id
+    logger.debug(f"handle_ai_response: AI 消息已保存，message_id={message_id}")
 
     # 发送停止打字提示
-    await manager.send_to_session(session_id, {
+    stop_typing_result = await manager.send_to_session(session_id, {
         "type": "typing",
         "data": {
             "sender": "opponent",
             "is_typing": False,
         }
     })
+    
+    logger.debug(f"handle_ai_response: 停止打字提示发送结果={stop_typing_result}")
 
     # 发送 AI 响应
-    await manager.send_to_session(session_id, {
+    send_result = await manager.send_to_session(session_id, {
         "type": "chat",
         "data": {
+            "id": message_id,
             "sender": "opponent",
             "content": ai_response,
             "timestamp": datetime.utcnow().isoformat(),
+            "is_meta_conversation": is_meta_conversation(ai_response)[0],
         }
     })
+    
+    logger.info(f"handle_ai_response: AI 响应已发送：session_id={session_id}, 发送结果={send_result}, 响应长度={len(ai_response)}, message_id={message_id}")

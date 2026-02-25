@@ -1,0 +1,25 @@
+# =============================================================================
+# Bot 配置模板：快速 Bot
+# =============================================================================
+# 说明：快速 Bot，响应更迅速
+# =============================================================================
+
+id: fast
+name: 小图·快速
+description: 快速 Bot，响应更迅速
+
+# ----- 脚本配置 -----
+script_file: alice/scripts/demo.yaml
+rules_file: alice/scripts/rules/mapping.yaml
+enable_plugins: true
+
+# ----- 性能配置 -----
+cache_size: 50
+typing_delay_base: 0.5
+typing_delay_per_char: 0.02
+
+# ----- 元数据 -----
+meta:
+  is_honeypot: false
+  aggressive_meta: false
+  personality: quick

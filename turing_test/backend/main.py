@@ -192,13 +192,19 @@ async def root():
 # 异常处理
 # =============================================================================
 
+from fastapi.responses import JSONResponse
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
     """HTTP 异常处理"""
     logger.warning(f"HTTP {exc.status_code}: {exc.detail}")
-    return ErrorResponse(
-        error_code=f"HTTP_{exc.status_code}",
-        message=exc.detail,
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error_code": f"HTTP_{exc.status_code}",
+            "message": exc.detail,
+        }
     )
 
 
@@ -206,9 +212,13 @@ async def http_exception_handler(request, exc):
 async def general_exception_handler(request, exc):
     """通用异常处理"""
     logger.error(f"未处理的异常：{exc}", exc_info=True)
-    return ErrorResponse(
-        error_code="INTERNAL_ERROR",
-        message="服务器内部错误" if not settings.debug else str(exc),
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error_code": "INTERNAL_ERROR",
+            "message": "服务器内部错误" if not settings.debug else str(exc),
+        }
     )
 
 

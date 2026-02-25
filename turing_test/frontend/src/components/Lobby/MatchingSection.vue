@@ -1,5 +1,5 @@
 <template>
-  <div class="matching-section">
+  <BaseCard class="matching-section">
     <!-- 匹配动画 -->
     <div class="spinner-container">
       <div class="spinner"></div>
@@ -14,9 +14,7 @@
 
     <!-- 进度条 -->
     <div class="progress-container">
-      <div class="progress-bar">
-        <div class="progress-fill" :style="{ width: progress + '%' }"></div>
-      </div>
+      <BaseProgress :percentage="progress" :show-text="false" />
       <div class="progress-text">{{ waitTime }} 秒 / 30 秒</div>
     </div>
 
@@ -37,18 +35,20 @@
     </div>
 
     <!-- 取消按钮 -->
-    <el-button
+    <BaseButton
       @click="handleCancel"
       class="btn-cancel"
       size="large"
+      type="info"
     >
       取消匹配
-    </el-button>
-  </div>
+    </BaseButton>
+  </BaseCard>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { BaseCard, BaseProgress, BaseButton } from '@/components/common'
 
 const emit = defineEmits<{
   (e: 'cancel'): void
@@ -102,11 +102,19 @@ defineExpose({
 </script>
 
 <style scoped>
+/* ==============================================
+   MatchingSection 样式 - 使用主题系统
+   ============================================== */
+
 .matching-section {
   max-width: 800px;
   margin: 0 auto;
   padding: 60px 20px;
   text-align: center;
+  background: var(--bg-surface);
+  border-radius: var(--rounded-2xl);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-primary);
 }
 
 /* 匹配动画容器 */
@@ -124,9 +132,9 @@ defineExpose({
   left: 0;
   width: 120px;
   height: 120px;
-  border: 6px solid #f3f3f3;
-  border-top-color: #667eea;
-  border-radius: 50%;
+  border: 6px solid var(--bg-tertiary);
+  border-top-color: var(--color-primary-600);
+  border-radius: var(--rounded-full);
   animation: spin 1s linear infinite;
 }
 
@@ -137,8 +145,8 @@ defineExpose({
   left: 10px;
   width: 100px;
   height: 100px;
-  border: 3px solid rgba(102, 126, 234, 0.3);
-  border-radius: 50%;
+  border: 3px solid rgba(99, 102, 241, 0.3);
+  border-radius: var(--rounded-full);
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -162,7 +170,7 @@ defineExpose({
 /* 匹配标题 */
 .matching-title {
   font-size: 28px;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 16px;
   font-weight: bold;
 }
@@ -170,7 +178,7 @@ defineExpose({
 /* 状态信息 */
 .status-message {
   font-size: 16px;
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 40px;
 }
 
@@ -181,24 +189,10 @@ defineExpose({
   max-width: 400px;
 }
 
-.progress-bar {
-  height: 8px;
-  background: #f3f3f3;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #667eea, #764ba2);
-  transition: width 0.3s ease;
-  border-radius: 4px;
-}
-
 .progress-text {
   font-size: 14px;
-  color: #909399;
+  color: var(--text-tertiary);
+  margin-top: 8px;
 }
 
 /* 匹配提示 */
@@ -241,28 +235,15 @@ defineExpose({
 
 .tip-text {
   font-size: 13px;
-  color: #606266;
+  color: var(--text-secondary);
   max-width: 120px;
   line-height: 1.4;
 }
 
-/* 取消按钮 */
+/* 取消按钮 - 使用 BaseButton 组件，覆盖特定样式 */
 .btn-cancel {
   width: 100%;
   max-width: 300px;
-  height: 48px;
-  font-size: 16px;
-  color: #909399;
-  background: white;
-  border: 2px solid #dcdfe6;
-  border-radius: 24px;
-  transition: all 0.3s;
-}
-
-.btn-cancel:hover {
-  color: #f56c6c;
-  border-color: #f56c6c;
-  background: #fef0f0;
 }
 
 /* 响应式设计 */

@@ -3,218 +3,39 @@
     <div class="container">
       <div class="result-card">
         <h1 class="result-title">🎉 对话结束</h1>
-        
+
         <!-- 真相揭晓 -->
-        <div class="truth-section">
-          <h2 class="section-title">真相揭晓</h2>
-          <div class="truth-content">
-            <div class="opponent-info">
-              <div class="opponent-avatar" :class="opponentTypeClass">
-                {{ opponentAvatar }}
-              </div>
-              <div class="opponent-details">
-                <div class="opponent-type">
-                  <span class="type-label">对方身份：</span>
-                  <span class="type-value" :class="opponentTypeClass">
-                    {{ opponentTypeText }}
-                  </span>
-                </div>
-                <div class="result-badge" :class="resultBadgeClass">
-                  {{ resultBadgeText }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <TruthCard
+          v-if="resultData"
+          :opponent-type="resultData.opponentType"
+          :is-correct="resultData.isCorrect"
+        />
 
-        <!-- 积分明细 -->
-        <div class="score-section">
-          <h2 class="section-title">积分明细</h2>
-          <div class="score-card">
-            <div class="score-main">
-              <div class="score-change" :class="scoreChangeClass">
-                <span class="change-sign">{{ scoreChange > 0 ? '+' : '' }}</span>
-                <span class="change-value">{{ scoreChange }}</span>
-              </div>
-              <div class="score-total">
-                当前积分：<span class="total-value">{{ userScore }}</span>
-              </div>
-            </div>
-            
-            <div class="score-details">
-              <div class="detail-item">
-                <span class="detail-label">基础奖励：</span>
-                <span class="detail-value">{{ scoreBreakdown.base_reward }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">信心倍数：</span>
-                <span class="detail-value">{{ scoreBreakdown.confidence_multiplier }}×</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">元对话次数：</span>
-                <span class="detail-value">{{ metaConversationCount }} 次</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">元对话倍数：</span>
-                <span class="detail-value">{{ scoreBreakdown.meta_multiplier }}×</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">有效倍数：</span>
-                <span class="detail-value">{{ scoreBreakdown.effective_multiplier }}×</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">入场券：</span>
-                <span class="detail-value">-{{ scoreBreakdown.entry_fee }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">轮数惩罚：</span>
-                <span class="detail-value">{{ scoreBreakdown.turn_penalty > 0 ? '-' : '' }}{{ scoreBreakdown.turn_penalty }}</span>
-              </div>
-              <div class="detail-item total">
-                <span class="detail-label">最终得分：</span>
-                <span class="detail-value">{{ scoreBreakdown.final_score }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 元对话影响分析 -->
-        <div class="meta-analysis-section" v-if="metaConversationCount > 0">
-          <h2 class="section-title">元对话影响分析</h2>
-          <div class="meta-analysis-card">
-            <div class="analysis-intro">
-              <p>本次对话中使用了 <strong>{{ metaConversationCount }}</strong> 次元对话（讨论身份、AI等话题）</p>
-            </div>
-            
-            <div class="comparison-table">
-              <div class="comparison-row no-meta">
-                <div class="row-title">
-                  <span class="label-badge">无元对话</span>
-                  <span class="label-desc">假设不使用元对话</span>
-                </div>
-                <div class="row-details">
-                  <div class="detail-line">
-                    <span>有效倍数：</span>
-                    <span class="value">{{ scoreBreakdown.confidence_multiplier }} × 1.0 = {{ scoreBreakdown.confidence_multiplier }}</span>
-                  </div>
-                  <div class="detail-line">
-                    <span>最终得分：</span>
-                    <span class="value score-neutral">{{ noMetaScore }}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="comparison-arrow">
-                <span>↓</span>
-              </div>
-              
-              <div class="comparison-row with-meta">
-                <div class="row-title">
-                  <span class="label-badge active">使用元对话</span>
-                  <span class="label-desc">实际使用了{{ metaConversationCount }}次元对话</span>
-                </div>
-                <div class="row-details">
-                  <div class="detail-line">
-                    <span>有效倍数：</span>
-                    <span class="value">{{ scoreBreakdown.confidence_multiplier }} × {{ scoreBreakdown.meta_multiplier }} = {{ scoreBreakdown.effective_multiplier }}</span>
-                  </div>
-                  <div class="detail-line">
-                    <span>最终得分：</span>
-                    <span class="value" :class="scoreChangeClass">{{ scoreBreakdown.final_score }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div class="impact-summary">
-              <div class="impact-gain" v-if="metaGain > 0">
-                <span class="impact-icon">📈</span>
-                <span class="impact-text">
-                  元对话带来了 <strong>+{{ metaGain }}</strong> 分的增益
-                  <span class="impact-percent">（{{ metaGainPercent }}%提升）</span>
-                </span>
-              </div>
-              <div class="impact-loss" v-else>
-                <span class="impact-icon">📉</span>
-                <span class="impact-text">
-                  元对话造成了 <strong>{{ metaGain }}</strong> 分的损失
-                  <span class="impact-percent">（{{ metaGainPercent }}%下降）</span>
-                </span>
-              </div>
-            </div>
-            
-            <div class="meta-tips">
-              <el-alert
-                title="💡 元对话双刃剑"
-                type="info"
-                :closable="false"
-              >
-                <p>元对话可以大幅提升得分，但判断错误时惩罚也会加倍。谨慎使用元对话，权衡风险与收益！</p>
-              </el-alert>
-            </div>
-          </div>
-        </div>
-
-        <!-- 对方判断（彩蛋） -->
-        <div class="opinion-section" v-if="opinionData">
-          <h2 class="section-title">对方的判断</h2>
-          <div class="opinion-card">
-            <div class="opinion-guess">
-              <span class="guess-label">对方认为你是：</span>
-              <span class="guess-value" :class="opinionGuessClass">
-                {{ opinionGuessText }}
-              </span>
-            </div>
-            <div class="opinion-reason" v-if="opinionData.reason">
-              <span class="reason-label">理由：</span>
-              <span class="reason-value">{{ opinionData.reason }}</span>
-            </div>
-          </div>
-        </div>
+        <!-- 积分结果 -->
+        <ScoreCard
+          v-if="resultData"
+          :final-score="resultData.finalScore"
+          :is-correct="resultData.isCorrect"
+        />
 
         <!-- 你的问卷回顾 -->
-        <div class="survey-section">
-          <h2 class="section-title">你的判断回顾</h2>
-          <div class="survey-card">
-            <div class="survey-item">
-              <span class="survey-label">你的判断：</span>
-              <span class="survey-value">{{ surveyData.user_guess_text }}</span>
-            </div>
-            <div class="survey-item">
-              <span class="survey-label">信心等级：</span>
-              <span class="survey-value">{{ surveyData.confidence_level_text }}</span>
-            </div>
-            <div class="survey-item">
-              <span class="survey-label">流畅度评分：</span>
-              <span class="survey-value">{{ surveyData.fluency_rating }}/5</span>
-            </div>
-            <div class="survey-item" v-if="surveyData.reason">
-              <span class="survey-label">理由：</span>
-              <span class="survey-value">{{ surveyData.reason }}</span>
-            </div>
-            <div class="survey-item">
-              <span class="survey-label">你的角色：</span>
-              <span class="survey-value">{{ surveyData.self_role_text }}</span>
-            </div>
-            <div class="survey-item" v-if="surveyData.strategy">
-              <span class="survey-label">策略：</span>
-              <span class="survey-value">{{ surveyData.strategy }}</span>
-            </div>
-          </div>
-        </div>
+        <SurveyCard
+          v-if="resultData"
+          :data="resultData.surveyData"
+        />
 
         <!-- 操作按钮 -->
         <div class="actions">
-          <el-button 
-            type="primary" 
-            size="large" 
+          <el-button
+            type="primary"
+            size="large"
             @click="backToLobby"
             class="action-button"
           >
             返回大厅
           </el-button>
-          <el-button 
-            size="large" 
+          <el-button
+            size="large"
             @click="viewHistory"
             class="action-button secondary"
           >
@@ -227,193 +48,106 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import { useGameStore } from '@/stores/game'
+import { getSessionResult } from '@/api/game'
+import {
+  TruthCard,
+  ScoreCard,
+  SurveyCard
+} from '@/components/Result'
+import type { SurveyData } from '@/types/result'
 
 const router = useRouter()
 const userStore = useUserStore()
+const gameStore = useGameStore()
 
-// 从localStorage获取数据
-const surveyData = ref<any>(null)
-const opinionData = ref<any>(null)
-const scoreBreakdown = ref<any>(null)
-const userScore = ref(0)
+// 结果数据
+const resultData = ref<{
+  surveyData: SurveyData
+  finalScore: number
+  isCorrect: boolean
+  opponentType: 'human' | 'ai' | 'honeypot' | 'unknown'
+} | null>(null)
 
-// 计算属性
-const opponentType = computed(() => {
-  return scoreBreakdown.value?.opponent_type || 'unknown'
-})
-
-const opponentTypeClass = computed(() => {
-  return `opponent-${opponentType.value}`
-})
-
-const opponentTypeText = computed(() => {
-  const map: Record<string, string> = {
-    'human': '👤 真人',
-    'ai': '🤖 AI',
-    'honeypot': '🎣 钓鱼机器人'
-  }
-  return map[opponentType.value] || '未知'
-})
-
-const opponentAvatar = computed(() => {
-  const map: Record<string, string> = {
-    'human': '👤',
-    'ai': '🤖',
-    'honeypot': '🎣'
-  }
-  return map[opponentType.value] || '❓'
-})
-
-const isCorrect = computed(() => {
-  return scoreBreakdown.value?.is_correct || false
-})
-
-const resultBadgeClass = computed(() => {
-  return isCorrect.value ? 'badge-correct' : 'badge-wrong'
-})
-
-const resultBadgeText = computed(() => {
-  return isCorrect.value ? '判断正确！' : '判断错误'
-})
-
-const scoreChange = computed(() => {
-  return scoreBreakdown.value?.final_score || 0
-})
-
-const scoreChangeClass = computed(() => {
-  return scoreChange.value >= 0 ? 'score-positive' : 'score-negative'
-})
-
-const opinionGuessClass = computed(() => {
-  if (!opinionData.value?.opponent_guess) return ''
-  const guessMap: Record<string, string> = {
-    'human': 'opponent-human',
-    'ai': 'opponent-ai',
-    'honeypot': 'opponent-honeypot'
-  }
-  return guessMap[opinionData.value.opponent_guess] || ''
-})
-
-const opinionGuessText = computed(() => {
-  if (!opinionData.value?.opponent_guess) return '未知'
-  const map: Record<string, string> = {
-    'human': '👤 真人',
-    'ai': '🤖 AI',
-    'honeypot': '🎣 钓鱼机器人'
-  }
-  return map[opinionData.value.opponent_guess] || '未知'
-})
-
-// 元对话相关计算属性
-const metaConversationCount = computed(() => {
-  return scoreBreakdown.value?.meta_conversation_count || 0
-})
-
-const noMetaScore = computed(() => {
-  if (!scoreBreakdown.value) return 0
-  const base = scoreBreakdown.value.base_reward
-  const confidence = scoreBreakdown.value.confidence_multiplier
-  const entryFee = scoreBreakdown.value.entry_fee || 2
-  const turnPenalty = scoreBreakdown.value.turn_penalty || 0
-  // 无元对话时的得分：基础分 × 信心倍数 - 入场券 - 轮数惩罚
-  return base * confidence - entryFee - turnPenalty
-})
-
-const metaGain = computed(() => {
-  if (!scoreBreakdown.value) return 0
-  return scoreBreakdown.value.final_score - noMetaScore.value
-})
-
-const metaGainPercent = computed(() => {
-  const baseScore = noMetaScore.value
-  if (baseScore === 0) return '0'
-  const percent = ((metaGain.value / Math.abs(baseScore)) * 100).toFixed(1)
-  return percent
-})
-
-// 初始化数据
-onMounted(() => {
-  // 从localStorage获取问卷结果
-  const surveyResult = localStorage.getItem('surveyResult')
-  const surveyDataLocal = localStorage.getItem('surveyData')
-  
-  if (!surveyResult || !surveyDataLocal) {
-    ElMessage.error('结果数据丢失，请重新开始')
-    router.push({ name: 'Lobby' })
-    return
-  }
-  
-  try {
-    const surveyResponse = JSON.parse(surveyResult)
-    const survey = JSON.parse(surveyDataLocal)
-    
-    // 处理问卷数据文本
-    surveyData.value = {
-      ...survey,
-      user_guess_text: getUserGuessText(survey.user_guess),
-      confidence_level_text: getConfidenceText(survey.confidence_level),
-      self_role_text: getSelfRoleText(survey.self_role)
-    }
-    
-    // 处理对方判断数据
-    if (surveyResponse.opponent_guess) {
-      opinionData.value = {
-        opponent_guess: surveyResponse.opponent_guess,
-        reason: surveyResponse.opponent_reason
-      }
-    }
-    
-    // 积分明细
-    scoreBreakdown.value = surveyResponse.score_breakdown
-    
-    // 更新用户积分
-    userScore.value = surveyResponse.final_score
-    
-    // 更新store中的积分
-    userStore.updateScore(surveyResponse.final_score)
-    
-    // 清除localStorage数据
-    localStorage.removeItem('surveyResult')
-    localStorage.removeItem('surveyData')
-    
-  } catch (error) {
-    console.error('解析结果数据失败:', error)
-    ElMessage.error('结果数据解析失败，请重新开始')
-    router.push({ name: 'Lobby' })
-  }
-})
-
-// 辅助函数
+// 辅助函数：获取用户判断文本
 function getUserGuessText(guess: string): string {
   const map: Record<string, string> = {
-    'human': '👤 真人',
-    'ai': '🤖 AI',
-    'unsure': '❓ 不确定'
+    human: '👤 真人',
+    ai: '🤖 AI',
+    unsure: '❓ 不确定'
   }
   return map[guess] || guess
 }
 
+// 辅助函数：获取信心等级文本
 function getConfidenceText(level: string): string {
   const map: Record<string, string> = {
-    'low': '🟢 低信心',
-    'mid': '🟡 中信心',
-    'high': '🔴 高信心'
+    low: '🟢 低信心',
+    mid: '🟡 中信心',
+    high: '🔴 高信心'
   }
   return map[level] || level
 }
 
+// 辅助函数：获取角色文本
 function getSelfRoleText(role: string): string {
   const map: Record<string, string> = {
-    'prover': '🎯 证明者',
-    'interferer': '🎭 干扰者',
-    'other': '❓ 其他'
+    prover: '🎯 证明者',
+    interferer: '🎭 干扰者',
+    other: '❓ 其他'
   }
   return map[role] || role
 }
+
+// 初始化数据
+onMounted(async () => {
+  // 优先从 gameStore 获取 sessionId
+  const sessionId = gameStore.sessionId
+
+  if (!sessionId) {
+    ElMessage.error('会话信息丢失，请重新开始')
+    router.push({ name: 'Lobby' })
+    return
+  }
+
+  try {
+    // 从后端获取会话结果
+    const result = await getSessionResult(sessionId)
+
+    // 构建问卷数据
+    const processedSurveyData: SurveyData = {
+      user_guess: result.survey?.user_guess || 'unsure',
+      confidence_level: result.survey?.confidence_level || 'low',
+      fluency_rating: result.survey?.fluency_rating || 3,
+      reason: result.survey?.reason || '',
+      self_role: result.survey?.self_role || 'other',
+      strategy: result.survey?.strategy || '',
+      user_guess_text: getUserGuessText(result.survey?.user_guess || 'unsure'),
+      confidence_level_text: getConfidenceText(result.survey?.confidence_level || 'low'),
+      self_role_text: getSelfRoleText(result.survey?.self_role || 'other')
+    }
+
+    // 组装完整数据
+    resultData.value = {
+      surveyData: processedSurveyData,
+      finalScore: result.final_score,
+      isCorrect: result.is_correct,
+      opponentType: result.opponent_type as 'human' | 'ai' | 'honeypot' | 'unknown'
+    }
+
+    // 更新用户积分
+    userStore.updateScore(result.final_score)
+
+  } catch (error) {
+    console.error('获取会话结果失败:', error)
+    ElMessage.error('结果数据获取失败，请重新开始')
+    router.push({ name: 'Lobby' })
+  }
+})
 
 // 操作函数
 function backToLobby() {
@@ -428,7 +162,7 @@ function viewHistory() {
 <style scoped>
 .result-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--color-primary-gradient);
   padding: 20px;
   display: flex;
   align-items: center;
@@ -441,9 +175,9 @@ function viewHistory() {
 }
 
 .result-card {
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  background: var(--bg-surface);
+  border-radius: var(--rounded-2xl);
+  box-shadow: var(--shadow-2xl);
   padding: 40px;
 }
 
@@ -452,284 +186,7 @@ function viewHistory() {
   font-weight: bold;
   text-align: center;
   margin-bottom: 32px;
-  color: #333;
-}
-
-.section-title {
-  font-size: 24px;
-  font-weight: bold;
-  margin-bottom: 16px;
-  color: #333;
-  border-bottom: 2px solid #f0f0f0;
-  padding-bottom: 8px;
-}
-
-/* 真相揭晓 */
-.truth-section {
-  margin-bottom: 32px;
-}
-
-.opponent-info {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.opponent-avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
-  background: #f5f5f5;
-  border: 3px solid #e0e0e0;
-}
-
-.opponent-avatar.opponent-human {
-  background: #e8f5e9;
-  border-color: #4caf50;
-  color: #2e7d32;
-}
-
-.opponent-avatar.opponent-ai {
-  background: #e3f2fd;
-  border-color: #2196f3;
-  color: #1565c0;
-}
-
-.opponent-avatar.opponent-honeypot {
-  background: #fff3e0;
-  border-color: #ff9800;
-  color: #e65100;
-}
-
-.opponent-details {
-  flex: 1;
-}
-
-.opponent-type {
-  font-size: 18px;
-  font-weight: 500;
-  margin-bottom: 8px;
-}
-
-.type-label {
-  color: #666;
-}
-
-.type-value {
-  font-weight: bold;
-}
-
-.type-value.opponent-human {
-  color: #2e7d32;
-}
-
-.type-value.opponent-ai {
-  color: #1565c0;
-}
-
-.type-value.opponent-honeypot {
-  color: #e65100;
-}
-
-.result-badge {
-  display: inline-block;
-  padding: 6px 16px;
-  border-radius: 20px;
-  font-weight: bold;
-  font-size: 14px;
-}
-
-.result-badge.badge-correct {
-  background: #e8f5e9;
-  color: #2e7d32;
-}
-
-.result-badge.badge-wrong {
-  background: #ffebee;
-  color: #c62828;
-}
-
-/* 积分明细 */
-.score-section {
-  margin-bottom: 32px;
-}
-
-.score-card {
-  background: #f8f9fa;
-  border-radius: 12px;
-  padding: 24px;
-  border: 1px solid #e9ecef;
-}
-
-.score-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.score-change {
-  font-size: 28px;
-  font-weight: bold;
-}
-
-.score-change .change-sign {
-  font-size: 20px;
-}
-
-.score-change .change-value {
-  font-size: 32px;
-}
-
-.score-change.score-positive {
-  color: #2e7d32;
-}
-
-.score-change.score-negative {
-  color: #c62828;
-}
-
-.score-total {
-  font-size: 16px;
-  color: #666;
-}
-
-.score-total .total-value {
-  font-weight: bold;
-  color: #333;
-  font-size: 18px;
-}
-
-.score-details {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.detail-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.detail-item.total {
-  border-top: 2px solid #333;
-  border-bottom: none;
-  padding-top: 12px;
-  margin-top: 8px;
-  font-weight: bold;
-}
-
-.detail-label {
-  color: #666;
-  font-size: 14px;
-}
-
-.detail-value {
-  font-weight: 500;
-  color: #333;
-}
-
-/* 对方判断 */
-.opinion-section {
-  margin-bottom: 32px;
-}
-
-.opinion-card {
-  background: #f8f9fa;
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid #e9ecef;
-}
-
-.opinion-guess {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.guess-label {
-  color: #666;
-  font-weight: 500;
-}
-
-.guess-value {
-  font-weight: bold;
-}
-
-.guess-value.opponent-human {
-  color: #2e7d32;
-}
-
-.guess-value.opponent-ai {
-  color: #1565c0;
-}
-
-.guess-value.opponent-honeypot {
-  color: #e65100;
-}
-
-.opinion-reason {
-  padding-left: 12px;
-}
-
-.reason-label {
-  color: #666;
-  font-weight: 500;
-  margin-right: 8px;
-}
-
-.reason-value {
-  color: #333;
-  line-height: 1.5;
-}
-
-/* 问卷回顾 */
-.survey-section {
-  margin-bottom: 32px;
-}
-
-.survey-card {
-  background: #f8f9fa;
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid #e9ecef;
-}
-
-.survey-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.survey-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.survey-label {
-  color: #666;
-  font-weight: 500;
-  min-width: 100px;
-}
-
-.survey-value {
-  color: #333;
-  flex: 1;
-  line-height: 1.5;
+  color: var(--text-primary);
 }
 
 /* 操作按钮 */
@@ -744,189 +201,17 @@ function viewHistory() {
   height: 48px;
   font-size: 16px;
   font-weight: 500;
-  border-radius: 8px;
+  border-radius: var(--rounded-md);
 }
 
 .action-button.secondary {
-  background: white;
-  color: #667eea;
-  border: 2px solid #667eea;
+  background: var(--bg-surface);
+  color: var(--color-primary-600);
+  border: 2px solid var(--color-primary-600);
 }
 
 .action-button.secondary:hover {
-  background: #f0f4ff;
-}
-
-/* 元对话影响分析 */
-.meta-analysis-section {
-  margin-bottom: 32px;
-}
-
-.meta-analysis-card {
-  background: #f8f9fa;
-  border-radius: 12px;
-  padding: 24px;
-  border: 1px solid #e9ecef;
-}
-
-.analysis-intro {
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.analysis-intro p {
-  margin: 0;
-  font-size: 15px;
-  color: #606266;
-  line-height: 1.6;
-}
-
-.analysis-intro strong {
-  color: #409eff;
-  font-weight: 600;
-}
-
-.comparison-table {
-  margin-bottom: 20px;
-}
-
-.comparison-row {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  border: 2px solid #e0e0e0;
-  margin-bottom: 8px;
-}
-
-.comparison-row.no-meta {
-  border-color: #d0d0d0;
-}
-
-.comparison-row.with-meta {
-  border-color: #409eff;
-  background: #f0f9ff;
-}
-
-.row-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.label-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 13px;
-  font-weight: 600;
-  background: #e0e0e0;
-  color: #666;
-}
-
-.label-badge.active {
-  background: #409eff;
-  color: white;
-}
-
-.label-desc {
-  font-size: 13px;
-  color: #909399;
-}
-
-.row-details {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-left: 12px;
-}
-
-.detail-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #606266;
-}
-
-.detail-line span:first-child {
-  min-width: 80px;
-  color: #909399;
-}
-
-.detail-line .value {
-  font-weight: 500;
-  color: #303133;
-}
-
-.detail-line .value.score-neutral {
-  color: #606266;
-}
-
-.detail-line .value.score-positive {
-  color: #67c23a;
-}
-
-.detail-line .value.score-negative {
-  color: #f56c6c;
-}
-
-.comparison-arrow {
-  text-align: center;
-  font-size: 24px;
-  color: #909399;
-  margin: 8px 0;
-}
-
-.impact-summary {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-  text-align: center;
-}
-
-.impact-gain,
-.impact-loss {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  font-size: 16px;
-}
-
-.impact-gain {
-  color: #67c23a;
-}
-
-.impact-loss {
-  color: #f56c6c;
-}
-
-.impact-icon {
-  font-size: 24px;
-}
-
-.impact-text {
-  color: #606266;
-  line-height: 1.6;
-}
-
-.impact-text strong {
-  font-weight: 600;
-  font-size: 18px;
-}
-
-.impact-percent {
-  margin-left: 8px;
-  font-size: 14px;
-  color: #909399;
-}
-
-.meta-tips :deep(.el-alert__content) {
-  font-size: 13px;
-  line-height: 1.6;
+  background: var(--color-primary-50);
 }
 
 /* 响应式设计 */
@@ -937,19 +222,6 @@ function viewHistory() {
 
   .result-title {
     font-size: 24px;
-  }
-
-  .section-title {
-    font-size: 20px;
-  }
-
-  .opponent-info {
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .score-details {
-    grid-template-columns: 1fr;
   }
 
   .actions {

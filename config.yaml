@@ -1,9 +1,10 @@
-# Alice - 统一配置文件
+# =============================================================================
+# Alice - 主配置文件
 # =============================================================================
 # 配置说明:
 # - 所有配置项必须显式定义，无代码硬编码默认值
 # - 环境变量 (.env) 可覆盖此文件配置
-# - 支持 config.alice.yaml 和 config.turing.yaml 模块专属配置
+# - 模块专属配置：config.alice.yaml, config.turing.yaml
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -21,192 +22,16 @@ paths:
   turing_dir: turing_test               # Turing 测试模块目录
   log_dir: logs                         # 日志目录
   data_dir: data                        # 数据目录
-  scripts_dir: alice/scripts            # 脚本目录
+  bots_dir: bots                        # Bot 配置目录
 
 # -----------------------------------------------------------------------------
-# Alice 配置
+# 模块引用配置
 # -----------------------------------------------------------------------------
-alice:
-  # 功能开关
-  enable_ltp: true                      # 启用 LTP 句法分析
-  enable_ner: true                      # 启用 NER 实体识别
-  enable_log: true                      # 启用对话日志
-  ner_use_ltp: true                     # NER 使用 LTP 增强
-  hot_reload: true                      # 启用热重载
-  hot_reload_mode: auto                 # 热重载模式 (auto/manual)
-  hot_reload_poll_interval: 2.0         # 热重载轮询间隔 (秒)
-  
-  # 文件路径 (相对于 project_root)
-  script_file: alice/scripts/demo.yaml
-  rules_file: alice/scripts/rules/mapping.yaml
-  semantic_tags_file: alice/scripts/semantic_tags.yaml
-  
-  # 对话上下文配置
-  context_max_items: 10
-  conversation_history_max_turns: 20
-  ltp_cache_size_limit: 100
-  dialogue_log_max_entries: 1000
-  
-  # 性能配置
-  performance_monitor_sample_rate: 1.0
-  max_input_length: 500
-  script_match_timeout: 100             # 毫秒
-  regex_cache_size: 100
-  
-  # 预定义响应
-  fallback_responses:
-    - "嗯，我明白了。这里是默认回答。"
-  greeting_responses:
-    - "你好！这里是默认回答"
-  
-  # 日志配置
-  log_max_size_mb: 10
-  log_backup_count: 5
-  
-  # LTP 引擎配置
-  ltp:
-    enable_cws: true                    # 词分词
-    enable_pos: true                    # 词性标注
-    enable_ner: true                    # 命名实体识别
-    enable_dep: true                    # 依存句法分析
-    enable_sdp: true                    # 语义依存分析
-    enable_srl: true                    # 语义角色标注
-    cache_size: 50
-    max_length: 512
-
-# -----------------------------------------------------------------------------
-# Turing 测试配置
-# -----------------------------------------------------------------------------
-turing:
-  # 数据库配置
-  database:
-    url: sqlite:///data/turing.db
-  
-  # 认证配置
-  auth:
-    invite_code_length: 6
-    access_token_expire_minutes: 10080        # 7 天 (60 * 24 * 7)
-    algorithm: HS256
-    secret_key: "your-secret-key-change-in-production"
-    initial_score: 100
-  
-  # 匹配配置
-  match:
-    timeout: 30                         # 秒，等待真人超时后匹配 AI
-    # 匹配时间分布（真人/AI 使用相同分布，消除时间线索）
-    time_distribution:
-      fast: { min: 0, max: 3, probability: 0.5 }      # 50%: 0-3 秒
-      normal: { min: 3, max: 8, probability: 0.3 }    # 30%: 3-8 秒
-      slow: { min: 8, max: 15, probability: 0.15 }    # 15%: 8-15 秒
-      very_slow: { min: 15, max: 30, probability: 0.05 }  # 5%: 15-30 秒
-    # 钓鱼机器人配置
-    honeypot_probability: 0.15          # 15% 的 AI 匹配是钓鱼机器人
-    honeypot_high_meta_probability: 0.30  # 高频元对话时钓鱼机器人概率
-
-  # 元对话关键词配置（统一用于元对话检测和场中判断触发）
-  meta_keywords:
-    # 身份相关
-    - '真人'
-    - '机器'
-    - 'AI'
-    - '机器人'
-    - '人工智能'
-    - '程序'
-    - '算法'
-    - '人类'
-    - '人'
-    - '电脑'
-    - '计算'
-    # 身份判断相关
-    - '你是'
-    - '我是'
-    - '身份'
-    - '真假'
-    - '还是'
-    - '到底'
-
-  # 场中判断配置
-  mid_game:
-    enabled: true
-    # 触发关键词（使用 meta_keywords 统一列表）
-    multiplier_correct: 2.0             # 判断正确倍数
-    multiplier_wrong: 1.5               # 判断错误倍数
-    max_per_session: 1                  # 每局最多触发次数
-
-  # 积分配置
-  score:
-    entry_fee: 2                        # 入场券
-    min_free_turns: 3                   # 免费轮数
-    turn_penalty_rate: 0.5              # 轮数惩罚率（分/轮）
-    # 基础奖励/惩罚
-    base_reward:
-      ai_correct: 10                    # 识别 AI 正确
-      ai_wrong: -15                     # 误判 AI
-      human_correct: 20                 # 识别真人正确
-      human_wrong: -10                  # 误判真人
-      honeypot_correct: 30              # 识破钓鱼机器人（场中判断）
-      honeypot_wrong: -50               # 被钓鱼机器人欺骗
-    # 信心等级乘数
-    confidence_multiplier:
-      low: 1.0
-      mid: 2.5
-      high: 5.0
-    # 元对话乘数
-    meta_multiplier:
-      correct_rate: 0.2                 # 判断正确时每次元对话增加 20%
-      wrong_rate: 0.3                   # 判断错误时每次元对话增加 30%
-  
-  # AI Bot 配置
-  ai_bot:
-    name: 小图
-    typing_delay_base: 1.0              # 基础延迟 (秒)
-    typing_delay_per_char: 0.05         # 每字符额外延迟 (秒)
-  
-  # 会话配置
-  session:
-    min_chat_turns: 3                   # 最少对话轮数才能结束
-  
-  # 服务器配置
-  server:
-    host: 0.0.0.0
-    port: 8000
-  
-  # NLP 服务配置
-  nlp_service:
-    enable_ltp: false
-    cache_size: 1000
-    cache_ttl: 3600
-  
-  # Bot 池配置
-  bot_pool:
-    min_instances: 2
-    max_instances: 10
-    idle_timeout: 300
-    max_concurrent: 100
-  
-  # AliceBot 配置 (供 Turing 使用)
-  alice_bot:
-    enable_plugins: true
-    cache_size: 50
-    context_max_turns: 20
-    script_file: alice/scripts/demo.yaml
-    rules_file: alice/scripts/rules/mapping.yaml
-  
-  # 性能配置
-  performance:
-    response_timeout: 10.0
-    max_input_length: 500
-    base_typing_delay: 0.5
-    chars_per_second: 5.0
-
-  # WebSocket 配置
-  websocket:
-    ping_interval: 20                   # 心跳间隔 (秒)
-    ping_timeout: 30                    # 心跳超时 (秒)
-
-  # 日志配置 (共享)
-  log:
-    level: INFO
-    file: logs/turing.log
-    max_size_mb: 10
-    backup_count: 5
+modules:
+  alice:
+    config_file: config.alice.yaml      # Alice 专属配置文件
+  turing:
+    config_file: config.turing.yaml     # Turing 专属配置文件
+    bot_pool:
+      config_dir: bots                  # Bot 配置目录
+      default_template: default         # 默认 Bot 模板 ID

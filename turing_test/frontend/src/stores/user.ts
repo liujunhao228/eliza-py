@@ -5,21 +5,36 @@ import { STORAGE_KEYS } from '@/utils/constants'
 
 export const useUserStore = defineStore('user', () => {
   // 状态
-  const userId = ref<number | null>(parseInt(localStorage.getItem(STORAGE_KEYS.USER_ID) || '0') || null)
-  const username = ref<string>(localStorage.getItem(STORAGE_KEYS.NICKNAME) || '')
-  const nickname = ref<string>(localStorage.getItem(STORAGE_KEYS.NICKNAME) || '')  // 兼容旧字段
+  // 注意：用户名字段统一使用 nickname，username 字段已废弃
+  // 初始化时正确处理 localStorage 中的无效值（"0"、"null"、"undefined"、空字符串）
+  const userIdFromStorage = localStorage.getItem(STORAGE_KEYS.USER_ID)
+  const isValidUserId = userIdFromStorage && 
+                        userIdFromStorage !== '0' && 
+                        userIdFromStorage !== 'null' && 
+                        userIdFromStorage !== 'undefined' &&
+                        userIdFromStorage !== ''
+  
+  const userId = ref<number | null>(
+    isValidUserId ? parseInt(userIdFromStorage, 10) || null : null
+  )
+  const nickname = ref<string>(localStorage.getItem(STORAGE_KEYS.NICKNAME) || '')
   const inviteCode = ref<string>(localStorage.getItem(STORAGE_KEYS.INVITE_CODE) || '')
-  const score = ref<number>(parseInt(localStorage.getItem(STORAGE_KEYS.USER_SCORE) || '100'))
+  const score = ref<number>(parseInt(localStorage.getItem(STORAGE_KEYS.USER_SCORE) || '100', 10))
   const stats = ref<UserStats | null>(null)
   const scoreHistory = ref<any[]>([])
 
   // 计算属性
   const isLoggedIn = computed(() => !!userId.value)
+  
+  /**
+   * 当前用户信息
+   * 注意：为兼容旧 API，同时返回 username 和 nickname 字段，两者值相同
+   */
   const currentUser = computed<User | null>(() => {
     if (!userId.value) return null
     return {
       id: userId.value,
-      username: username.value,
+      username: nickname.value,  // 兼容旧 API 字段
       nickname: nickname.value,
       invite_code: inviteCode.value,
       score: score.value,
@@ -28,9 +43,14 @@ export const useUserStore = defineStore('user', () => {
   })
 
   // 方法
+  /**
+   * 设置用户信息
+   * @param user 用户对象
+   * 注意：优先使用 nickname 字段，兼容旧版 username 字段
+   */
   function setUser(user: User) {
     userId.value = user.id
-    username.value = user.username || user.nickname || ''
+    // 优先使用 nickname，若不存在则使用 username 兼容旧 API
     nickname.value = user.nickname || user.username || ''
     inviteCode.value = user.invite_code
     score.value = user.score || 100
@@ -57,7 +77,6 @@ export const useUserStore = defineStore('user', () => {
 
   function logout() {
     userId.value = null
-    username.value = ''
     nickname.value = ''
     inviteCode.value = ''
     score.value = 100
@@ -75,7 +94,6 @@ export const useUserStore = defineStore('user', () => {
   return {
     // 状态
     userId,
-    username,
     nickname,
     inviteCode,
     score,

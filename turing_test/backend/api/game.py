@@ -7,21 +7,26 @@
 - 积分历史
 - 积分预测
 - 元对话乘数查询
+- 会话历史消息查询
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import joinedload
 from loguru import logger
+from pydantic import BaseModel
 
 from turing_test.backend.database import get_db
-from turing_test.backend.models import User, Session, Message, ScoreHistory, UserStats
+from turing_test.backend.models import User, Session, Message, ScoreHistory, UserStats, Survey
 from turing_test.backend.schemas import (
     MidGameJudgmentRequest,
     SurveyRequest,
+    SurveyResponse,
     GameResultResponse,
+    ScoreBreakdownResponse,
     ScoreHistoryResponse,
     SuccessResponse,
     ErrorResponse,
@@ -34,7 +39,159 @@ from turing_test.backend.utils.score_calculator import (
     ScoreBreakdown,
 )
 
+
+def _normalize_opponent_type(opponent_type: str) -> str:
+    """
+    规范化对手类型，将 honeypot 隐藏为 ai
+
+    这是为了向用户隐藏钓鱼机器人的存在，用户只需知道对手是"AI"或"真人"即可
+    """
+    if opponent_type == "honeypot":
+        return "ai"
+    return opponent_type
+
+
+# =============================================================================
+# 消息响应 Schema
+# =============================================================================
+
+class MessageResponse(BaseModel):
+    """消息响应"""
+    id: int
+    session_id: int
+    sender: str
+    content: str
+    is_meta_conversation: bool
+    meta_keyword: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SessionMessagesResponse(BaseModel):
+    """会话消息列表响应"""
+    session_id: int
+    opponent_type: str
+    is_honeypot: bool
+    turn_count: int
+    meta_conversation_count: int
+    messages: List[MessageResponse]
+
 router = APIRouter()
+
+
+# =============================================================================
+# 结束会话
+# =============================================================================
+
+@router.post(
+    "/session/{session_id}/end",
+    response_model=SuccessResponse,
+    tags=["游戏"],
+    summary="结束会话",
+    description="用户主动结束当前会话",
+)
+async def end_session(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    结束会话 API
+
+    用户主动结束当前会话，仅标记会话结束时间，不进行积分结算。
+    积分结算需在问卷提交时进行。
+    """
+    # 获取会话信息
+    result = await db.execute(
+        select(Session).where(Session.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="会话不存在",
+        )
+
+    # 检查会话是否已结束
+    if session.ended_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="会话已结束，无法重复操作",
+        )
+
+    # 更新会话结束时间
+    session.ended_at = datetime.utcnow()
+    await db.commit()
+
+    logger.info(f"用户主动结束会话：session_id={session_id}")
+
+    return SuccessResponse(
+        success=True,
+        message="会话已结束，请完成问卷提交以结算积分",
+    )
+
+
+# =============================================================================
+# 获取会话历史消息
+# =============================================================================
+
+@router.get(
+    "/session/{session_id}/messages",
+    response_model=SessionMessagesResponse,
+    tags=["游戏"],
+    summary="获取会话历史消息",
+    description="获取指定会话的所有历史消息记录",
+)
+async def get_session_messages(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    获取会话历史消息 API
+
+    返回指定会话的所有历史消息，包括发送者、内容、时间戳等信息。
+    """
+    # 获取会话信息
+    result = await db.execute(
+        select(Session).where(Session.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="会话不存在",
+        )
+
+    # 获取消息列表，按时间排序
+    result = await db.execute(
+        select(Message)
+        .where(Message.session_id == session_id)
+        .order_by(Message.created_at.asc())
+    )
+    messages = result.scalars().all()
+
+    return SessionMessagesResponse(
+        session_id=session.id,
+        opponent_type=_normalize_opponent_type(session.opponent_type),
+        is_honeypot=session.is_honeypot,
+        turn_count=session.turn_count,
+        meta_conversation_count=session.meta_conversation_count,
+        messages=[
+            MessageResponse(
+                id=msg.id,
+                session_id=msg.session_id,
+                sender=msg.sender,
+                content=msg.content,
+                is_meta_conversation=msg.is_meta_conversation,
+                meta_keyword=msg.meta_keyword,
+                created_at=msg.created_at,
+            )
+            for msg in messages
+        ],
+    )
 
 
 # =============================================================================
@@ -152,7 +309,7 @@ async def submit_mid_game_judgment(
 
     return GameResultResponse(
         session_id=session.id,
-        opponent_type=session.opponent_type,
+        opponent_type=_normalize_opponent_type(session.opponent_type),
         user_guess=request.user_guess,
         is_correct=breakdown.is_correct,
         final_score=int(final_score),
@@ -164,23 +321,104 @@ async def submit_mid_game_judgment(
 # 问卷提交
 # =============================================================================
 
+@router.get(
+    "/session/{session_id}/result",
+    response_model=GameResultResponse,
+    tags=["游戏"],
+    summary="获取会话完整结果",
+    description="获取会话的最终结果，包括积分、问卷数据等",
+)
+async def get_session_result(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    获取会话完整结果 API
+    
+    返回：
+    - 会话基本信息
+    - 最终得分（不暴露计算细节）
+    - 用户提交的问卷数据
+    """
+    # 获取会话
+    result = await db.execute(
+        select(Session)
+        .options(joinedload(Session.user))
+        .where(Session.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    
+    # 检查会话是否已结束
+    if session.ended_at is None:
+        raise HTTPException(
+            status_code=400,
+            detail="会话尚未结束，无法获取结果"
+        )
+    
+    # 获取用户问卷
+    survey_result = await db.execute(
+        select(Survey).where(Survey.session_id == session_id)
+    )
+    survey = survey_result.scalar_one_or_none()
+    
+    # 构建简化的积分明细（不暴露计算细节）
+    score_breakdown = ScoreBreakdownResponse(
+        final_score=session.final_score or 0,
+        is_correct=session.is_correct or False,
+    )
+    
+    # 构建问卷响应
+    survey_response = None
+    if survey:
+        survey_response = SurveyResponse(
+            session_id=survey.session_id,
+            user_guess=survey.user_guess,
+            confidence_level=survey.confidence_level,
+            fluency_rating=survey.fluency_rating,
+            reason=survey.reason,
+            self_role=survey.self_role,
+            strategy=survey.strategy,
+        )
+    
+    return GameResultResponse(
+        session_id=session.id,
+        opponent_type=_normalize_opponent_type(session.opponent_type),
+        user_guess=survey.user_guess if survey else "unknown",
+        is_correct=session.is_correct or False,
+        final_score=session.final_score or 0,
+        score_breakdown=score_breakdown,
+        survey=survey_response,
+    )
+
+
 @router.post(
     "/survey",
     response_model=GameResultResponse,
     tags=["游戏"],
     summary="提交问卷",
-    description="提交问卷和最终判断，结算积分",
+    description="提交问卷和最终判断，结算积分并保存问卷数据",
 )
 async def submit_survey(
     request: SurveyRequest,
-    session_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
 ):
     """
     问卷提交 API
 
-    用户完成对话后填写问卷，包括身份判断、信心等级、流畅度评分等。
+    完整流程：
+    1. 验证会话存在且未结束
+    2. 计算积分（后端独占逻辑，不返回计算细节）
+    3. 保存问卷数据到数据库
+    4. 更新会话状态
+    5. 更新用户积分
+    6. 返回简化结果
     """
+    # 从请求体中获取 session_id
+    session_id = request.session_id
+    
     # 如果有 session_id，更新会话
     session = None
     user = None
@@ -198,99 +436,119 @@ async def submit_survey(
             )
             user = result.scalar_one_or_none()
 
-    if session and user and session.ended_at is None:
-        # 正常结束会话
-        turn = session.turn_count
-        meta_count = session.meta_conversation_count
-
-        # 计算积分
-        final_score, breakdown = calculate_final_score(
-            user_guess=request.user_guess,
-            opponent_type=session.opponent_type,
-            confidence_level=request.confidence_level,
-            turn=turn,
-            meta_count=meta_count,
-            is_mid_game=False,
+    # 检查会话和用户是否存在
+    if not session or not user:
+        raise HTTPException(
+            status_code=404,
+            detail="会话不存在",
         )
 
-        # 更新会话
-        session.confidence_level = request.confidence_level
-        session.is_correct = breakdown.is_correct
-        session.final_score = int(final_score)
-        session.score_breakdown = get_score_breakdown_dict(breakdown)
-        session.ended_at = datetime.utcnow()
-
-        # 更新用户积分
-        score_before = user.score
-        user.score += int(final_score)
-
-        if final_score > 0:
-            user.total_score_earned += int(final_score)
-        else:
-            user.total_score_lost += abs(int(final_score))
-
-        # 更新最高/最低分
-        if user.score > user.highest_score:
-            user.highest_score = user.score
-        if user.score < user.lowest_score:
-            user.lowest_score = user.score
-
-        # 记录积分历史
-        score_history = ScoreHistory(
-            user_id=user.id,
-            session_id=session.id,
-            score_change=int(final_score),
-            score_before=score_before,
-            score_after=user.score,
-            reason="session_end",
-        )
-        db.add(score_history)
-
-        # 更新用户统计
-        await update_user_stats(db, user, session, breakdown.is_correct, meta_count)
-
-        await db.commit()
-
-        logger.info(
-            f"问卷提交：user_id={user.id}, session_id={session.id}, "
-            f"guess={request.user_guess}, confidence={request.confidence_level}, "
-            f"correct={breakdown.is_correct}, score={final_score}"
+    # 检查会话是否已经结算过积分（通过检查 final_score 是否已设置）
+    if session.final_score is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="该会话的问卷已提交过，无法重复提交",
         )
 
-        return GameResultResponse(
-            session_id=session.id,
-            opponent_type=session.opponent_type,
-            user_guess=request.user_guess,
-            is_correct=breakdown.is_correct,
-            final_score=int(final_score),
-            score_breakdown=get_score_breakdown_dict(breakdown),
-        )
+    # 正常处理问卷提交（无论会话是否已结束）
+    # 注意：endSession 可能已经设置了 ended_at，但不影响积分结算
+    # 正常结束会话
+    turn = session.turn_count
+    meta_count = session.meta_conversation_count
+
+    # 计算积分
+    final_score, breakdown = calculate_final_score(
+        user_guess=request.user_guess,
+        opponent_type=session.opponent_type,
+        confidence_level=request.confidence_level,
+        turn=turn,
+        meta_count=meta_count,
+        is_mid_game=False,
+    )
+
+    # 更新会话
+    session.confidence_level = request.confidence_level
+    session.is_correct = breakdown.is_correct
+    session.final_score = int(final_score)
+    session.score_breakdown = get_score_breakdown_dict(breakdown)
+    session.ended_at = datetime.utcnow()
+
+    # 更新用户积分
+    score_before = user.score
+    user.score += int(final_score)
+
+    if final_score > 0:
+        user.total_score_earned += int(final_score)
     else:
-        # 没有会话或会话已结束，返回示例结果
-        # 用于测试或特殊情况
-        logger.warning(f"问卷提交：session_id={session_id} 不存在或已结束")
+        user.total_score_lost += abs(int(final_score))
 
-        # 创建一个虚拟结果
-        breakdown = ScoreBreakdown(
-            base_score=10,
-            confidence_multiplier=1.0,
-            meta_multiplier=1.0,
-            turn_penalty=0,
-            entry_fee=2,
-            final_score=8,
-            is_correct=True,
-            opponent_type="ai",
-            user_guess=request.user_guess,
-        )
+    # 更新最高/最低分
+    if user.score > user.highest_score:
+        user.highest_score = user.score
+    if user.score < user.lowest_score:
+        user.lowest_score = user.score
 
-        return GameResultResponse(
-            session_id=0,
-            opponent_type="ai",
-            user_guess=request.user_guess,
-            is_correct=True,
-            final_score=8,
-            score_breakdown=get_score_breakdown_dict(breakdown),
-        )
+    # 记录积分历史
+    score_history = ScoreHistory(
+        user_id=user.id,
+        session_id=session.id,
+        score_change=int(final_score),
+        score_before=score_before,
+        score_after=user.score,
+        reason="session_end",
+    )
+    db.add(score_history)
+
+    # 保存问卷数据
+    survey_record = Survey(
+        session_id=session.id,
+        user_id=user.id,
+        user_guess=request.user_guess,
+        confidence_level=request.confidence_level,
+        fluency_rating=request.fluency_rating,
+        reason=request.reason,
+        self_role=request.self_role,
+        strategy=request.strategy,
+    )
+    db.add(survey_record)
+
+    # 更新用户统计
+    await update_user_stats(db, user, session, breakdown.is_correct, meta_count)
+
+    await db.commit()
+
+    logger.info(
+        f"问卷提交：user_id={user.id}, session_id={session.id}, "
+        f"guess={request.user_guess}, confidence={request.confidence_level}, "
+        f"correct={breakdown.is_correct}, score={final_score}"
+    )
+
+    # 构建简化的积分明细
+    score_breakdown = ScoreBreakdownResponse(
+        final_score=int(final_score),
+        is_correct=breakdown.is_correct,
+    )
+
+    # 构建问卷响应
+    survey_response = SurveyResponse(
+        session_id=session.id,
+        user_guess=request.user_guess,
+        confidence_level=request.confidence_level,
+        fluency_rating=request.fluency_rating,
+        reason=request.reason,
+        self_role=request.self_role,
+        strategy=request.strategy,
+    )
+
+    return GameResultResponse(
+        session_id=session.id,
+        opponent_type=_normalize_opponent_type(session.opponent_type),
+        user_guess=request.user_guess,
+        is_correct=breakdown.is_correct,
+        final_score=int(final_score),
+        score_breakdown=score_breakdown,
+        survey=survey_response,
+    )
 
 
 # =============================================================================
@@ -430,12 +688,11 @@ async def update_user_stats(
 
     # 更新会话统计
     stats.total_sessions += 1
-    if session.opponent_type == "ai":
+    if session.opponent_type in ["ai", "honeypot"]:
+        # 将 honeypot 合并到 AI 统计中，向用户隐藏钓鱼机器人的存在
         stats.ai_sessions += 1
     elif session.opponent_type == "human":
         stats.human_sessions += 1
-    elif session.opponent_type == "honeypot":
-        stats.honeypot_sessions += 1
 
     # 更新判断统计
     if session.confidence_level:

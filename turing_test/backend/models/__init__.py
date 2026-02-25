@@ -74,6 +74,11 @@ class User(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    surveys: Mapped[list["Survey"]] = relationship(
+        "Survey",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, username='{self.username}', score={self.score})>"
@@ -158,6 +163,12 @@ class Session(Base):
     messages: Mapped[list["Message"]] = relationship(
         "Message",
         back_populates="session",
+        cascade="all, delete-orphan",
+    )
+    survey: Mapped[Optional["Survey"]] = relationship(
+        "Survey",
+        back_populates="session",
+        uselist=False,
         cascade="all, delete-orphan",
     )
 
@@ -347,6 +358,82 @@ class UserStats(Base):
 
     def __repr__(self) -> str:
         return f"<UserStats(id={self.id}, user_id={self.user_id})>"
+
+
+# =============================================================================
+# 问卷表
+# =============================================================================
+
+class Survey(Base):
+    """用户问卷记录表"""
+
+    __tablename__ = "surveys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    session_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        unique=True,
+        index=True,
+        comment="关联的会话 ID"
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+
+    # 身份判断
+    user_guess: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        comment="'human' | 'ai' | 'unsure'"
+    )
+    confidence_level: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        comment="'low' | 'mid' | 'high'"
+    )
+
+    # 评分
+    fluency_rating: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="流畅度评分 1-5"
+    )
+
+    # 开放式问题
+    reason: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="判断理由"
+    )
+    self_role: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="'prover' | 'interferer' | 'other'"
+    )
+    strategy: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="策略描述"
+    )
+
+    # 时间戳
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    # 关系
+    session: Mapped["Session"] = relationship("Session", back_populates="survey")
+    user: Mapped["User"] = relationship("User", back_populates="surveys")
+
+    def __repr__(self) -> str:
+        return (
+            f"<Survey(id={self.id}, session_id={self.session_id}, "
+            f"user_guess='{self.user_guess}')>"
+        )
 
 
 # =============================================================================

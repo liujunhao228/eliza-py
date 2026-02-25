@@ -224,32 +224,12 @@ def calculate_final_score(
 def get_score_breakdown_dict(breakdown: ScoreBreakdown) -> Dict:
     """
     将积分明细转换为字典（用于 JSON 序列化）
-
-    Args:
-        breakdown: 积分明细对象
-
-    Returns:
-        字典格式的积分明细
+    
+    注意：仅返回必要字段，不暴露计算细节
     """
     return {
-        "base_score": breakdown.base_score,
-        "confidence_multiplier": breakdown.confidence_multiplier,
-        "meta_multiplier": breakdown.meta_multiplier,
-        "turn_penalty": breakdown.turn_penalty,
-        "entry_fee": breakdown.entry_fee,
-        "final_score": breakdown.final_score,
+        "final_score": int(breakdown.final_score),
         "is_correct": breakdown.is_correct,
-        "opponent_type": breakdown.opponent_type,
-        "user_guess": breakdown.user_guess,
-        "calculation_details": {
-            "formula": "final = (base * confidence * meta) - entry_fee - turn_penalty",
-            "base_reward_ai": BASE_REWARD_IDENTIFY_AI,
-            "base_reward_human": BASE_REWARD_IDENTIFY_HUMAN,
-            "base_penalty_ai": BASE_PENALTY_MISIDENTIFY_AI,
-            "base_penalty_human": BASE_PENALTY_MISIDENTIFY_HUMAN,
-            "confidence_multipliers": CONFIDENCE_MULTIPLIERS,
-            "mid_game_multiplier": MID_GAME_MULTIPLIER,
-        }
     }
 
 

@@ -1,0 +1,25 @@
+# =============================================================================
+# Bot 配置模板：默认 Bot
+# =============================================================================
+# 说明：默认 AI Bot，用于常规对话
+# =============================================================================
+
+id: default
+name: 小图
+description: 默认 AI Bot，用于常规对话
+
+# ----- 脚本配置 -----
+script_file: alice/scripts/demo.yaml
+rules_file: alice/scripts/rules/mapping.yaml
+enable_plugins: true
+
+# ----- 性能配置 -----
+cache_size: 50
+typing_delay_base: 1.0
+typing_delay_per_char: 0.05
+
+# ----- 元数据 -----
+meta:
+  is_honeypot: false
+  aggressive_meta: false
+  personality: friendly

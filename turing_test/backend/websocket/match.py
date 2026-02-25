@@ -7,6 +7,7 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from loguru import logger
 import json
+from datetime import datetime
 
 from turing_test.backend.websocket.manager import manager
 from turing_test.backend.services.match_service import get_match_service
@@ -81,6 +82,16 @@ async def match_websocket(
                 elif data.get("type") == "status":
                     await handle_status_query(user_id, websocket)
 
+                # 处理心跳
+                elif data.get("type") == "ping":
+                    # 响应心跳
+                    await manager.send_personal_message(user_id, {
+                        "type": "pong",
+                        "data": {
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    })
+
                 # 处理心跳响应
                 elif data.get("type") == "pong":
                     # 心跳响应由 manager 处理
@@ -99,34 +110,48 @@ async def match_websocket(
 
             except json.JSONDecodeError:
                 logger.warning(f"用户 {user_id} 发送了无效的 JSON")
-                await manager.send_personal_message(user_id, {
-                    "type": "error",
-                    "data": {
-                        "error_code": "INVALID_JSON",
-                        "message": "消息格式错误，请发送有效的 JSON",
-                    }
-                })
+                if manager.is_user_connected(user_id):
+                    await manager.send_personal_message(user_id, {
+                        "type": "error",
+                        "data": {
+                            "error_code": "INVALID_JSON",
+                            "message": "消息格式错误，请发送有效的 JSON",
+                        }
+                    })
+            except WebSocketDisconnect as e:
+                # WebSocket 正常断开（code=0 表示正常关闭）
+                logger.info(f"用户 {user_id} 连接已关闭 (code={e.code})")
+                break  # 退出循环，不再尝试发送消息
             except Exception as e:
+                # 检查是否是连接关闭相关的错误
+                error_str = str(e).lower()
+                if 'close' in error_str or 'disconnect' in error_str or 'connection was closed' in error_str:
+                    logger.info(f"用户 {user_id} 连接已关闭：{e}")
+                    break  # 退出循环，不再尝试发送消息
+                # 其他错误才记录为 error 级别
                 logger.error(f"处理用户 {user_id} 消息时出错：{e}", exc_info=True)
-                await manager.send_personal_message(user_id, {
-                    "type": "error",
-                    "data": {
-                        "error_code": "PROCESSING_ERROR",
-                        "message": "处理消息时出错，请重试",
-                    }
-                })
+                if manager.is_user_connected(user_id):
+                    await manager.send_personal_message(user_id, {
+                        "type": "error",
+                        "data": {
+                            "error_code": "PROCESSING_ERROR",
+                            "message": "处理消息时出错，请重试",
+                        }
+                    })
 
     except WebSocketDisconnect:
         logger.info(f"用户 {user_id} 正常断开连接")
-        # 从匹配队列移除
-        match_service = get_match_service()
-        await match_service.remove_from_queue(user_id)
     except Exception as e:
         logger.error(f"匹配 WebSocket 错误：{e}", exc_info=True)
     finally:
-        # 清理资源
+        # 清理资源（确保总是执行）
         match_service = get_match_service()
-        await match_service.remove_from_queue(user_id)
+        # 从匹配队列移除（如果用户在队列中）
+        try:
+            await match_service.remove_from_queue(user_id)
+        except Exception as e:
+            logger.error(f"清理匹配队列时出错：{e}")
+        # 断开连接（使用改进的 disconnect 方法）
         manager.disconnect(user_id)
 
 

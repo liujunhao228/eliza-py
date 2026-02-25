@@ -1,6 +1,6 @@
 // 游戏相关 API
 import api from './index'
-import type { Session, MatchResponse, MidGameJudgmentResponse, SurveyResponse } from '@/types'
+import type { Session, MatchResponse, MidGameJudgmentResponse } from '@/types'
 import type {
   WSMessage,
   WebSocketConfig,
@@ -15,9 +15,11 @@ import { WS_BASE_URL } from '@/utils/constants'
 
 /**
  * 开始匹配
+ * 注意：需要先建立 WebSocket 连接，然后通过 WebSocket 发送 join 消息
  */
 export async function startMatching(userId: number): Promise<MatchResponse> {
-  return api.post('/match', { user_id: userId })
+  // 调用 HTTP API 加入匹配队列（使用 query 参数）
+  return api.post(`/match/join?user_id=${userId}`)
 }
 
 /**
@@ -32,6 +34,28 @@ export async function matchAI(userId: number): Promise<MatchResponse> {
  */
 export async function getSession(sessionId: number): Promise<Session> {
   return api.get(`/session/${sessionId}`)
+}
+
+/**
+ * 获取会话历史消息
+ */
+export async function getSessionMessages(sessionId: number): Promise<{
+  session_id: number
+  opponent_type: string
+  is_honeypot: boolean
+  turn_count: number
+  meta_conversation_count: number
+  messages: Array<{
+    id: number
+    session_id: number
+    sender: string
+    content: string
+    is_meta_conversation: boolean
+    meta_keyword: string | null
+    created_at: string
+  }>
+}> {
+  return api.get(`/session/${sessionId}/messages`)
 }
 
 /**
@@ -52,6 +76,18 @@ export async function submitMidGameJudgment(
 }
 
 /**
+ * 场中判断（不结束对话）
+ * @param sessionId 会话 ID
+ * @param userGuess 用户猜测
+ */
+export async function makeMidGameJudgment(
+  sessionId: number,
+  userGuess: 'human' | 'ai'
+): Promise<{ is_correct: boolean; score_change: number }> {
+  return api.post(`/game/${sessionId}/mid-game`, { guess: userGuess })
+}
+
+/**
  * 提交问卷
  */
 export async function submitSurvey(
@@ -61,12 +97,21 @@ export async function submitSurvey(
     confidence_level: 'low' | 'mid' | 'high'
     fluency_rating: number
     reason?: string
+    self_role: 'prover' | 'interferer' | 'other'
+    strategy?: string
   }
-): Promise<SurveyResponse> {
+): Promise<import('@/types/result').GameResultResponse> {
   return api.post('/survey', {
     session_id: sessionId,
     ...data
   })
+}
+
+/**
+ * 获取会话结果（问卷提交后的完整结果）
+ */
+export async function getSessionResult(sessionId: number): Promise<import('@/types/result').GameResultResponse> {
+  return api.get(`/session/${sessionId}/result`)
 }
 
 /**
@@ -234,6 +279,8 @@ class WebSocketManager implements IWebSocketManager {
    * 处理接收到的消息
    */
   private handleMessage(data: WSMessage): void {
+    console.log('[WebSocket] 收到原始消息:', data)
+    
     // 处理 ping/pong 心跳响应
     if (data.type === 'pong') {
       console.log('[WebSocket] 收到 pong 响应')
@@ -246,7 +293,10 @@ class WebSocketManager implements IWebSocketManager {
     // 调用特定类型消息的处理器
     const handlers = this.messageHandlers.get(data.type)
     if (handlers) {
+      console.log('[WebSocket] 找到消息处理器，type:', data.type, 'handlers count:', handlers.size)
       handlers.forEach(handler => handler(data.data))
+    } else {
+      console.warn('[WebSocket] 未找到消息处理器，type:', data.type)
     }
   }
 
@@ -336,6 +386,14 @@ class WebSocketManager implements IWebSocketManager {
 
     this.setState('disconnected')
     this.disconnectStartTime = 0
+  }
+
+  /**
+   * 重新连接
+   */
+  reconnect(): void {
+    this.reconnectAttempts = 0
+    this.connect()
   }
 
   /**

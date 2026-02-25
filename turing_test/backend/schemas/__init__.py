@@ -6,7 +6,7 @@ Pydantic Schemas
 
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field
 
 
 # =============================================================================
@@ -127,10 +127,30 @@ class MessageResponse(BaseSchema):
 
 class SurveyRequest(BaseModel):
     """问卷请求"""
-    user_guess: str = Field(..., pattern="^(human|ai)$")
+    session_id: int
+    user_guess: str = Field(..., pattern="^(human|ai|unsure)$")
     confidence_level: str = Field(..., pattern="^(low|mid|high)$")
     fluency_rating: int = Field(..., ge=1, le=5)
-    reason: Optional[str] = Field(None, max_length=500)
+    reason: Optional[str] = Field(None, max_length=1000)
+    self_role: str = Field(..., pattern="^(prover|interferer|other)$")
+    strategy: Optional[str] = Field(None, max_length=1000)
+
+
+class SurveyResponse(BaseSchema):
+    """问卷响应"""
+    session_id: int
+    user_guess: str
+    confidence_level: str
+    fluency_rating: int
+    reason: Optional[str]
+    self_role: str
+    strategy: Optional[str]
+
+
+class ScoreBreakdownResponse(BaseModel):
+    """积分明细响应 - 简化版，不暴露计算细节"""
+    final_score: int
+    is_correct: bool
 
 
 class MidGameJudgmentRequest(BaseModel):
@@ -145,7 +165,8 @@ class GameResultResponse(BaseSchema):
     user_guess: str
     is_correct: bool
     final_score: int
-    score_breakdown: dict
+    score_breakdown: ScoreBreakdownResponse
+    survey: Optional[SurveyResponse] = None
 
 
 # =============================================================================

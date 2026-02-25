@@ -60,9 +60,12 @@ const turnPenalty = computed(() => {
 </script>
 
 <style scoped>
+/* ==============================================
+   GameStatusBar.vue 样式 - 使用主题系统
+   ============================================== */
 .game-status-bar {
-  background: #f8f9fa;
-  border-bottom: 2px solid #e0e0e0;
+  background: var(--bg-tertiary);
+  border-bottom: 2px solid var(--border-secondary);
   padding: 12px 20px;
   display: flex;
   flex-direction: column;
@@ -86,25 +89,25 @@ const turnPenalty = computed(() => {
 }
 
 .success-multiplier {
-  color: #67c23a;
+  color: var(--color-green-500);
   font-weight: 600;
 }
 
 .penalty-multiplier {
-  color: #f56c6c;
+  color: var(--color-red-500);
   font-weight: 600;
 }
 
 .turn-penalty {
-  color: #e6a23c;
+  color: var(--color-amber-500);
 }
 
 .warning {
-  color: #f56c6c;
-  background: #fef0f0;
+  color: var(--color-red-500);
+  background: var(--color-red-50);
   padding: 8px 12px;
-  border-radius: 4px;
-  border: 1px solid #fbc4c4;
+  border-radius: var(--rounded-sm);
+  border: 1px solid var(--color-red-200);
 }
 
 .warning.pulse {
@@ -125,11 +128,11 @@ const turnPenalty = computed(() => {
   margin: 4px 0;
   font-size: 13px;
   line-height: 1.5;
-  color: #606266;
+  color: var(--text-secondary);
 }
 
 .tooltip-content p strong {
-  color: #303133;
+  color: var(--text-primary);
   display: block;
   margin-bottom: 4px;
 }

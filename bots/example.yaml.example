@@ -1,0 +1,30 @@
+# =============================================================================
+# Bot 配置模板示例
+# =============================================================================
+# 说明：复制此文件创建新的 Bot 配置
+#
+# 使用方法:
+# 1. 复制此文件为 bots/your_bot.yaml
+# 2. 修改 id, name 等配置项
+# 3. 在 config.turing.yaml 中设置 default_template
+# =============================================================================
+
+id: your_bot_id                     # Bot 唯一标识符
+name: 你的 Bot 名称                   # Bot 显示名称
+description: Bot 描述信息             # Bot 描述
+
+# ----- 脚本配置 -----
+script_file: alice/scripts/demo.yaml
+rules_file: alice/scripts/rules/mapping.yaml
+enable_plugins: true
+
+# ----- 性能配置 -----
+cache_size: 50
+typing_delay_base: 1.0              # 基础延迟 (秒)
+typing_delay_per_char: 0.05         # 每字符额外延迟 (秒)
+
+# ----- 元数据 -----
+meta:
+  is_honeypot: false
+  aggressive_meta: false
+  personality: friendly

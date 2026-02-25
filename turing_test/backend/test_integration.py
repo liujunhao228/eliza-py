@@ -29,7 +29,7 @@ logger.add(
 
 from alice.services.shared_nlp_service import SharedNLPService
 from turing_test.backend.bot_pool import AliceBotPool, get_bot_pool, reset_bot_pool
-from turing_test.backend.config_manager import ConfigManager
+from config import get_config_manager
 
 
 def test_shared_nlp_service():

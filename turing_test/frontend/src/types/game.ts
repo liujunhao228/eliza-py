@@ -1,31 +1,10 @@
 // 游戏相关类型
 
-// 积分预测类型
-export interface ScorePrediction {
-  lowConfidence: {
-    correct: number
-    wrong: number
-  }
-  midConfidence: {
-    correct: number
-    wrong: number
-  }
-  highConfidence: {
-    correct: number
-    wrong: number
-  }
-  metaMultiplier: number
-  penaltyMultiplier: number
-  turnPenalty: number
-  entryFee: number
-}
-
 // 博弈状态类型
 export interface GameState {
   turn: number
   metaConversationCount: number
   messages: MessageDisplay[]
-  currentScorePrediction: ScorePrediction
   triggeredMidGame: boolean
   canEndChat: boolean
 }
@@ -45,7 +24,7 @@ export type WSConnectionState = 'connecting' | 'connected' | 'disconnected' | 'r
 
 // WebSocket 消息类型
 export interface WSMessage {
-  type: 'message' | 'typing' | 'stop_typing' | 'match_found' | 'match_timeout' | 'session_ended' | 'mid_game_available' | 'ping' | 'pong' | 'error'
+  type: 'message' | 'chat' | 'typing' | 'stop_typing' | 'match_found' | 'match_timeout' | 'session_ended' | 'mid_game_available' | 'mid_game_result' | 'ping' | 'pong' | 'error' | 'connected' | 'status'
   data?: any
 }
 
@@ -100,6 +79,7 @@ export type WSReconnectFailedHandler = (event: ReconnectFailedEvent) => void
 export interface IWebSocketManager {
   connect(): void
   disconnect(): void
+  reconnect(): void
   send(type: string, data?: any): void
   on(messageType: string, handler: WSMessageHandler | ((state: WSConnectionState) => void)): void
   off(messageType: string, handler?: WSMessageHandler): void
@@ -132,13 +112,6 @@ export type OpponentType = 'human' | 'ai' | 'honeypot' | 'unknown'
 // 流畅度评分（1-5）
 export type FluencyRating = 1 | 2 | 3 | 4 | 5
 
-// 乘数信息
-export interface MultiplierInfo {
-  metaMultiplier: number
-  penaltyMultiplier: number
-  metaCount: number
-}
-
 // =============================================================================
 // WebSocket 消息专用类型
 // =============================================================================
@@ -157,25 +130,10 @@ export interface MatchFoundMessage {
   data: MatchFoundData
 }
 
-// 积分明细（完整版本，包含计算详情）
+// 积分明细（简化版 - 不暴露计算细节）
 export interface ScoreBreakdownDetail {
-  base_score: number
-  confidence_multiplier: number
-  meta_multiplier: number
-  turn_penalty: number
-  entry_fee: number
   final_score: number
   is_correct: boolean
-  opponent_type: OpponentType
-  user_guess: UserGuess
-  calculation_details: {
-    formula: string
-    base_reward_ai: number
-    base_reward_human: number
-    base_penalty_ai: number
-    base_penalty_human: number
-    confidence_multipliers: Record<ConfidenceLevel, number>
-  }
 }
 
 // 场中判断结果数据

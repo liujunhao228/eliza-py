@@ -58,22 +58,31 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach((to, _from, next) => {
   const requiresAuth = to.meta.requiresAuth as boolean
-  
+
   // 检查是否需要登录
   if (requiresAuth) {
     const userId = localStorage.getItem('userId')
-    if (!userId) {
+    
+    // 未登录或 userId 无效（0、null、undefined）时重定向到登录页
+    if (!userId || userId === '0' || userId === 'null' || userId === 'undefined') {
+      // 清除可能残留的无效数据
+      localStorage.removeItem('userId')
+      localStorage.removeItem('nickname')
+      localStorage.removeItem('inviteCode')
+      localStorage.removeItem('sessionId')
+      localStorage.removeItem('opponentType')
       next({ name: 'Login' })
       return
     }
   }
-  
+
   // 已登录用户访问登录页，重定向到大厅
-  if (to.name === 'Login' && localStorage.getItem('userId')) {
+  const userId = localStorage.getItem('userId')
+  if (userId && userId !== '0' && userId !== 'null' && userId !== 'undefined' && to.name === 'Login') {
     next({ name: 'Lobby' })
     return
   }
-  
+
   next()
 })
 
