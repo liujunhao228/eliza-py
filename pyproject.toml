@@ -48,6 +48,7 @@ dependencies = [
     "lupa>=2.1",
     "restrictedpython>=6.0",
     "pytest>=7.4.0",
+    "bcrypt>=5.0.0",
 ]
 
 [project.optional-dependencies]

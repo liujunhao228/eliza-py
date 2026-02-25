@@ -45,6 +45,9 @@ from .types import (
     BotPoolRefConfig,
     ScoreConfig,
     MidGameConfig,
+    ScriptingConfig,
+    LuaScriptEngineConfig,
+    YamlScriptEngineConfig,
 )
 from .bot_loader import BotConfigLoader, BotConfig
 
@@ -362,13 +365,15 @@ class ConfigLoader:
         ltp: LtpConfig
     ) -> AliceConfig:
         """构建 Alice 配置"""
+        # 构建脚本引擎配置
+        scripting = self._build_scripting_config(cfg.get("scripting", {}), paths)
+        
         return AliceConfig(
             enable_ltp=self._get_required(cfg, "enable_ltp", bool, "alice"),
             enable_ner=self._get_required(cfg, "enable_ner", bool, "alice"),
             enable_log=self._get_required(cfg, "enable_log", bool, "alice"),
             ner_use_ltp=self._get_required(cfg, "ner_use_ltp", bool, "alice"),
-            script_file=self._get_required(cfg, "script_file", Path, "alice"),
-            rules_file=self._get_required(cfg, "rules_file", Path, "alice"),
+            scripting=scripting,
             semantic_tags_file=self._get_optional(
                 cfg, "semantic_tags_file", Path,
                 paths.project_root / "alice" / "scripts" / "semantic_tags.yaml", "alice"
@@ -392,6 +397,65 @@ class ConfigLoader:
             log_backup_count=self._get_optional(cfg, "log_backup_count", int, 5, "alice"),
             log_level=self._get_optional(cfg, "log_level", str, "INFO", "alice"),
             ltp=ltp,
+        )
+    
+    def _build_scripting_config(self, cfg: Dict[str, Any], paths: PathsConfig) -> ScriptingConfig:
+        """
+        构建脚本引擎配置
+        
+        Args:
+            cfg: 脚本配置字典
+            paths: 路径配置
+        
+        Returns:
+            ScriptingConfig 实例
+        """
+        # Lua 配置
+        lua_cfg = cfg.get("lua", {})
+        lua_config = None
+        if lua_cfg:
+            script_dir_str = lua_cfg.get("script_dir", "scripts/lua")
+            script_dir = Path(script_dir_str)
+            if not script_dir.is_absolute():
+                script_dir = paths.project_root / script_dir
+            
+            metadata_file = None
+            if lua_cfg.get("metadata_file"):
+                metadata_file = Path(lua_cfg["metadata_file"])
+                if not metadata_file.is_absolute():
+                    metadata_file = paths.project_root / metadata_file
+            
+            lua_config = LuaScriptEngineConfig(
+                script_dir=script_dir,
+                metadata_file=metadata_file,
+                sandbox_mode=lua_cfg.get("sandbox_mode", True),
+                max_execution_time=lua_cfg.get("max_execution_time", 1.0),
+                cache_size=lua_cfg.get("cache_size", 100),
+            )
+        
+        # YAML 配置
+        yaml_cfg = cfg.get("yaml", {})
+        yaml_config = None
+        if yaml_cfg:
+            script_file_str = yaml_cfg.get("script_file", "alice/scripts/demo.yaml")
+            script_file = Path(script_file_str)
+            if not script_file.is_absolute():
+                script_file = paths.project_root / script_file
+            yaml_config = YamlScriptEngineConfig(script_file=script_file)
+        
+        # 重组规则文件
+        rules_file = None
+        if cfg.get("rules_file"):
+            rules_file = Path(cfg["rules_file"])
+            if not rules_file.is_absolute():
+                rules_file = paths.project_root / rules_file
+        
+        return ScriptingConfig(
+            enable_lua=cfg.get("enable_lua", True),
+            enable_yaml=cfg.get("enable_yaml", True),
+            lua=lua_config,
+            yaml=yaml_config,
+            rules_file=rules_file,
         )
 
     def _build_turing_config(self, cfg: Dict[str, Any], paths: PathsConfig) -> TuringConfig:

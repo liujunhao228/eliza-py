@@ -176,7 +176,12 @@
 
       <!-- 历史记录 -->
       <div class="history-section">
-        <h3>📜 对话历史</h3>
+        <div class="history-section-header">
+          <h3>📜 对话历史</h3>
+          <BaseButton type="info" size="small" @click="goToHistory">
+            查看全部 →
+          </BaseButton>
+        </div>
 
         <BaseEmpty
           v-if="!history || history.length === 0"
@@ -393,6 +398,11 @@ const viewSessionDetail = (session: Session) => {
 // 返回大厅
 const goToLobby = () => {
   router.push('/lobby')
+}
+
+// 查看历史会话
+const goToHistory = () => {
+  router.push('/history')
 }
 
 // 退出登录
@@ -627,8 +637,15 @@ onMounted(() => {
   margin-bottom: 30px;
 }
 
+.history-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
 .history-section h3 {
-  margin: 0 0 20px 0;
+  margin: 0;
   font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);

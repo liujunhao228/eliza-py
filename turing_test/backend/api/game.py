@@ -10,14 +10,14 @@
 - 会话历史消息查询
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from turing_test.backend.database import get_db
 from turing_test.backend.models import User, Session, Message, ScoreHistory, UserStats, Survey
@@ -65,8 +65,7 @@ class MessageResponse(BaseModel):
     meta_keyword: Optional[str]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SessionMessagesResponse(BaseModel):
@@ -122,7 +121,7 @@ async def end_session(
         )
 
     # 更新会话结束时间
-    session.ended_at = datetime.utcnow()
+    session.ended_at = datetime.now(timezone.utc)
     await db.commit()
 
     logger.info(f"用户主动结束会话：session_id={session_id}")
@@ -267,7 +266,7 @@ async def submit_mid_game_judgment(
     session.is_correct = breakdown.is_correct
     session.final_score = int(final_score)
     session.score_breakdown = get_score_breakdown_dict(breakdown)
-    session.ended_at = datetime.utcnow()
+    session.ended_at = datetime.now(timezone.utc)
 
     # 更新用户积分
     score_before = user.score
@@ -471,7 +470,7 @@ async def submit_survey(
     session.is_correct = breakdown.is_correct
     session.final_score = int(final_score)
     session.score_breakdown = get_score_breakdown_dict(breakdown)
-    session.ended_at = datetime.utcnow()
+    session.ended_at = datetime.now(timezone.utc)
 
     # 更新用户积分
     score_before = user.score

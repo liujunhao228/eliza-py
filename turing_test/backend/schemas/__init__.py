@@ -6,7 +6,7 @@ Pydantic Schemas
 
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # =============================================================================
@@ -16,8 +16,7 @@ from pydantic import BaseModel, Field
 class BaseSchema(BaseModel):
     """所有 Schema 的基类"""
 
-    class Config:
-        from_attributes = True  # 允许从 ORM 对象创建
+    model_config = ConfigDict(from_attributes=True)  # 允许从 ORM 对象创建
 
 
 # =============================================================================
@@ -291,3 +290,105 @@ class InviteCodeStatsResponse(BaseSchema):
     disabled: int
     available: int
     batches: int
+
+
+# =============================================================================
+# 历史会话相关
+# =============================================================================
+
+class SessionListItem(BaseSchema):
+    """会话列表项"""
+    id: int
+    opponent_type: str
+    turn_count: int
+    final_score: Optional[int]
+    is_correct: Optional[bool]
+    confidence_level: Optional[str]
+    started_at: datetime
+    ended_at: Optional[datetime]
+    has_share: bool
+
+
+class SessionListResponse(BaseSchema):
+    """会话列表响应（分页）"""
+    items: List[SessionListItem]
+    total: int
+    page: int
+    page_size: int
+    has_more: bool
+
+
+class SessionDetailResponse(BaseSchema):
+    """会话详情响应"""
+    id: int
+    opponent_type: str
+    is_honeypot: bool
+    turn_count: int
+    meta_conversation_count: int
+    final_score: Optional[int]
+    is_correct: Optional[bool]
+    confidence_level: Optional[str]
+    score_breakdown: Optional[dict]
+    started_at: datetime
+    ended_at: Optional[datetime]
+    duration_seconds: Optional[int]
+
+
+# =============================================================================
+# 分享会话相关
+# =============================================================================
+
+class CreateShareRequest(BaseModel):
+    """创建分享请求"""
+    is_public: bool = True
+    expires_days: Optional[int] = None
+    password: Optional[str] = None
+
+
+class CreateShareResponse(BaseSchema):
+    """创建分享响应"""
+    share_id: int
+    share_token: str
+    share_url: str
+    expires_at: Optional[datetime]
+    has_password: bool
+
+
+class ShareInfoResponse(BaseSchema):
+    """分享信息响应（公开访问）"""
+    session_id: int
+    opponent_type: str
+    turn_count: int
+    final_score: Optional[int]
+    is_correct: Optional[bool]
+    started_at: datetime
+    ended_at: Optional[datetime]
+    view_count: int
+    is_expired: bool
+    requires_password: bool
+
+
+class SharedMessagesResponse(BaseSchema):
+    """分享会话消息响应"""
+    session_id: int
+    opponent_type: str
+    messages: List[MessageResponse]
+
+
+class UpdateShareRequest(BaseModel):
+    """更新分享请求"""
+    is_public: Optional[bool] = None
+    expires_days: Optional[int] = None
+    password: Optional[str] = None
+
+
+class VerifyPasswordRequest(BaseModel):
+    """验证密码请求"""
+    password: str = Field(..., min_length=1)
+
+
+class VerifyPasswordResponse(BaseModel):
+    """验证密码响应"""
+    success: bool
+    message: str
+    access_token: Optional[str] = None

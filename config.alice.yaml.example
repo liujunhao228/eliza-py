@@ -1,11 +1,8 @@
 # =============================================================================
-# Alice 模块配置 (示例)
+# Alice 模块配置 - 示例
 # =============================================================================
 # 说明：此文件包含 Alice 模块的所有配置项
-#
-# 使用方法:
-# 1. 复制此文件为 config.alice.yaml
-# 2. 根据实际情况修改配置项
+#       复制此文件为 config.alice.yaml 并修改配置
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -14,16 +11,31 @@
 enable_ltp: true                      # 启用 LTP 句法分析
 enable_ner: true                      # 启用 NER 实体识别
 enable_log: true                      # 启用对话日志
-enable_lua_engine: true               # 启用 Lua 脚本引擎
 ner_use_ltp: true                     # NER 使用 LTP 增强
 
 # -----------------------------------------------------------------------------
-# 文件路径 (相对于 project_root)
+# 脚本引擎配置
 # -----------------------------------------------------------------------------
-script_file: alice/scripts/demo.yaml
-rules_file: alice/scripts/rules/mapping.yaml
+scripting:
+  enable_lua: true                    # 启用 Lua 脚本引擎
+  enable_yaml: true                   # 启用 YAML 脚本引擎
+  
+  lua:
+    script_dir: scripts/lua           # Lua 脚本目录
+    metadata_file: scripts/lua/metadata.yaml  # 元数据文件 (可选)
+    sandbox_mode: true                # 启用沙箱模式
+    max_execution_time: 1.0           # 最大执行时间 (秒)
+    cache_size: 100                   # 脚本缓存大小
+  
+  yaml:
+    script_file: alice/scripts/demo.yaml  # YAML 脚本文件
+  
+  rules_file: alice/scripts/rules/mapping.yaml  # 重组规则文件
+
+# -----------------------------------------------------------------------------
+# 语义标签文件
+# -----------------------------------------------------------------------------
 semantic_tags_file: alice/scripts/semantic_tags.yaml
-lua_script_dir: scripts/lua           # Lua 脚本目录
 
 # -----------------------------------------------------------------------------
 # 对话上下文配置
@@ -40,13 +52,6 @@ performance_monitor_sample_rate: 1.0
 max_input_length: 500
 script_match_timeout: 100             # 毫秒
 regex_cache_size: 100
-
-# -----------------------------------------------------------------------------
-# Lua 脚本引擎配置 (新增)
-# -----------------------------------------------------------------------------
-lua_cache_size: 100                   # Lua 脚本缓存大小
-lua_execution_timeout: 1.0            # Lua 脚本执行超时 (秒)
-lua_sandbox_enabled: true            # 是否启用 Lua 沙箱
 
 # -----------------------------------------------------------------------------
 # 预定义响应

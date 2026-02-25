@@ -13,10 +13,27 @@ enable_log: true                      # 启用对话日志
 ner_use_ltp: true                     # NER 使用 LTP 增强
 
 # -----------------------------------------------------------------------------
-# 文件路径 (相对于 project_root)
+# 脚本引擎配置
 # -----------------------------------------------------------------------------
-script_file: alice/scripts/demo.yaml
-rules_file: alice/scripts/rules/mapping.yaml
+scripting:
+  enable_lua: true
+  enable_yaml: true
+  
+  lua:
+    script_dir: scripts/lua
+    metadata_file: scripts/lua/metadata.yaml
+    sandbox_mode: true
+    max_execution_time: 1.0
+    cache_size: 100
+  
+  yaml:
+    script_file: alice/scripts/demo.yaml
+  
+  rules_file: alice/scripts/rules/mapping.yaml
+
+# -----------------------------------------------------------------------------
+# 语义标签文件
+# -----------------------------------------------------------------------------
 semantic_tags_file: alice/scripts/semantic_tags.yaml
 
 # -----------------------------------------------------------------------------

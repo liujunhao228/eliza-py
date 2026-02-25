@@ -8,6 +8,7 @@
 - alice: Alice 模块配置
 - turing: Turing 测试模块配置
 - modules: 模块引用配置
+- scripting: 脚本引擎配置 (新增)
 """
 
 from dataclasses import dataclass, field
@@ -81,24 +82,97 @@ class LtpConfig:
 
 
 # =============================================================================
+# 脚本引擎配置 (新增)
+# =============================================================================
+
+@dataclass
+class LuaScriptEngineConfig:
+    """
+    Lua 脚本引擎配置
+    
+    Attributes:
+        script_dir: Lua 脚本目录路径
+        metadata_file: Lua 脚本元数据文件路径 (可选)
+        sandbox_mode: 是否启用沙箱模式
+        max_execution_time: 最大执行时间 (秒)
+        cache_size: 脚本缓存大小
+    """
+    script_dir: Path = None  # type: ignore
+    metadata_file: Optional[Path] = None
+    sandbox_mode: bool = True
+    max_execution_time: float = 1.0
+    cache_size: int = 100
+    
+    def __post_init__(self):
+        """后处理：设置默认值"""
+        if self.script_dir is None:
+            self.script_dir = Path("scripts/lua")
+
+
+@dataclass
+class YamlScriptEngineConfig:
+    """
+    YAML 脚本引擎配置
+    
+    Attributes:
+        script_file: YAML 脚本文件路径
+    """
+    script_file: Path = None  # type: ignore
+    
+    def __post_init__(self):
+        """后处理：设置默认值"""
+        if self.script_file is None:
+            self.script_file = Path("alice/scripts/demo.yaml")
+
+
+@dataclass
+class ScriptingConfig:
+    """
+    脚本引擎统一配置
+    
+    整合 Lua 和 YAML 脚本引擎配置，提供统一的脚本管理接口。
+    
+    Attributes:
+        enable_lua: 是否启用 Lua 脚本引擎
+        enable_yaml: 是否启用 YAML 脚本引擎
+        lua: Lua 脚本引擎配置
+        yaml: YAML 脚本引擎配置
+        rules_file: 重组规则文件路径
+    """
+    enable_lua: bool = True
+    enable_yaml: bool = True
+    lua: Optional[LuaScriptEngineConfig] = None
+    yaml: Optional[YamlScriptEngineConfig] = None
+    rules_file: Optional[Path] = None
+
+
+# =============================================================================
 # Alice 模块配置
 # =============================================================================
 
 @dataclass
 class AliceConfig:
-    """Alice 模块配置"""
+    """
+    Alice 模块配置
+    
+    Attributes:
+        enable_ltp: 是否启用 LTP 句法分析
+        enable_ner: 是否启用 NER 实体识别
+        enable_log: 是否启用对话日志
+        ner_use_ltp: NER 是否使用 LTP 增强
+        scripting: 脚本引擎配置
+    """
     # 功能开关
     enable_ltp: bool = True
     enable_ner: bool = True
     enable_log: bool = True
     ner_use_ltp: bool = True
-    enable_lua_engine: bool = False  # 新增：是否启用Lua脚本引擎
-
-    # 文件路径
-    script_file: Optional[Path] = None
-    rules_file: Optional[Path] = None
+    
+    # 脚本引擎配置
+    scripting: ScriptingConfig = None  # type: ignore
+    
+    # 语义标签文件
     semantic_tags_file: Optional[Path] = None
-    lua_script_dir: Optional[Path] = None  # 新增：Lua脚本目录
 
     # 对话上下文配置
     context_max_items: int = 10
@@ -111,9 +185,6 @@ class AliceConfig:
     max_input_length: int = 500
     script_match_timeout: int = 100  # 毫秒
     regex_cache_size: int = 100
-    lua_cache_size: int = 100  # 新增：Lua脚本缓存大小
-    lua_execution_timeout: float = 1.0  # 新增：Lua脚本执行超时
-    lua_sandbox_enabled: bool = True  # 新增：是否启用Lua沙箱
 
     # 预定义响应
     fallback_responses: List[str] = field(default_factory=list)
@@ -127,6 +198,11 @@ class AliceConfig:
 
     # LTP 配置 (引用共享配置)
     ltp: Optional[LtpConfig] = None
+    
+    def __post_init__(self):
+        """后处理：设置默认值"""
+        if self.scripting is None:
+            self.scripting = ScriptingConfig()
 
 
 # =============================================================================

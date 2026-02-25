@@ -34,9 +34,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from loguru import logger
 
 from .sources import ConfigSource, YamlConfigSource, EnvConfigSource, MemoryConfigSource
-from .validator import ConfigValidator, build_default_validator, validate_bot_configs
+from .validator import ConfigValidator, build_default_validator, validate_bot_configs, validate_scripting_paths
 from .bot_loader import BotConfig, BotConfigLoader
-from .types import Settings
+from .types import Settings, ScriptingConfig, LuaScriptEngineConfig, YamlScriptEngineConfig
 
 
 class ConfigManager:
@@ -77,6 +77,7 @@ class ConfigManager:
         self._listeners: List[Callable[[Dict[str, Any]], None]] = []
         self._config: Dict[str, Any] = {}
         self._loaded = False
+        self._settings: Optional[Settings] = None
 
     def add_source(self, name: str, source: ConfigSource, priority: int = 0) -> 'ConfigManager':
         """
@@ -175,8 +176,11 @@ class ConfigManager:
             self._loaded = True
             self._notify_listeners(merged)
 
+            # 保存 settings 引用 (用于脚本配置访问)
+            self._settings = self._build_settings(merged)
+
             logger.info(f"配置加载完成 (共 {len(merged)} 项，Bot 配置：{len(self._bot_configs)} 个)")
-            return self._build_settings(merged)
+            return self._settings
 
     def _load_module_configs(self, merged: Dict[str, Any]) -> None:
         """加载模块专属配置 (config.alice.yaml, config.turing.yaml)"""
@@ -361,6 +365,68 @@ class ConfigManager:
             模板 ID 列表
         """
         return list(self._bot_configs.keys())
+
+    # =========================================================================
+    # 脚本配置访问方法 (新增)
+    # =========================================================================
+
+    def get_scripting_config(self) -> Optional[ScriptingConfig]:
+        """
+        获取脚本引擎配置
+        
+        Returns:
+            ScriptingConfig 实例，未配置则返回 None
+        """
+        with self._lock:
+            return self._settings.alice.scripting if hasattr(self, '_settings') else None
+
+    def get_lua_script_dir(self) -> Optional[Path]:
+        """
+        获取 Lua 脚本目录
+        
+        Returns:
+            Lua 脚本目录路径，未配置则返回 None
+        """
+        with self._lock:
+            scripting = self._settings.alice.scripting if hasattr(self, '_settings') else None
+            if scripting and scripting.lua:
+                return scripting.lua.script_dir
+            return None
+
+    def get_yaml_script_file(self) -> Optional[Path]:
+        """
+        获取 YAML 脚本文件路径
+        
+        Returns:
+            YAML 脚本文件路径，未配置则返回 None
+        """
+        with self._lock:
+            scripting = self._settings.alice.scripting if hasattr(self, '_settings') else None
+            if scripting and scripting.yaml:
+                return scripting.yaml.script_file
+            return None
+
+    def list_lua_scripts(self) -> List[str]:
+        """
+        列出所有 Lua 脚本 ID
+        
+        Returns:
+            脚本 ID 列表
+        """
+        lua_dir = self.get_lua_script_dir()
+        if not lua_dir or not lua_dir.exists():
+            return []
+        return [f.stem for f in lua_dir.glob("*.lua")]
+
+    def validate_scripting_paths(self) -> List:
+        """
+        验证脚本配置路径存在性
+        
+        Returns:
+            验证错误列表
+        """
+        with self._lock:
+            return validate_scripting_paths(self._config, self.project_root)
 
     def reload(self) -> bool:
         """

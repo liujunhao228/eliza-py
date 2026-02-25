@@ -250,6 +250,14 @@ app.include_router(game_router, prefix="/api", tags=["游戏"])
 from turing_test.backend.api.analytics import router as analytics_router
 app.include_router(analytics_router, prefix="/api/analytics", tags=["数据分析"])
 
+# 历史会话路由
+from turing_test.backend.api.history import router as history_router
+app.include_router(history_router, prefix="/api", tags=["历史会话"])
+
+# 分享会话路由
+from turing_test.backend.api.share import router as share_router
+app.include_router(share_router, prefix="/api", tags=["分享会话"])
+
 # WebSocket 路由
 from turing_test.backend.websocket.match import router as match_ws_router
 from turing_test.backend.websocket.chat import router as chat_ws_router

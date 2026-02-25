@@ -4,10 +4,10 @@
 定义用户行为追踪和数据采集的数据结构。
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 
 
 # =============================================================================
@@ -78,6 +78,12 @@ class EventType(str, Enum):
 class AnalyticsEvent(BaseModel):
     """分析事件"""
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "datetime": lambda v: v.isoformat() if v else None,
+        }
+    )
+
     # 事件基本信息
     event_type: EventType = Field(..., description="事件类型")
     event_id: Optional[str] = Field(None, description="事件唯一 ID")
@@ -87,15 +93,15 @@ class AnalyticsEvent(BaseModel):
     session_id: Optional[int] = Field(None, description="会话 ID")
 
     # 时间戳
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="事件时间戳")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="事件时间戳")
 
     # 事件元数据
     metadata: Dict[str, Any] = Field(default_factory=dict, description="事件元数据")
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-        }
+    @field_serializer("timestamp")
+    def serialize_timestamp(self, value: datetime) -> str:
+        """序列化时间戳为 ISO 格式"""
+        return value.isoformat()
 
 
 # =============================================================================
@@ -251,9 +257,9 @@ class ErrorEvent(AnalyticsEvent):
 class AnalyticsBatchSubmit(BaseModel):
     """批量提交分析事件"""
 
-    events: List[AnalyticsEvent] = Field(..., description="事件列表", min_items=1, max_items=100)
+    events: List[AnalyticsEvent] = Field(..., description="事件列表", min_length=1, max_length=100)
     user_id: Optional[int] = Field(None, description="用户 ID")
-    submitted_at: datetime = Field(default_factory=datetime.utcnow, description="提交时间")
+    submitted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="提交时间")
 
 
 class AnalyticsBatchResponse(BaseModel):

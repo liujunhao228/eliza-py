@@ -8,6 +8,9 @@ const Chat = () => import('@/views/Chat.vue')
 const Survey = () => import('@/views/Survey.vue')
 const Result = () => import('@/views/Result.vue')
 const Profile = () => import('@/views/Profile.vue')
+const History = () => import('@/views/History.vue')
+const SessionDetail = () => import('@/views/SessionDetail.vue')
+const SharedSession = () => import('@/views/SharedSession.vue')
 
 // 路由配置
 const routes: RouteRecordRaw[] = [
@@ -46,6 +49,24 @@ const routes: RouteRecordRaw[] = [
     name: 'Profile',
     component: Profile,
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/history',
+    name: 'History',
+    component: History,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/session/:id',
+    name: 'SessionDetail',
+    component: SessionDetail,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/share/:token',
+    name: 'SharedSession',
+    component: SharedSession,
+    meta: { requiresAuth: false }  // 公开访问，无需登录
   }
 ]
 

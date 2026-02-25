@@ -79,6 +79,11 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    shared_sessions: Mapped[list["SessionShare"]] = relationship(
+        "SessionShare",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, username='{self.username}', score={self.score})>"
@@ -169,6 +174,11 @@ class Session(Base):
         "Survey",
         back_populates="session",
         uselist=False,
+        cascade="all, delete-orphan",
+    )
+    shares: Mapped[list["SessionShare"]] = relationship(
+        "SessionShare",
+        back_populates="session",
         cascade="all, delete-orphan",
     )
 
@@ -525,6 +535,85 @@ class InviteCode(Base):
         return (
             f"<InviteCode(id={self.id}, code='{self.code}', "
             f"is_active={self.is_active}, is_used={self.is_used})>"
+        )
+
+
+# =============================================================================
+# 会话分享表
+# =============================================================================
+
+class SessionShare(Base):
+    """会话分享表"""
+
+    __tablename__ = "session_shares"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    session_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        index=True,
+    )
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+
+    # 分享令牌
+    share_token: Mapped[str] = mapped_column(
+        String(64),
+        unique=True,
+        index=True,
+    )
+
+    # 分享设置
+    is_public: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        comment="是否公开分享"
+    )
+    expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="过期时间"
+    )
+    password_hash: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="访问密码哈希"
+    )
+
+    # 访问统计
+    view_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+    )
+
+    # 时间戳
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    # 关系
+    session: Mapped["Session"] = relationship(
+        "Session",
+        back_populates="shares",
+    )
+    user: Mapped["User"] = relationship(
+        "User",
+        back_populates="shared_sessions",
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<SessionShare(id={self.id}, session_id={self.session_id}, "
+            f"token={self.share_token})>"
         )
 
 

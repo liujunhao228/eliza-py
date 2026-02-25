@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from turing_test.backend.database import get_db
 from turing_test.backend.services.invite_code_service import get_invite_code_service, InviteCodeService
@@ -36,8 +36,7 @@ class InviteCodeResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class InviteCodeCreateRequest(BaseModel):

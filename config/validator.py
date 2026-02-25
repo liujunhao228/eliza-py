@@ -14,7 +14,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -193,15 +193,18 @@ def build_default_validator() -> ConfigValidator:
         lambda v: isinstance(v, bool),
         message="alice.enable_log 必须是布尔值"
     )
+    # 脚本配置验证
     validator.add_rule(
-        'alice.script_file',
-        lambda v: isinstance(v, str),
-        message="alice.script_file 必须是字符串路径"
+        'alice.scripting.enable_lua',
+        lambda v: isinstance(v, bool),
+        required=False,
+        message="alice.scripting.enable_lua 必须是布尔值"
     )
     validator.add_rule(
-        'alice.rules_file',
-        lambda v: isinstance(v, str),
-        message="alice.rules_file 必须是字符串路径"
+        'alice.scripting.enable_yaml',
+        lambda v: isinstance(v, bool),
+        required=False,
+        message="alice.scripting.enable_yaml 必须是布尔值"
     )
     validator.add_rule(
         'alice.context_max_items',
@@ -338,6 +341,81 @@ def build_default_validator() -> ConfigValidator:
     return validator
 
 
+def validate_scripting_paths(config: Dict[str, Any], project_root: Path) -> List[ValidationError]:
+    """
+    验证脚本配置路径存在性
+    
+    Args:
+        config: 配置字典
+        project_root: 项目根目录
+    
+    Returns:
+        验证错误列表
+    """
+    errors = []
+    alice_cfg = config.get('alice', {})
+    scripting_cfg = alice_cfg.get('scripting', {})
+    
+    # 验证 Lua 脚本目录
+    if scripting_cfg.get('enable_lua', True):
+        lua_cfg = scripting_cfg.get('lua', {})
+        if lua_cfg:
+            script_dir_str = lua_cfg.get('script_dir')
+            if script_dir_str:
+                script_dir = Path(script_dir_str)
+                if not script_dir.is_absolute():
+                    script_dir = project_root / script_dir
+                if not script_dir.exists():
+                    errors.append(ValidationError(
+                        path='alice.scripting.lua.script_dir',
+                        message=f'Lua 脚本目录不存在：{script_dir}',
+                        severity='error'
+                    ))
+            
+            metadata_file_str = lua_cfg.get('metadata_file')
+            if metadata_file_str:
+                metadata_file = Path(metadata_file_str)
+                if not metadata_file.is_absolute():
+                    metadata_file = project_root / metadata_file
+                if not metadata_file.exists():
+                    errors.append(ValidationError(
+                        path='alice.scripting.lua.metadata_file',
+                        message=f'Lua 元数据文件不存在：{metadata_file}',
+                        severity='warning'  # 元数据文件可选
+                    ))
+    
+    # 验证 YAML 脚本文件
+    if scripting_cfg.get('enable_yaml', True):
+        yaml_cfg = scripting_cfg.get('yaml', {})
+        if yaml_cfg:
+            script_file_str = yaml_cfg.get('script_file')
+            if script_file_str:
+                script_file = Path(script_file_str)
+                if not script_file.is_absolute():
+                    script_file = project_root / script_file
+                if not script_file.exists():
+                    errors.append(ValidationError(
+                        path='alice.scripting.yaml.script_file',
+                        message=f'YAML 脚本文件不存在：{script_file}',
+                        severity='error'
+                    ))
+    
+    # 验证重组规则文件
+    rules_file_str = scripting_cfg.get('rules_file')
+    if rules_file_str:
+        rules_file = Path(rules_file_str)
+        if not rules_file.is_absolute():
+            rules_file = project_root / rules_file
+        if not rules_file.exists():
+            errors.append(ValidationError(
+                path='alice.scripting.rules_file',
+                message=f'重组规则文件不存在：{rules_file}',
+                severity='error'
+            ))
+    
+    return errors
+
+
 def build_strict_validator() -> ConfigValidator:
     """
     构建严格验证器
@@ -460,4 +538,5 @@ __all__ = [
     "build_default_validator",
     "build_strict_validator",
     "validate_bot_configs",
+    "validate_scripting_paths",
 ]

@@ -46,7 +46,7 @@ from alice.exceptions import (
     TextProcessingError,
 )
 from alice.utils.sanitizer import sanitize_text
-from config import settings
+from config import settings, get_config_manager, ConfigManager
 
 logger = logging.getLogger(__name__)
 
@@ -65,62 +65,40 @@ class DialogueEngine:
     
     def __init__(
         self,
-        # 脚本配置
-        yaml_script_file: Optional[str] = None,
-        lua_script_dir: Optional[str] = None,
-        lua_metadata_file: Optional[str] = None,
-        
-        # 规则配置
-        rules_file: Optional[str] = None,
-        
-        # 功能开关
-        enable_plugins: bool = True,
-        enable_lua: bool = True,
-        enable_yaml: bool = True,
-        
-        # NLP 配置
-        use_ltp: Optional[bool] = None,
-        enable_ner: Optional[bool] = None,
-        ner_use_ltp: Optional[bool] = None,
-        
-        # Lua 引擎配置
-        lua_sandbox_mode: bool = True,
-        lua_max_execution_time: float = 1.0,
+        config_manager: Optional[ConfigManager] = None,
     ):
         """
         初始化对话引擎
 
         Args:
-            yaml_script_file: YAML 脚本文件路径
-            lua_script_dir: Lua 脚本目录
-            lua_metadata_file: Lua 脚本元数据文件（metadata.yaml）
-            rules_file: 重组规则文件路径
-            enable_plugins: 是否启用插件系统
-            enable_lua: 是否启用 Lua 脚本引擎
-            enable_yaml: 是否启用 YAML 脚本引擎
-            use_ltp: 是否使用 LTP 增强
-            enable_ner: 是否启用 NER 实体识别
-            ner_use_ltp: NER 是否使用 LTP 增强
-            lua_sandbox_mode: Lua 沙箱模式
-            lua_max_execution_time: Lua 最大执行时间
+            config_manager: 配置管理器实例
         """
+        # 使用配置管理器或创建默认实例
+        self.config_manager = config_manager or get_config_manager()
+        
+        # 从配置管理器获取脚本配置
+        scripting_config = self.config_manager.get_scripting_config()
+        
         # 配置保存
-        self.yaml_script_file = yaml_script_file
-        self.lua_script_dir = lua_script_dir
-        self.lua_metadata_file = lua_metadata_file
-        self.rules_file = rules_file
-        self.enable_plugins = enable_plugins
-        self.enable_lua = enable_lua
-        self.enable_yaml = enable_yaml
-        
+        self.yaml_script_file = str(scripting_config.yaml.script_file) if scripting_config.yaml else None
+        self.lua_script_dir = str(scripting_config.lua.script_dir) if scripting_config.lua else None
+        self.lua_metadata_file = str(scripting_config.lua.metadata_file) if scripting_config.lua else None
+        self.rules_file = str(scripting_config.rules_file) if scripting_config else None
+        self.enable_lua = scripting_config.enable_lua if scripting_config else True
+        self.enable_yaml = scripting_config.enable_yaml if scripting_config else True
+
         # NLP 配置
-        self.use_ltp = use_ltp if use_ltp is not None else settings.alice.enable_ltp
-        self.enable_ner = enable_ner if enable_ner is not None else settings.alice.enable_ner
-        self.ner_use_ltp = ner_use_ltp if ner_use_ltp is not None else settings.alice.ner_use_ltp
-        
-        # Lua 配置
-        self.lua_sandbox_mode = lua_sandbox_mode
-        self.lua_max_execution_time = lua_max_execution_time
+        self.use_ltp = settings.alice.enable_ltp
+        self.enable_ner = settings.alice.enable_ner
+        self.ner_use_ltp = settings.alice.ner_use_ltp
+
+        # Lua 配置 (从配置管理器获取)
+        if scripting_config and scripting_config.lua:
+            self.lua_sandbox_mode = scripting_config.lua.sandbox_mode
+            self.lua_max_execution_time = scripting_config.lua.max_execution_time
+        else:
+            self.lua_sandbox_mode = True
+            self.lua_max_execution_time = 1.0
 
         # 核心组件
         self.preprocessor = TextPreprocessor()
