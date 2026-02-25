@@ -2,11 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Alice Web 界面
-使用 Flask 提供 HTTP API 和简单的 Web 聊天界面
 
-支持热重载：
-- 自动模式：监听 YAML 文件变化自动重载
-- 手动模式：调用 /api/reload API 触发重载
+使用 Flask 提供 HTTP API 和简单的 Web 聊天界面
 """
 
 import logging
@@ -39,15 +36,8 @@ def get_alice_instance() -> AliceBot:
     global _alice_instance
     if _alice_instance is None:
         try:
-            _alice_instance = AliceBot(
-                enable_hot_reload=settings.alice.hot_reload,
-                hot_reload_mode=settings.alice.hot_reload_mode,
-            )
+            _alice_instance = AliceBot()
             logger.info("Alice 实例已创建")
-            # 显示热重载状态
-            hot_reload_status = _alice_instance.get_hot_reload_status()
-            if hot_reload_status.get("enabled", False):
-                logger.info(f"热重载已启用 (模式：{hot_reload_status.get('mode', 'auto')})")
         except Exception as e:
             logger.error(
                 "Alice 实例创建失败",
@@ -198,65 +188,6 @@ def status():
         'recent_entities': summary.get('recent_entities', []),
         'script_usage': summary.get('script_usage', {})
     })
-
-
-@app.route('/api/reload', methods=['POST'])
-def reload():
-    """
-    热重载配置文件
-
-    Query Parameters:
-        - type: 重载类型 (all|scripts|rules)，默认：all
-
-    Response JSON:
-        {
-            "success": true/false,
-            "script_reloaded": true/false,
-            "rules_reloaded": true/false,
-            "error": "错误信息（如果有）"
-        }
-    """
-    alice = get_alice_instance()
-    reload_type = request.args.get('type', 'all')
-
-    try:
-        if reload_type == 'scripts':
-            result = alice.reload_scripts()
-        elif reload_type == 'rules':
-            result = alice.reload_rules()
-        else:
-            result = alice.reload_all()
-
-        logger.info(
-            f"配置文件重载完成 - 类型：{reload_type}, 成功：{result.success}",
-            extra={'component': 'server', 'action': 'reload'}
-        )
-
-        return jsonify({
-            'success': result.success,
-            'script_reloaded': result.script_reloaded,
-            'rules_reloaded': result.rules_reloaded,
-            'error': result.error,
-        })
-
-    except Exception as e:
-        logger.error(
-            f"配置文件重载失败：{e}",
-            extra={'component': 'server', 'action': 'reload'},
-            exc_info=True,
-        )
-        return jsonify({
-            'success': False,
-            'error': str(e),
-        }), 500
-
-
-@app.route('/api/hot-reload/status', methods=['GET'])
-def hot_reload_status():
-    """获取热重载器状态"""
-    alice = get_alice_instance()
-    status = alice.get_hot_reload_status()
-    return jsonify(status)
 
 
 def run_server(host='0.0.0.0', port=5000, debug=False):

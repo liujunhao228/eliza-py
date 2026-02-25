@@ -1,10 +1,11 @@
 """
-脚本引擎 v2 模块
+脚本引擎模块 - 向后兼容别名
 
-支持 YAML 格式的脚本配置，提供更灵活的脚本定义。
+注意：此模块已废弃，请使用 alice.scripting 包。
 """
 
-from alice.scripts.yaml_script_engine import YAMLScriptEngine, ScriptIntent
+# 向后兼容：从新 scripting 包导入
+from alice.scripting.yaml_engine import YAMLScriptEngine, ScriptIntent
 
 __all__ = [
     "YAMLScriptEngine",

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 统一配置类型定义
@@ -92,10 +92,7 @@ class AliceConfig:
     enable_ner: bool = True
     enable_log: bool = True
     ner_use_ltp: bool = True
-    hot_reload: bool = True
     enable_lua_engine: bool = False  # 新增：是否启用Lua脚本引擎
-    hot_reload_mode: str = "auto"
-    hot_reload_poll_interval: float = 2.0
 
     # 文件路径
     script_file: Optional[Path] = None

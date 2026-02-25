@@ -194,11 +194,6 @@ def build_default_validator() -> ConfigValidator:
         message="alice.enable_log 必须是布尔值"
     )
     validator.add_rule(
-        'alice.hot_reload',
-        lambda v: isinstance(v, bool),
-        message="alice.hot_reload 必须是布尔值"
-    )
-    validator.add_rule(
         'alice.script_file',
         lambda v: isinstance(v, str),
         message="alice.script_file 必须是字符串路径"
@@ -359,11 +354,6 @@ def build_strict_validator() -> ConfigValidator:
         'alice.ner_use_ltp',
         lambda v: isinstance(v, bool),
         message="alice.ner_use_ltp 必须是布尔值"
-    )
-    validator.add_rule(
-        'alice.hot_reload_mode',
-        lambda v: isinstance(v, str) and v in ('auto', 'manual'),
-        message="alice.hot_reload_mode 必须是 'auto' 或 'manual'"
     )
     validator.add_rule(
         'turing.auth.algorithm',

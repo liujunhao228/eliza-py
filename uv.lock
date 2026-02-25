@@ -348,7 +348,6 @@ dependencies = [
     { name = "rich" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn", extra = ["standard"] },
-    { name = "watchdog" },
     { name = "websockets" },
 ]
 
@@ -425,7 +424,6 @@ requires-dist = [
     { name = "torchvision", marker = "extra == 'all'", specifier = "==0.22.1" },
     { name = "torchvision", marker = "extra == 'nlp'", specifier = "==0.22.1" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.24.0" },
-    { name = "watchdog", specifier = "==3.0.0" },
     { name = "websockets", specifier = "==12.0" },
 ]
 provides-extras = ["nlp", "test", "dev", "all"]
@@ -2666,30 +2664,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/37/945b4ca0ac27e3dc4952642d4c900edd030b3da6c9634875af6e13ae80e5/uvloop-0.22.1-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b91328c72635f6f9e0282e4a57da7470c7350ab1c9f48546c0f2866205349d21", size = 4467065, upload-time = "2025-10-16T22:16:58.206Z" },
     { url = "https://files.pythonhosted.org/packages/97/cc/48d232f33d60e2e2e0b42f4e73455b146b76ebe216487e862700457fbf3c/uvloop-0.22.1-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:daf620c2995d193449393d6c62131b3fbd40a63bf7b307a1527856ace637fe88", size = 4328384, upload-time = "2025-10-16T22:16:59.36Z" },
     { url = "https://files.pythonhosted.org/packages/e4/16/c1fd27e9549f3c4baf1dc9c20c456cd2f822dbf8de9f463824b0c0357e06/uvloop-0.22.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:6cde23eeda1a25c75b2e07d39970f3374105d5eafbaab2a4482be82f272d5a5e", size = 4296730, upload-time = "2025-10-16T22:17:00.744Z" },
-]
-
-[[package]]
-name = "watchdog"
-version = "3.0.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/95/a6/d6ef450393dac5734c63c40a131f66808d2e6f59f6165ab38c98fbe4e6ec/watchdog-3.0.0.tar.gz", hash = "sha256:4d98a320595da7a7c5a18fc48cb633c2e73cda78f93cac2ef42d42bf609a33f9", size = 124593, upload-time = "2023-03-20T09:21:11.367Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/06/fd/58b82550ebe4883bb2a5e1b6c14d8702b5ce0f36c58470bba51dc777df46/watchdog-3.0.0-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:336adfc6f5cc4e037d52db31194f7581ff744b67382eb6021c868322e32eef41", size = 100697, upload-time = "2023-03-20T09:20:25.047Z" },
-    { url = "https://files.pythonhosted.org/packages/92/dd/42f47ffdfadff4c41b89c54163f323f875eb963bf90088e477c43b8f7b15/watchdog-3.0.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:a70a8dcde91be523c35b2bf96196edc5730edb347e374c7de7cd20c43ed95397", size = 91219, upload-time = "2023-03-20T09:20:26.864Z" },
-    { url = "https://files.pythonhosted.org/packages/9b/39/30bb3c2e4f8e89b5c60e98589acf5c5a001cb0efde249aa05d748d1734a2/watchdog-3.0.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:adfdeab2da79ea2f76f87eb42a3ab1966a5313e5a69a0213a3cc06ef692b0e96", size = 91756, upload-time = "2023-03-20T09:20:28.309Z" },
-    { url = "https://files.pythonhosted.org/packages/00/9e/a9711f35f1ad6571e92dc2e955e7de9dfac21a1b33e9cd212f066a60a387/watchdog-3.0.0-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:2b57a1e730af3156d13b7fdddfc23dea6487fceca29fc75c5a868beed29177ae", size = 100700, upload-time = "2023-03-20T09:20:29.847Z" },
-    { url = "https://files.pythonhosted.org/packages/84/ab/67001e62603bf2ea35ace40023f7c74f61e8b047160d6bb078373cec1a67/watchdog-3.0.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:7ade88d0d778b1b222adebcc0927428f883db07017618a5e684fd03b83342bd9", size = 91251, upload-time = "2023-03-20T09:20:31.892Z" },
-    { url = "https://files.pythonhosted.org/packages/58/db/d419fdbd3051b42b0a8091ddf78f70540b6d9d277a84845f7c5955f9de92/watchdog-3.0.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:7e447d172af52ad204d19982739aa2346245cc5ba6f579d16dac4bfec226d2e7", size = 91753, upload-time = "2023-03-20T09:20:33.337Z" },
-    { url = "https://files.pythonhosted.org/packages/92/28/631872d7fbc45527037060db8c838b47a129a6c09d2297d6dddcfa283cf2/watchdog-3.0.0-py3-none-manylinux2014_aarch64.whl", hash = "sha256:0e06ab8858a76e1219e68c7573dfeba9dd1c0219476c5a44d5333b01d7e1743a", size = 82049, upload-time = "2023-03-20T09:20:53.951Z" },
-    { url = "https://files.pythonhosted.org/packages/c0/a2/4e3230bdc1fb878b152a2c66aa941732776f4545bd68135d490591d66713/watchdog-3.0.0-py3-none-manylinux2014_armv7l.whl", hash = "sha256:d00e6be486affb5781468457b21a6cbe848c33ef43f9ea4a73b4882e5f188a44", size = 82049, upload-time = "2023-03-20T09:20:55.583Z" },
-    { url = "https://files.pythonhosted.org/packages/21/72/46fd174352cd88b9157ade77e3b8835125d4b1e5186fc7f1e8c44664e029/watchdog-3.0.0-py3-none-manylinux2014_i686.whl", hash = "sha256:c07253088265c363d1ddf4b3cdb808d59a0468ecd017770ed716991620b8f77a", size = 82052, upload-time = "2023-03-20T09:20:57.124Z" },
-    { url = "https://files.pythonhosted.org/packages/74/3c/e4b77f4f069aca2b6e35925db7a1aa6cb600dcb52fc3e962284640ca37f3/watchdog-3.0.0-py3-none-manylinux2014_ppc64.whl", hash = "sha256:5113334cf8cf0ac8cd45e1f8309a603291b614191c9add34d33075727a967709", size = 82050, upload-time = "2023-03-20T09:20:58.864Z" },
-    { url = "https://files.pythonhosted.org/packages/71/3a/b12740f4f60861240d57b42a2ac6ac0a2821db506c4435f7872c1fad867d/watchdog-3.0.0-py3-none-manylinux2014_ppc64le.whl", hash = "sha256:51f90f73b4697bac9c9a78394c3acbbd331ccd3655c11be1a15ae6fe289a8c83", size = 82050, upload-time = "2023-03-20T09:21:00.452Z" },
-    { url = "https://files.pythonhosted.org/packages/40/1b/4e6d3e0f587587931f590531b4ed08070d71a9efb35541d792a68d8ee593/watchdog-3.0.0-py3-none-manylinux2014_s390x.whl", hash = "sha256:ba07e92756c97e3aca0912b5cbc4e5ad802f4557212788e72a72a47ff376950d", size = 82049, upload-time = "2023-03-20T09:21:01.979Z" },
-    { url = "https://files.pythonhosted.org/packages/2b/f0/456948b865ab259784f774154e7d65844fa9757522fdb11533fbf8ae7aca/watchdog-3.0.0-py3-none-manylinux2014_x86_64.whl", hash = "sha256:d429c2430c93b7903914e4db9a966c7f2b068dd2ebdd2fa9b9ce094c7d459f33", size = 82051, upload-time = "2023-03-20T09:21:03.67Z" },
-    { url = "https://files.pythonhosted.org/packages/55/0d/bfc2a0d425b12444a2dc245a934c065bbb7bd9833fff071cba79c21bb76e/watchdog-3.0.0-py3-none-win32.whl", hash = "sha256:3ed7c71a9dccfe838c2f0b6314ed0d9b22e77d268c67e015450a29036a81f60f", size = 82038, upload-time = "2023-03-20T09:21:05.492Z" },
-    { url = "https://files.pythonhosted.org/packages/9b/6e/ce8d124d03cd3f2941365d9c81d62e3afe43f2dc7e6e86274fa9c2ec2d5b/watchdog-3.0.0-py3-none-win_amd64.whl", hash = "sha256:4c9956d27be0bb08fc5f30d9d0179a855436e655f046d288e2bcc11adfae893c", size = 82040, upload-time = "2023-03-20T09:21:07.609Z" },
-    { url = "https://files.pythonhosted.org/packages/ba/0c/cd0337069c468f22ef256e768ece74c78b511092f1004ab260268e1af4a9/watchdog-3.0.0-py3-none-win_ia64.whl", hash = "sha256:5d9f3a10e02d7371cd929b5d8f11e87d4bad890212ed3901f9b4d68767bee759", size = 82040, upload-time = "2023-03-20T09:21:09.178Z" },
 ]
 
 [[package]]

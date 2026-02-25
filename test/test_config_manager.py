@@ -111,7 +111,6 @@ class TestConfigValidator(unittest.TestCase):
                 'enable_ner': True,
                 'enable_log': True,
                 'ner_use_ltp': True,
-                'hot_reload': True,
                 'script_file': 'alice/scripts/demo.yaml',
                 'rules_file': 'alice/scripts/rules/mapping.yaml',
                 'context_max_items': 10,

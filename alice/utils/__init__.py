@@ -7,7 +7,6 @@ Alice 工具模块
 - 性能监控
 - 降级监控
 - 敏感信息脱敏
-- YAML 热重载
 """
 
 from alice.utils.context import ContextManager
@@ -28,13 +27,6 @@ from alice.utils.sanitizer import (
     sanitize_for_logging,
     contains_sensitive_info,
     get_sensitive_info_types,
-)
-from alice.utils.hot_reloader import (
-    HotReloader,
-    ManualHotReloader,
-    ReloadResult,
-    YAMLFileChangeHandler,
-    create_hot_reloader,
 )
 
 __all__ = [
@@ -61,10 +53,4 @@ __all__ = [
     "sanitize_for_logging",
     "contains_sensitive_info",
     "get_sensitive_info_types",
-    # 热重载
-    "HotReloader",
-    "ManualHotReloader",
-    "ReloadResult",
-    "YAMLFileChangeHandler",
-    "create_hot_reloader",
 ]

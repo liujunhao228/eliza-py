@@ -39,7 +39,6 @@ def test_unified_settings():
     print(f"  [OK] enable_ltp: {settings.alice.enable_ltp}")
     print(f"  [OK] enable_ner: {settings.alice.enable_ner}")
     print(f"  [OK] enable_log: {settings.alice.enable_log}")
-    print(f"  [OK] hot_reload: {settings.alice.hot_reload}")
     print(f"  [OK] script_file: {settings.alice.script_file}")
     print(f"  [OK] rules_file: {settings.alice.rules_file}")
 
@@ -140,7 +139,6 @@ def test_alice_import():
     print(f"\n[AliceBot 初始化]")
     print(f"  [OK] AliceBot 类已导入")
     print(f"  [OK] settings.alice.enable_ltp: {settings.alice.enable_ltp}")
-    print(f"  [OK] settings.alice.hot_reload: {settings.alice.hot_reload}")
 
     print("\n[PASS] Alice 模块导入测试通过")
     return True

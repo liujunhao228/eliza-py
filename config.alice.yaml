@@ -11,9 +11,6 @@ enable_ltp: true                      # 启用 LTP 句法分析
 enable_ner: true                      # 启用 NER 实体识别
 enable_log: true                      # 启用对话日志
 ner_use_ltp: true                     # NER 使用 LTP 增强
-hot_reload: true                      # 启用热重载
-hot_reload_mode: auto                 # 热重载模式 (auto/manual)
-hot_reload_poll_interval: 2.0         # 热重载轮询间隔 (秒)
 
 # -----------------------------------------------------------------------------
 # 文件路径 (相对于 project_root)

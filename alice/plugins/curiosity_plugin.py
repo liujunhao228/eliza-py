@@ -12,7 +12,7 @@ import random
 from typing import Any, Dict, List, Optional
 
 from alice.plugins.base_plugin import BasePlugin, PluginResult
-from alice.scripts.yaml_script_engine import YAMLScriptEngine, ScriptIntent
+from alice.scripting import YAMLScriptEngine, ScriptIntent
 from alice.nlp.syntax_reassembly import SyntaxReassembly
 
 logger = logging.getLogger(__name__)

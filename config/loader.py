@@ -367,9 +367,6 @@ class ConfigLoader:
             enable_ner=self._get_required(cfg, "enable_ner", bool, "alice"),
             enable_log=self._get_required(cfg, "enable_log", bool, "alice"),
             ner_use_ltp=self._get_required(cfg, "ner_use_ltp", bool, "alice"),
-            hot_reload=self._get_required(cfg, "hot_reload", bool, "alice"),
-            hot_reload_mode=self._get_optional(cfg, "hot_reload_mode", str, "auto", "alice"),
-            hot_reload_poll_interval=self._get_optional(cfg, "hot_reload_poll_interval", float, 2.0, "alice"),
             script_file=self._get_required(cfg, "script_file", Path, "alice"),
             rules_file=self._get_required(cfg, "rules_file", Path, "alice"),
             semantic_tags_file=self._get_optional(

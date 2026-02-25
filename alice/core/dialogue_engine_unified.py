@@ -30,11 +30,11 @@ from alice.plugins import PluginManager, CuriosityPlugin, PluginResult
 from alice.processors import TextPreprocessor
 from alice.core.context_manager import ContextManager
 from alice.scripting import (
-    ScriptMatcher,
-    ScriptContext,
     LuaScriptEngine,
     YAMLScriptEngine,
+    ScriptMatcher,
     ScriptConfig,
+    ScriptContext,
 )
 from alice.nlp.factory import NlpFactory, NlpPipeline
 from alice.nlp.syntax_reassembly import SyntaxReassembly
@@ -93,7 +93,7 @@ class DialogueEngine:
         Args:
             yaml_script_file: YAML 脚本文件路径
             lua_script_dir: Lua 脚本目录
-            lua_metadata_file: Lua 脚本元数据文件
+            lua_metadata_file: Lua 脚本元数据文件（metadata.yaml）
             rules_file: 重组规则文件路径
             enable_plugins: 是否启用插件系统
             enable_lua: 是否启用 Lua 脚本引擎
@@ -229,11 +229,12 @@ class DialogueEngine:
             # 从目录加载 Lua 脚本
             lua_dir = Path(self.lua_script_dir)
             if lua_dir.exists():
-                count = self.lua_engine.load_from_directory(
-                    lua_dir,
-                    metadata_file=self.lua_metadata_file,
-                )
+                count = self.lua_engine.load_scripts_from_directory(lua_dir)
                 logger.info(f"从目录加载 {count} 个 Lua 脚本：{self.lua_script_dir}")
+            
+            # 加载元数据配置
+            if self.lua_metadata_file:
+                self._load_lua_metadata()
             
             self.script_matcher.register_engine('lua', self.lua_engine)
             
@@ -243,6 +244,36 @@ class DialogueEngine:
         except Exception as e:
             logger.error(f"Lua 引擎初始化失败：{e}")
             self.enable_lua = False
+    
+    def _load_lua_metadata(self) -> None:
+        """加载 Lua 脚本元数据"""
+        try:
+            import yaml
+            metadata_path = Path(self.lua_metadata_file)
+            
+            if not metadata_path.exists():
+                logger.warning(f"Lua 元数据文件不存在：{metadata_path}")
+                return
+            
+            with open(metadata_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+            
+            if not data or 'scripts' not in data:
+                return
+            
+            for script_data in data['scripts']:
+                script_id = script_data.get('name', '')
+                if script_id and script_id in self.lua_engine.scripts:
+                    config = self.lua_engine.scripts[script_id]
+                    config.priority = script_data.get('priority', config.priority)
+                    config.description = script_data.get('description', config.description)
+                    config.variables.update(script_data.get('variables', {}))
+                    config.metadata = script_data
+            
+            logger.info(f"Lua 脚本元数据已加载：{self.lua_metadata_file}")
+            
+        except Exception as e:
+            logger.warning(f"加载 Lua 元数据失败：{e}")
     
     def _initialize_plugins(self) -> None:
         """初始化插件系统"""
