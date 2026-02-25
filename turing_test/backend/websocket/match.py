@@ -7,7 +7,7 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from loguru import logger
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from turing_test.backend.websocket.manager import manager
 from turing_test.backend.services.match_service import get_match_service
@@ -56,7 +56,7 @@ async def match_websocket(
             "type": "connected",
             "data": {
                 "user_id": user_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         })
 
@@ -88,7 +88,7 @@ async def match_websocket(
                     await manager.send_personal_message(user_id, {
                         "type": "pong",
                         "data": {
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     })
 

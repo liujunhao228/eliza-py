@@ -40,3 +40,14 @@ modules:
     bot_pool:
       config_dir: bots                  # Bot 配置目录
       default_template: default         # 默认 Bot 模板 ID
+
+# -----------------------------------------------------------------------------
+# Sentry 错误追踪配置（可选）
+# -----------------------------------------------------------------------------
+# 生产环境建议配置 Sentry 进行错误监控
+# DSN 获取方式：在 Sentry.io 创建项目后获取
+# 也可通过环境变量设置：SENTRY_DSN=your-dsn
+# -----------------------------------------------------------------------------
+# sentry_dsn: "https://your-dsn@sentry.io/your-project-id"
+# sentry_enabled: false
+# environment: "production"

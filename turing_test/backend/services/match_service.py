@@ -6,7 +6,7 @@
 
 import asyncio
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple, TYPE_CHECKING
 from loguru import logger
 from enum import Enum
@@ -144,9 +144,9 @@ class MatchService:
 
             # 计算匹配优先级
             priority = self._calculate_priority(user_score)
-            
+
             # 记录加入时间
-            join_time = datetime.utcnow().timestamp()
+            join_time = datetime.now(timezone.utc).timestamp()
             self.waiting_queue[user_id] = {
                 "timestamp": join_time,
                 "websocket_ref": websocket_ref,
@@ -199,8 +199,8 @@ class MatchService:
                 return False
 
             # 计算等待时间
-            wait_time = datetime.utcnow().timestamp() - self.waiting_queue[user_id]["timestamp"]
-            
+            wait_time = datetime.now(timezone.utc).timestamp() - self.waiting_queue[user_id]["timestamp"]
+
             del self.waiting_queue[user_id]
             if user_id in self.user_sessions:
                 del self.user_sessions[user_id]
@@ -313,7 +313,7 @@ class MatchService:
             "opponent_id": opponent_id,
             "match_type": match_type,
             "wait_time": wait_time,
-            "timestamp": datetime.utcnow().timestamp(),
+            "timestamp": datetime.now(timezone.utc).timestamp(),
         })
         
         # 限制历史记录长度
@@ -353,7 +353,7 @@ class MatchService:
         # 延迟导入 manager 以避免循环导入
         from turing_test.backend.websocket.manager import manager
 
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         user_score = self.waiting_queue.get(user_id, {}).get("user_score", 100)
 
         try:
@@ -371,7 +371,7 @@ class MatchService:
                     return
 
                 # 检查是否超时
-                elapsed = (datetime.utcnow() - start_time).total_seconds()
+                elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
                 if elapsed >= self.match_timeout:
                     logger.info(f"用户 {user_id} 匹配超时 ({self.match_timeout}秒)")
 
@@ -396,7 +396,7 @@ class MatchService:
                     logger.info(f"✅ 匹配成功：用户 {user_id} <-> 用户 {opponent_id}")
 
                     # 计算等待时间
-                    wait_time = datetime.utcnow().timestamp() - self.waiting_queue[user_id]["timestamp"]
+                    wait_time = datetime.now(timezone.utc).timestamp() - self.waiting_queue[user_id]["timestamp"]
 
                     # 从队列中移除两个用户
                     await self.remove_from_queue(user_id)
@@ -421,7 +421,7 @@ class MatchService:
                                 "session_id": session_id,
                                 "opponent_type": "human",
                                 "is_honeypot": False,
-                                "matched_at": datetime.utcnow().isoformat(),
+                                "matched_at": datetime.now(timezone.utc).isoformat(),
                                 "wait_time": wait_time,
                             }
                         })
@@ -506,7 +506,7 @@ class MatchService:
                 user_id=user_id,
                 opponent_type="honeypot" if is_honeypot else "ai",
                 is_honeypot=is_honeypot,
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(timezone.utc),
             )
             db.add(session)
             await db.commit()
@@ -514,9 +514,9 @@ class MatchService:
             
             match_type = "honeypot" if is_honeypot else "ai"
             logger.info(f"为用户 {user_id} 分配 {match_type} 对手，会话 ID: {session.id}")
-            
+
             # 记录匹配历史
-            wait_time = datetime.utcnow().timestamp() - self.waiting_queue[user_id]["timestamp"]
+            wait_time = datetime.now(timezone.utc).timestamp() - self.waiting_queue[user_id]["timestamp"]
             self._record_match(user_id, -1, match_type, wait_time)  # -1 表示 AI 对手
             
             # 计算 AI 响应延迟
@@ -624,7 +624,7 @@ class MatchService:
                 user_id=user_id,
                 opponent_type=opponent_type,
                 is_honeypot=False,
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(timezone.utc),
             )
             db.add(session)
             await db.commit()
@@ -722,7 +722,7 @@ class MatchService:
                     "session_id": session.id,
                     "opponent_type": "ai",
                     "is_honeypot": False,
-                    "matched_at": datetime.utcnow().isoformat(),
+                    "matched_at": datetime.now(timezone.utc).isoformat(),
                 }
             })
 

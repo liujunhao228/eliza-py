@@ -6,7 +6,7 @@
 
 import random
 from typing import Optional, List, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 
 from config import settings
@@ -171,7 +171,7 @@ class HoneypotService:
         self.session_behaviors[session_id] = {
             "profile": profile,
             "message_count": 0,
-            "last_response_time": datetime.utcnow(),
+            "last_response_time": datetime.now(timezone.utc),
             "total_typing_time": 0,
             "meta_responses": 0,
         }

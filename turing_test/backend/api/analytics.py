@@ -4,7 +4,7 @@
 处理用户行为数据采集和查询。
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -109,7 +109,7 @@ async def get_analytics_summary(
 
     返回指定时间范围内的统计数据。
     """
-    end_time = datetime.utcnow()
+    end_time = datetime.now(timezone.utc)
     start_time = end_time - timedelta(days=days)
 
     # 简化版实现：返回空摘要

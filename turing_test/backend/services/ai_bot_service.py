@@ -42,20 +42,33 @@ class AIBotService:
 
             # 初始化 Bot 池
             from turing_test.backend.bot_pool import init_bot_pool
-            
+
             # 使用 getattr 提供默认值以兼容不同配置
+            # 注意：script_file 和 rules_file 在 settings.alice.scripting 下
+            script_file = None
+            rules_file = None
+            
+            if hasattr(settings, 'alice') and settings.alice:
+                alice_cfg = settings.alice
+                # 从 scripting.yaml.script_file 获取
+                if hasattr(alice_cfg, 'scripting') and alice_cfg.scripting:
+                    scripting_cfg = alice_cfg.scripting
+                    if hasattr(scripting_cfg, 'yaml') and scripting_cfg.yaml:
+                        script_file = str(scripting_cfg.yaml.script_file) if scripting_cfg.yaml.script_file else None
+                    rules_file = str(scripting_cfg.rules_file) if hasattr(scripting_cfg, 'rules_file') and scripting_cfg.rules_file else None
+            
             self._bot_pool = init_bot_pool(
                 nlp_service=self._nlp_service,
                 min_instances=getattr(settings, 'BOT_POOL_MIN_INSTANCES', 2),
                 max_instances=getattr(settings, 'BOT_POOL_MAX_INSTANCES', 10),
                 idle_timeout=getattr(settings, 'BOT_POOL_IDLE_TIMEOUT', 300),
-                script_file=settings.alice.script_file if hasattr(settings, 'alice') else None,
-                rules_file=settings.alice.rules_file if hasattr(settings, 'alice') else None,
+                script_file=script_file,
+                rules_file=rules_file,
                 enable_plugins=True,
             )
 
             self._initialized = True
-            logger.info("✅ AI Bot 服务初始化成功")
+            logger.info(f"✅ AI Bot 服务初始化成功 (script_file={script_file}, rules_file={rules_file})")
 
         except Exception as e:
             logger.error(f"AI Bot 服务初始化失败：{e}", exc_info=True)

@@ -1,10 +1,20 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <meta name="description" content="图灵测试社交实验 - 通过对话判断对方是真人还是 AI" />
+    <meta name="theme-color" content="#6366f1" />
+    <!-- CSP: 内容安全策略，防止 XSS 攻击 -->
+    <!-- default-src 'self': 默认只允许加载同源资源 -->
+    <!-- script-src 'self': 只允许执行同源脚本，禁止 inline 脚本和 eval -->
+    <!-- style-src 'self' 'unsafe-inline': 允许同源样式和 inline 样式（Vue 需要） -->
+    <!-- img-src 'self' data: blob: : 允许同源图片及 data/blob URL -->
+    <!-- connect-src 'self' ws: wss: http: https: : 允许同源 AJAX/WebSocket 及指定协议的请求 -->
+    <!-- frame-ancestors 'none': 禁止被嵌入 frame（防止点击劫持） -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss: http: https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'">
+    <title>图灵测试 - 人机辨识社交实验</title>
   </head>
   <body>
     <div id="app"></div>

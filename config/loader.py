@@ -289,6 +289,11 @@ class ConfigLoader:
         turing_cfg = cfg.get("turing", {})
         turing = self._build_turing_config(turing_cfg, paths)
 
+        # 获取 Sentry 配置（从环境变量优先读取）
+        sentry_dsn = self._env.get("SENTRY_DSN", cfg.get("sentry_dsn", None))
+        sentry_enabled = self._env.get("SENTRY_ENABLED", cfg.get("sentry_enabled", "false")).lower() in ("true", "yes", "1", "on")
+        environment = self._env.get("ENVIRONMENT", cfg.get("environment", "production"))
+
         return Settings(
             debug=self._get_optional(cfg, "debug", bool, False),
             log_level=self._get_optional(cfg, "log_level", str, "INFO"),
@@ -296,6 +301,9 @@ class ConfigLoader:
             modules=modules,
             alice=alice,
             turing=turing,
+            sentry_dsn=sentry_dsn,
+            sentry_enabled=sentry_enabled,
+            environment=environment,
         )
 
     def _build_modules_config(self, cfg: Dict[str, Any]) -> ModulesConfig:

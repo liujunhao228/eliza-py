@@ -348,22 +348,48 @@ class AliceBotPool:
             logger.debug(f"释放 Bot 实例 {bot_id}")
 
     def _maintain_pool(self):
-        """维护池：定期清理空闲实例"""
+        """
+        维护池：定期清理空闲实例和补充最小实例数
+        
+        优化：
+        - 每 30 秒检查一次（原 60 秒），更及时响应
+        - 智能清理：根据负载动态调整清理策略
+        - 自动补充：当实例数低于最小值时自动补充
+        """
         while self._maintenance_active:
-            time.sleep(60)  # 每分钟检查一次
+            time.sleep(30)  # 每 30 秒检查一次
             self._cleanup_idle_instances()
+            self._replenish_min_instances()
 
     def _cleanup_idle_instances(self):
-        """清理空闲实例，但保持最少实例数"""
+        """
+        清理空闲实例，但保持最少实例数
+        
+        优化：
+        - 动态空闲超时：根据请求频率调整
+        - 批量清理：减少锁竞争
+        """
         with self._lock:
             current_time = time.time()
             to_remove = []
+
+            # 计算当前忙碌比例
+            busy_count = sum(1 for info in self._instances.values() if info.is_busy)
+            total_count = len(self._instances)
+            busy_ratio = busy_count / total_count if total_count > 0 else 0
+
+            # 动态调整空闲超时：忙碌时延长，空闲时缩短
+            effective_timeout = self.idle_timeout
+            if busy_ratio > 0.7:
+                effective_timeout *= 1.5  # 忙碌时延长 50%
+            elif busy_ratio < 0.3:
+                effective_timeout *= 0.7  # 空闲时缩短 30%
 
             # 找出空闲时间过长的实例
             for bot_id, info in self._instances.items():
                 if not info.is_busy:
                     idle_duration = info.get_idle_duration()
-                    if idle_duration > self.idle_timeout:
+                    if idle_duration > effective_timeout:
                         to_remove.append(bot_id)
 
             # 排序，优先删除空闲时间最长的
@@ -373,13 +399,32 @@ class AliceBotPool:
             )
 
             # 删除空闲实例，但保持最少实例数
+            removed_count = 0
             for bot_id in to_remove:
-                if len(self._instances) <= self.min_instances:
+                if len(self._instances) - removed_count <= self.min_instances:
                     break
-                self._destroy_instance(bot_id)
+                if self._destroy_instance(bot_id):
+                    removed_count += 1
 
-            if to_remove:
-                logger.info(f"清理了 {len(to_remove)} 个空闲 Bot 实例")
+            if removed_count > 0:
+                logger.info(f"清理了 {removed_count} 个空闲 Bot 实例")
+
+    def _replenish_min_instances(self):
+        """
+        补充实例到最小数量
+        
+        优化：
+        - 按需补充：仅当可用实例不足时补充
+        - 使用默认模板：确保有足够的基础实例
+        """
+        with self._lock:
+            available_count = len(self._available)
+            needed_count = self.min_instances - len(self._instances)
+
+            if needed_count > 0 and available_count < self.min_instances:
+                logger.info(f"补充 {needed_count} 个 Bot 实例到最小数量")
+                for _ in range(needed_count):
+                    self._create_instance(self.default_template)
 
     def get_stats(self) -> Dict:
         """获取池统计信息"""

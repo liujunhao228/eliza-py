@@ -9,7 +9,8 @@ from fastapi import WebSocket, WebSocketDisconnect
 from loguru import logger
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from collections import defaultdict
 
 
 class ConnectionState:
@@ -18,18 +19,18 @@ class ConnectionState:
     def __init__(self, websocket: WebSocket, user_id: int):
         self.websocket = websocket
         self.user_id = user_id
-        self.connected_at = datetime.utcnow()
-        self.last_heartbeat = datetime.utcnow()
+        self.connected_at = datetime.now(timezone.utc)
+        self.last_heartbeat = datetime.now(timezone.utc)
         self.session_id: Optional[int] = None
         self.is_alive = True
 
     def update_heartbeat(self):
         """更新心跳时间"""
-        self.last_heartbeat = datetime.utcnow()
+        self.last_heartbeat = datetime.now(timezone.utc)
 
     def is_stale(self, timeout_seconds: int = 60) -> bool:
         """检查连接是否过期"""
-        elapsed = (datetime.utcnow() - self.last_heartbeat).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - self.last_heartbeat).total_seconds()
         return elapsed > timeout_seconds
 
 
@@ -56,6 +57,11 @@ class ConnectionManager:
 
         # 用户断开连接标志
         self._disconnecting_users: Set[int] = set()
+
+        # 速率限制：IP -> 连接时间戳列表
+        self._connection_attempts: Dict[str, List[datetime]] = defaultdict(list)
+        self._rate_limit_window = 60  # 时间窗口（秒）
+        self._rate_limit_max = 10     # 每个窗口内最大连接数
 
     async def start_heartbeat_monitor(self):
         """启动心跳监控任务"""
@@ -97,7 +103,7 @@ class ConnectionManager:
                         await conn.websocket.send_json({
                             "type": "ping",
                             "data": {
-                                "timestamp": datetime.utcnow().isoformat(),
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
                             }
                         })
                     except Exception as e:
@@ -110,7 +116,38 @@ class ConnectionManager:
                 logger.error(f"心跳监控错误：{e}", exc_info=True)
 
     async def connect(self, user_id: int, websocket: WebSocket):
-        """连接用户"""
+        """
+        连接用户（带速率限制）
+
+        Args:
+            user_id: 用户 ID
+            websocket: WebSocket 连接
+
+        Raises:
+            WebSocketDisconnect: 如果触发速率限制
+        """
+        # 获取客户端 IP
+        client_ip = websocket.client.host if websocket.client else "unknown"
+
+        # 检查速率限制
+        now = datetime.now(timezone.utc)
+        window_start = now - timedelta(seconds=self._rate_limit_window)
+
+        # 清理过期记录
+        self._connection_attempts[client_ip] = [
+            t for t in self._connection_attempts[client_ip]
+            if t > window_start
+        ]
+
+        # 检查是否超出限制
+        if len(self._connection_attempts[client_ip]) >= self._rate_limit_max:
+            logger.warning(f"速率限制：IP {client_ip} 在 {self._rate_limit_window}秒内连接超过{self._rate_limit_max}次")
+            await websocket.close(code=429, reason="连接过于频繁，请稍后再试")
+            return
+
+        # 记录本次连接
+        self._connection_attempts[client_ip].append(now)
+
         try:
             await websocket.accept()
 
@@ -160,7 +197,7 @@ class ConnectionManager:
                 logger.info(
                     f"❌ 用户 {user_id} 已断开连接 "
                     f"(总连接数：{len(self.active_connections)}, "
-                    f"连接时长：{(datetime.utcnow() - connection.connected_at).total_seconds():.1f}秒)"
+                    f"连接时长：{(datetime.now(timezone.utc) - connection.connected_at).total_seconds():.1f}秒)"
                 )
         finally:
             # 移除断开标志

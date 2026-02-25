@@ -125,7 +125,7 @@
     <!-- 分享对话框 -->
     <ShareDialog
       v-if="showShareDialog"
-      :session-id="selectedSessionId"
+      :session-id="selectedSessionId!"
       :existing-share="existingShare"
       @close="closeShareDialog"
       @share-created="handleShareCreated"
@@ -136,10 +136,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useHistoryStore } from '@/stores/history'
 import { useUserStore } from '@/stores/user'
 import ShareDialog from '@/components/History/ShareDialog.vue'
 
+const router = useRouter()
 const historyStore = useHistoryStore()
 const userStore = useUserStore()
 
@@ -191,9 +193,10 @@ function applyFilters() {
 
 // 改变每页大小
 function changePageSize() {
+  historyStore.pagination.page_size = pageSize.value
   historyStore.fetchSessions(userStore.userId!, {
-    page_size: pageSize.value,
-    ...filters.value
+    opponent_type: filterOpponentType.value || undefined,
+    is_correct: filterResult.value ? filterResult.value === 'true' : undefined
   })
 }
 
@@ -210,7 +213,7 @@ function viewSession(sessionId: number) {
   historyStore.fetchSessionDetail(sessionId).then(() => {
     historyStore.fetchSessionMessages(sessionId)
   })
-  historyStore.$router.push(`/session/${sessionId}`)
+  router.push(`/session/${sessionId}`)
 }
 
 // 打开分享对话框

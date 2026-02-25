@@ -109,8 +109,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useHistoryStore } from '@/stores/history'
+import type { ShareInfo } from '@/api/history'
 
 const props = defineProps<{
   sessionId: number
@@ -127,7 +128,7 @@ const historyStore = useHistoryStore()
 
 const loading = ref(false)
 const error = ref<string | null>(null)
-const shareInfo = ref<any>(null)
+const shareInfo = ref<ShareInfo | null>(null)
 const shareLinkInput = ref<HTMLInputElement | null>(null)
 
 const form = reactive({
@@ -136,9 +137,25 @@ const form = reactive({
   password: ''
 })
 
+// 验证 URL 安全性（只允许 http/https 协议）
+function isValidShareUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 // 复制链接
 async function copyLink() {
   if (shareInfo.value?.share_url) {
+    // 验证 URL 安全性，防止 javascript: 等危险协议
+    if (!isValidShareUrl(shareInfo.value.share_url)) {
+      error.value = '无效的分享链接'
+      return
+    }
+    
     try {
       await navigator.clipboard.writeText(shareInfo.value.share_url)
       alert('链接已复制到剪贴板')
@@ -214,12 +231,13 @@ onMounted(async () => {
     // 这里简化处理，实际应该从 API 获取
     shareInfo.value = {
       share_id: props.existingShare.share_id,
+      share_token: '',
       share_url: props.existingShare.share_url || `http://localhost:5173/share/xxx`,
       expires_at: props.existingShare.expires_at,
       has_password: props.existingShare.has_password,
       is_expired: false,
       view_count: 0
-    }
+    } as ShareInfo
   }
 })
 </script>

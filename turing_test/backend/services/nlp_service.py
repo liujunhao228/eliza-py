@@ -12,15 +12,13 @@
 
 import threading
 import time
+from pathlib import Path
 from typing import Optional, Dict, Any
 from functools import lru_cache
 from loguru import logger
 
 # 导入 AliceBot 的 NLP 模块
-# 注意：需要先确保项目路径正确
-import sys
-sys.path.insert(0, "/f/eliza-py")
-
+# 注意：main.py 已将项目根目录添加到 sys.path，无需重复添加
 from config import settings
 
 

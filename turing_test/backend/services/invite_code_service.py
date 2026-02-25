@@ -7,7 +7,7 @@
 import random
 import string
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
@@ -169,7 +169,7 @@ class InviteCodeService:
         # 计算过期时间
         expire_at = None
         if expire_days is not None:
-            expire_at = datetime.utcnow() + timedelta(days=expire_days)
+            expire_at = datetime.now(timezone.utc) + timedelta(days=expire_days)
 
         # 创建邀请码记录
         invite_code = InviteCode(
@@ -234,11 +234,11 @@ class InviteCodeService:
         # 计算过期时间
         expire_at = None
         if expire_days is not None:
-            expire_at = datetime.utcnow() + timedelta(days=expire_days)
+            expire_at = datetime.now(timezone.utc) + timedelta(days=expire_days)
 
         # 如果没有提供 batch_id，生成一个
         if batch_id is None:
-            batch_id = f"batch_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+            batch_id = f"batch_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
 
         # 批量创建
         invite_codes = []
@@ -298,7 +298,7 @@ class InviteCodeService:
             }
 
         # 检查是否过期
-        if invite_code.expire_at and invite_code.expire_at < datetime.utcnow():
+        if invite_code.expire_at and invite_code.expire_at < datetime.now(timezone.utc):
             return {
                 "valid": False,
                 "message": "邀请码已过期",
@@ -352,7 +352,7 @@ class InviteCodeService:
         # 更新使用信息
         invite_code.current_uses += 1
         invite_code.used_by_user_id = user_id
-        invite_code.used_at = datetime.utcnow()
+        invite_code.used_at = datetime.now(timezone.utc)
 
         # 如果达到最大使用次数，标记为已使用
         if invite_code.max_uses != -1 and invite_code.current_uses >= invite_code.max_uses:
@@ -464,7 +464,7 @@ class InviteCodeService:
         used = sum(1 for c in all_codes if c.is_used)
         expired = sum(
             1 for c in all_codes
-            if c.expire_at and c.expire_at < datetime.utcnow()
+            if c.expire_at and c.expire_at < datetime.now(timezone.utc)
         )
 
         # 批次统计

@@ -35,9 +35,14 @@ export interface ShareInfo {
   share_url: string
   expires_at: string | null
   has_password: boolean
+  is_expired: boolean
+  view_count: number
 }
 
 export interface SharePublicInfo {
+  share_id: number
+  share_token: string
+  share_url: string
   session_id: number
   opponent_type: string
   turn_count: number
@@ -48,6 +53,8 @@ export interface SharePublicInfo {
   view_count: number
   is_expired: boolean
   requires_password: boolean
+  expires_at: string | null
+  has_password: boolean
 }
 
 export interface SharedMessage {
@@ -82,7 +89,7 @@ export const useHistoryStore = defineStore('history', () => {
   })
 
   // 分享相关状态
-  const currentShare = ref<ShareInfo | null>(null)
+  const currentShare = ref<SharePublicInfo | null>(null)
   const shareAccessToken = ref<string | null>(null)
 
   // ==================== 计算属性 ====================
@@ -197,8 +204,12 @@ export const useHistoryStore = defineStore('history', () => {
     error.value = null
 
     try {
-      currentShare.value = await historyApi.createShare(sessionId, options)
-      return currentShare.value
+      const share = await historyApi.createShare(sessionId, options)
+      // 创建分享后，获取完整的公开信息
+      if (share.share_token) {
+        currentShare.value = await historyApi.getShareInfo(share.share_token)
+      }
+      return share
     } catch (e: any) {
       error.value = e.message
       console.error('创建分享失败:', e)
@@ -216,7 +227,9 @@ export const useHistoryStore = defineStore('history', () => {
     error.value = null
 
     try {
-      return await historyApi.getShareInfo(shareToken)
+      const info = await historyApi.getShareInfo(shareToken)
+      currentShare.value = info
+      return info
     } catch (e: any) {
       error.value = e.message
       console.error('获取分享信息失败:', e)
@@ -287,7 +300,10 @@ export const useHistoryStore = defineStore('history', () => {
 
     try {
       const updated = await historyApi.updateShare(shareId, options)
-      currentShare.value = updated
+      // 更新分享后，获取最新的公开信息
+      if (updated.share_token) {
+        currentShare.value = await historyApi.getShareInfo(updated.share_token)
+      }
       return updated
     } catch (e: any) {
       error.value = e.message

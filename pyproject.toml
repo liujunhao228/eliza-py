@@ -49,6 +49,8 @@ dependencies = [
     "restrictedpython>=6.0",
     "pytest>=7.4.0",
     "bcrypt>=5.0.0",
+    "slowapi==0.1.9",
+    "sentry-sdk[fastapi]==1.40.0",
 ]
 
 [project.optional-dependencies]

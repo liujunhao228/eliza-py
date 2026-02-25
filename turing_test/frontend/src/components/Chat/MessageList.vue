@@ -12,20 +12,20 @@
         <!-- 系统消息 -->
         <div v-if="message.sender === 'system'" class="system-message">
           <el-icon><InfoFilled /></el-icon>
-          <span>{{ message.content }}</span>
+          <span v-text="message.content"></span>
         </div>
 
         <!-- 用户/对手消息 -->
         <div v-else class="message-bubble-wrapper">
           <!-- 头像和消息头部 -->
           <div class="message-header-row">
-            <div 
-              class="avatar" 
+            <div
+              class="avatar"
               :style="{ backgroundColor: getAvatarColor(message.sender) }"
             >
               {{ getInitials(message.sender === 'user' ? '我' : '对手') }}
             </div>
-            
+
             <div class="message-header">
               <span class="sender-name">
                 {{ message.sender === 'user' ? '我' : '对手' }}
@@ -45,12 +45,12 @@
             @mouseenter="showTooltip = message.id"
             @mouseleave="showTooltip = null"
           >
-            <div class="message-content">{{ message.content }}</div>
+            <div class="message-content" v-text="getSanitizedContent(message.content)"></div>
 
             <!-- 元对话标记 -->
             <div v-if="message.isMetaConversation" class="meta-tag">
               <el-icon><Warning /></el-icon>
-              <span>元对话标记：{{ message.metaKeyword }}</span>
+              <span v-text="`元对话标记：${message.metaKeyword || '未知'}`"></span>
               <el-tooltip
                 content="元对话会提高风险系数"
                 placement="top"
@@ -86,6 +86,7 @@ import {
   ChatDotRound
 } from '@element-plus/icons-vue'
 import { stringToColor, getInitials } from '@/utils/formatters'
+import { sanitizeMessage } from '@/utils/validation'
 import type { MessageDisplay } from '@/types'
 
 interface Props {
@@ -114,6 +115,11 @@ function formatTime(timestamp: string): string {
   if (diffHour < 24) return `${diffHour} 小时前`
   const diffDay = Math.floor(diffHour / 24)
   return `${diffDay} 天前`
+}
+
+// 清理后的消息内容（XSS 防护）
+function getSanitizedContent(content: string): string {
+  return sanitizeMessage(content)
 }
 
 // 自动滚动到底部

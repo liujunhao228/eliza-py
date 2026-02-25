@@ -4,7 +4,7 @@
 处理用户登录、注册和邀请码验证。
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +29,51 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # =============================================================================
+# JWT 密钥验证
+# =============================================================================
+
+def validate_secret_key(key: str) -> bool:
+    """
+    验证 JWT 密钥强度
+
+    要求:
+    - 长度 >= 32
+    - 包含大写字母
+    - 包含小写字母
+    - 包含数字
+    - 包含特殊字符
+
+    Args:
+        key: JWT 密钥
+
+    Returns:
+        验证是否通过
+
+    Raises:
+        ValueError: 密钥强度不足
+    """
+    if len(key) < 32:
+        raise ValueError("SECRET_KEY 长度必须 >= 32 字符")
+    if not any(c.isupper() for c in key):
+        raise ValueError("SECRET_KEY 必须包含大写字母")
+    if not any(c.islower() for c in key):
+        raise ValueError("SECRET_KEY 必须包含小写字母")
+    if not any(c.isdigit() for c in key):
+        raise ValueError("SECRET_KEY 必须包含数字")
+    if not any(not c.isalnum() for c in key):
+        raise ValueError("SECRET_KEY 必须包含特殊字符")
+    return True
+
+
+# 应用启动时验证密钥强度
+try:
+    validate_secret_key(settings.turing.auth.secret_key)
+except ValueError as e:
+    import warnings
+    warnings.warn(f"⚠️  {e}，当前密钥：{settings.turing.auth.secret_key[:8]}...")
+
+
+# =============================================================================
 # 工具函数
 # =============================================================================
 
@@ -36,9 +81,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     """创建访问令牌"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(
+        expire = datetime.now(timezone.utc) + timedelta(
             minutes=settings.turing.auth.access_token_expire_minutes
         )
     to_encode.update({"exp": expire})
@@ -111,7 +156,7 @@ async def login(
         invite_code = verification["invite_code"]
         invite_code.current_uses += 1
         invite_code.used_by_user_id = user.id
-        invite_code.used_at = datetime.utcnow()
+        invite_code.used_at = datetime.now(timezone.utc)
         if invite_code.max_uses != -1 and invite_code.current_uses >= invite_code.max_uses:
             invite_code.is_used = True
 
@@ -119,7 +164,7 @@ async def login(
         await db.refresh(user)
 
     # 更新最后登录时间
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
 
     return UserResponse.model_validate(user)

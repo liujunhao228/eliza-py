@@ -1,6 +1,5 @@
 // 历史会话与分享会话 API
 import api from './index'
-import type { AxiosResponse } from 'axios'
 
 // ==================== 类型定义 ====================
 
@@ -45,9 +44,14 @@ export interface ShareInfo {
   share_url: string
   expires_at: string | null
   has_password: boolean
+  is_expired: boolean
+  view_count: number
 }
 
 export interface SharePublicInfo {
+  share_id: number
+  share_token: string
+  share_url: string
   session_id: number
   opponent_type: string
   turn_count: number
@@ -58,6 +62,8 @@ export interface SharePublicInfo {
   view_count: number
   is_expired: boolean
   requires_password: boolean
+  expires_at: string | null
+  has_password: boolean
 }
 
 export interface SharedMessage {

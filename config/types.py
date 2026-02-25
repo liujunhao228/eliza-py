@@ -400,3 +400,8 @@ class Settings:
     modules: ModulesConfig
     alice: AliceConfig
     turing: TuringConfig
+    
+    # 错误追踪配置
+    sentry_dsn: Optional[str] = None
+    sentry_enabled: bool = False
+    environment: str = "production"

@@ -5,6 +5,7 @@ FastAPI 应用主入口
 """
 
 import sys
+from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import List
 from fastapi import FastAPI, Depends, HTTPException, status
@@ -15,8 +16,8 @@ from loguru import logger
 # 导入模块
 # =============================================================================
 
-# 添加项目根目录到 Python 路径，以便导入统一的 config 模块
-project_root = "F:/eliza-py"
+# 动态获取项目根目录，以便导入统一的 config 模块
+project_root = str(Path(__file__).resolve().parents[2])
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -28,6 +29,13 @@ from turing_test.backend.database import init_db, close_db, get_db, async_sessio
 from turing_test.backend.schemas import (
     HealthResponse,
     ErrorResponse,
+)
+
+# 导入中间件模块
+from turing_test.backend.middleware import (
+    setup_rate_limiter,
+    setup_request_logger,
+    setup_error_tracker,
 )
 
 # =============================================================================
@@ -116,6 +124,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# =============================================================================
+# 配置中间件
+# =============================================================================
+
+# 设置请求日志中间件
+setup_request_logger(app)
+
+# 设置限流中间件
+setup_rate_limiter(app)
+
+# 设置错误追踪中间件（Sentry）
+setup_error_tracker(app)
 
 # =============================================================================
 # 健康检查

@@ -67,12 +67,14 @@ class LightweightAliceBot:
         self.nlp_service = nlp_service
 
         # 对话引擎（使用外部 NLP 服务）
-        self.dialogue_engine = DialogueEngine(
-            script_file=script_file,
-            rules_file=rules_file,
-            enable_plugins=enable_plugins,
-            use_ltp=use_ltp,
-        )
+        # 注意：DialogueEngine 从配置管理器加载配置，不支持直接传入脚本文件路径
+        # 这里先创建实例，然后在 initialize 中配置脚本文件
+        self._script_file = script_file
+        self._rules_file = rules_file
+        self._enable_plugins = enable_plugins
+        self._use_ltp = use_ltp
+        
+        self.dialogue_engine = DialogueEngine()
 
         # 监控器
         self.monitor = UnifiedMonitor()
@@ -118,6 +120,16 @@ class LightweightAliceBot:
     def initialize(self) -> bool:
         """初始化机器人"""
         try:
+            # 在初始化前配置脚本文件路径
+            if self._script_file:
+                self.dialogue_engine.yaml_script_file = self._script_file
+            if self._rules_file:
+                self.dialogue_engine.rules_file = self._rules_file
+            if hasattr(self.dialogue_engine, 'enable_plugins'):
+                self.dialogue_engine.enable_plugins = self._enable_plugins
+            if hasattr(self.dialogue_engine, 'use_ltp'):
+                self.dialogue_engine.use_ltp = self._use_ltp
+            
             success = self.dialogue_engine.initialize()
             if not success:
                 logger.error("对话引擎初始化失败")

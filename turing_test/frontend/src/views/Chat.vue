@@ -83,6 +83,8 @@ import ChatInput from '@/components/Chat/ChatInput.vue'
 import MidGameJudgmentModal from '@/components/Chat/MidGameJudgmentModal.vue'
 import { useChatWebSocket } from '@/composables/useWebSocket'
 import { getSessionMessages, makeMidGameJudgment, endSession } from '@/api/game'
+import { validateMessage } from '@/utils/validation'
+import { isUserCancel, getErrorMessage } from '@/utils/error'
 import type { MessageDisplay } from '@/types'
 import { MIN_CHAT_TURNS } from '@/utils/constants'
 
@@ -199,7 +201,14 @@ const handleSendMessage = async (content: string) => {
     ElMessage.error('用户未登录')
     return
   }
-  
+
+  // 验证消息内容
+  const validation = validateMessage(content)
+  if (!validation.valid) {
+    ElMessage.error(validation.error)
+    return
+  }
+
   // 检查是否为用户回合
   if (!gameStore.isUserTurn) {
     ElMessage.warning('请等待对方发送消息')
@@ -386,7 +395,8 @@ async function handleMidGameJudgment(choice: 'human' | 'ai'): Promise<void> {
 
   } catch (error: any) {
     console.error('[Chat] 场中判断失败:', error)
-    ElMessage.error(error.message || '提交失败，请重试')
+    const errorMsg = getErrorMessage(error, '提交失败，请重试')
+    ElMessage.error(errorMsg)
     gameStore.setTriggeredMidGame(false)
   }
 }
@@ -401,7 +411,7 @@ async function handleEndChat() {
     ElMessage.warning(`请多聊几句再结束哦（至少${MIN_CHAT_TURNS}轮，当前${currentTurns}轮）`)
     return
   }
-  
+
   // 确认对话框
   try {
     await ElMessageBox.confirm(
@@ -413,7 +423,7 @@ async function handleEndChat() {
         type: 'warning'
       }
     )
-    
+
     // 用户确认结束
     if (gameStore.sessionId) {
       await endSession(gameStore.sessionId)
@@ -421,9 +431,10 @@ async function handleEndChat() {
       router.push('/survey')
     }
   } catch (error) {
-    // 用户取消或错误
-    if (error !== 'cancel') {
-      ElMessage.error('结束对话失败，请重试')
+    // 用户取消操作不显示错误
+    if (!isUserCancel(error)) {
+      const errorMsg = getErrorMessage(error, '结束对话失败，请重试')
+      ElMessage.error(errorMsg)
     }
   }
 }

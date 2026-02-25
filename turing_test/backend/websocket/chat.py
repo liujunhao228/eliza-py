@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 import json
 import asyncio
@@ -49,6 +49,102 @@ def is_meta_conversation(message: str) -> tuple[bool, Optional[str]]:
 
 
 # =============================================================================
+# 消息处理器
+# =============================================================================
+
+class ChatMessageHandler:
+    """聊天消息处理器"""
+
+    @staticmethod
+    async def handle_connect(
+        user_id: int,
+        session_id: int,
+        websocket: WebSocket,
+        db: AsyncSession,
+    ) -> Optional["Session"]:
+        """
+        处理用户连接
+
+        Returns:
+            会话对象，失败则返回 None
+        """
+        from turing_test.backend.models import Session
+
+        # 验证会话
+        result = await db.execute(
+            select(Session).where(Session.id == session_id)
+        )
+        session = result.scalar_one_or_none()
+
+        if session is None:
+            await manager.send_personal_message(user_id, {
+                "type": "error",
+                "data": {
+                    "error_code": "SESSION_NOT_FOUND",
+                    "message": "会话不存在",
+                }
+            })
+            return None
+
+        # 验证用户是否属于此会话
+        if session.user_id != user_id:
+            await manager.send_personal_message(user_id, {
+                "type": "error",
+                "data": {
+                    "error_code": "SESSION_NOT_OWNED",
+                    "message": "您不属于此会话",
+                }
+            })
+            return None
+
+        # 设置用户会话关联
+        manager.set_user_session(user_id, session_id)
+
+        # 发送连接确认消息
+        await manager.send_personal_message(user_id, {
+            "type": "connected",
+            "data": {
+                "session_id": session_id,
+                "opponent_type": session.opponent_type,
+                "is_honeypot": session.is_honeypot,
+                "meta_conversation_count": session.meta_conversation_count,
+                "turn_count": session.turn_count,
+            }
+        })
+
+        return session
+
+    @staticmethod
+    async def process_message(
+        user_id: int,
+        session: "Session",
+        data: dict,
+        db: AsyncSession,
+    ):
+        """处理收到的消息"""
+        msg_type = data.get("type")
+
+        if msg_type in ["chat", "message"]:
+            await handle_chat_message(user_id, session, data, db)
+        elif msg_type == "mid_game_judgment":
+            await handle_mid_game_judgment(user_id, session, data, db)
+        elif msg_type == "end_session":
+            await handle_end_session(user_id, session, db)
+        elif msg_type == "pong":
+            # 心跳响应由 manager 处理
+            pass
+        else:
+            logger.warning(f"收到未知消息类型：{msg_type}")
+            await manager.send_personal_message(user_id, {
+                "type": "error",
+                "data": {
+                    "error_code": "UNKNOWN_MESSAGE_TYPE",
+                    "message": f"未知的消息类型：{msg_type}",
+                }
+            })
+
+
+# =============================================================================
 # WebSocket 端点
 # =============================================================================
 
@@ -81,57 +177,19 @@ async def chat_websocket(
     - error: 错误消息
     - ping: 心跳消息
     """
-    from turing_test.backend.models import Session, Message, User
-
     async with async_session_maker() as db:
         try:
             # 连接用户
             await manager.connect(user_id, websocket)
             logger.info(f"用户 {user_id} 加入会话 {session_id}")
 
-            # 验证会话
-            result = await db.execute(
-                select(Session).where(Session.id == session_id)
+            # 验证会话并发送连接确认
+            session = await ChatMessageHandler.handle_connect(
+                user_id, session_id, websocket, db
             )
-            session = result.scalar_one_or_none()
-
             if session is None:
-                await manager.send_personal_message(user_id, {
-                    "type": "error",
-                    "data": {
-                        "error_code": "SESSION_NOT_FOUND",
-                        "message": "会话不存在",
-                    }
-                })
                 await manager.disconnect(user_id)
                 return
-
-            # 验证用户是否属于此会话
-            if session.user_id != user_id:
-                await manager.send_personal_message(user_id, {
-                    "type": "error",
-                    "data": {
-                        "error_code": "SESSION_NOT_OWNED",
-                        "message": "您不属于此会话",
-                    }
-                })
-                await manager.disconnect(user_id)
-                return
-
-            # 设置用户会话关联
-            manager.set_user_session(user_id, session_id)
-
-            # 发送连接确认消息
-            await manager.send_personal_message(user_id, {
-                "type": "connected",
-                "data": {
-                    "session_id": session_id,
-                    "opponent_type": session.opponent_type,
-                    "is_honeypot": session.is_honeypot,
-                    "meta_conversation_count": session.meta_conversation_count,
-                    "turn_count": session.turn_count,
-                }
-            })
 
             # 主消息循环
             while True:
@@ -143,43 +201,10 @@ async def chat_websocket(
                     # 处理消息
                     await manager.handle_message(user_id, data)
 
-                    # 处理聊天消息（支持 'chat' 和 'message' 两种类型）
-                    if data.get("type") in ["chat", "message"]:
-                        await handle_chat_message(
-                            user_id, session, data, db
-                        )
-
-                    # 处理场中判断
-                    elif data.get("type") == "mid_game_judgment":
-                        await handle_mid_game_judgment(
-                            user_id, session, data, db
-                        )
-
-                    # 处理结束会话
-                    elif data.get("type") == "end_session":
-                        await handle_end_session(user_id, session, db)
-                        break
-
-                    # 处理心跳响应
-                    elif data.get("type") == "pong":
-                        # 心跳响应由 manager 处理
-                        pass
-
-                    # 处理连接确认（客户端可能收到 connected 消息）
-                    elif data.get("type") == "connected":
-                        # 连接确认消息，客户端处理
-                        pass
-
-                    # 处理未知消息类型
-                    else:
-                        logger.warning(f"收到未知消息类型：{data.get('type')}")
-                        await manager.send_personal_message(user_id, {
-                            "type": "error",
-                            "data": {
-                                "error_code": "UNKNOWN_MESSAGE_TYPE",
-                                "message": f"未知的消息类型：{data.get('type')}",
-                            }
-                        })
+                    # 处理业务消息
+                    await ChatMessageHandler.process_message(
+                        user_id, session, data, db
+                    )
 
                 except json.JSONDecodeError:
                     logger.warning(f"用户 {user_id} 发送了无效的 JSON")
@@ -284,7 +309,7 @@ async def handle_chat_message(
             "id": message.id,
             "sender": "user",
             "content": content,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "is_meta_conversation": is_meta,
         }
     })
@@ -358,7 +383,7 @@ async def handle_mid_game_judgment(
     session.is_correct = breakdown.is_correct
     session.final_score = int(final_score)
     session.score_breakdown = get_score_breakdown_dict(breakdown)
-    session.ended_at = datetime.utcnow()
+    session.ended_at = datetime.now(timezone.utc)
 
     # 更新用户积分
     score_before = user.score
@@ -413,7 +438,7 @@ async def handle_end_session(
     db: AsyncSession,
 ):
     """处理结束会话"""
-    session.ended_at = datetime.utcnow()
+    session.ended_at = datetime.now(timezone.utc)
     await db.commit()
     logger.info(f"用户 {user_id} 结束会话 {session.id}")
 
@@ -460,24 +485,28 @@ async def handle_ai_response(
         logger.warning(f"会话 {session_id} 中没有可接收消息的用户，跳过 AI 响应")
         return
 
+    ai_response = "系统出现故障，请稍后再试。"
+    ai_delay = 1.0
+    is_meta = False
+
     try:
         # 调用 AI Bot 服务生成响应
         from turing_test.backend.services.ai_bot_service import get_bot_response
         base_response, base_delay = await get_bot_response(user_message)
-        
+
         # 检测是否为元对话
         is_meta, _ = is_meta_conversation(user_message)
-        
+
         # 如果是钓鱼机器人，使用钓鱼机器人服务增强拟真度
         result = await db.execute(
             select(Session).where(Session.id == session_id)
         )
         session = result.scalar_one()
-        
+
         if session.is_honeypot:
             from turing_test.backend.services.honeypot_service import get_honeypot_service
             honeypot_service = get_honeypot_service()
-            
+
             # 生成带拟人特征的响应
             ai_response, ai_delay = honeypot_service.get_response_with_delay(
                 base_response=base_response,
@@ -485,7 +514,7 @@ async def handle_ai_response(
                 is_meta=is_meta,
                 user_message=user_message,
             )
-            
+
             # 记录元对话响应
             if is_meta:
                 honeypot_service.record_meta_response(session_id)
@@ -494,10 +523,21 @@ async def handle_ai_response(
             ai_response = base_response
             ai_delay = base_delay
 
+        logger.info(f"AI 响应生成成功：session_id={session_id}, 响应长度={len(ai_response)}, 延迟={ai_delay:.2f}秒")
+
     except Exception as e:
         logger.error(f"生成 AI 响应失败：{e}", exc_info=True)
-        ai_response = "系统出现故障，请稍后再试。"
-        ai_delay = 1.0
+
+    # 发送停止打字提示（无论 AI 响应是否成功都发送）
+    stop_typing_result = await manager.send_to_session(session_id, {
+        "type": "stop_typing",
+        "data": {
+            "sender": "opponent",
+            "is_typing": False,
+        }
+    })
+
+    logger.info(f"handle_ai_response: 停止打字提示发送结果={stop_typing_result}")
 
     # 保存 AI 消息
     message = Message(
@@ -516,22 +556,11 @@ async def handle_ai_response(
     session.turn_count += 2  # 一轮包括用户和对手各一条消息
 
     await db.commit()
-    
+
     # 获取消息 ID 用于前端显示
     await db.refresh(message)
     message_id = message.id
     logger.debug(f"handle_ai_response: AI 消息已保存，message_id={message_id}")
-
-    # 发送停止打字提示
-    stop_typing_result = await manager.send_to_session(session_id, {
-        "type": "typing",
-        "data": {
-            "sender": "opponent",
-            "is_typing": False,
-        }
-    })
-    
-    logger.debug(f"handle_ai_response: 停止打字提示发送结果={stop_typing_result}")
 
     # 发送 AI 响应
     send_result = await manager.send_to_session(session_id, {
@@ -540,9 +569,9 @@ async def handle_ai_response(
             "id": message_id,
             "sender": "opponent",
             "content": ai_response,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "is_meta_conversation": is_meta_conversation(ai_response)[0],
         }
     })
-    
+
     logger.info(f"handle_ai_response: AI 响应已发送：session_id={session_id}, 发送结果={send_result}, 响应长度={len(ai_response)}, message_id={message_id}")
