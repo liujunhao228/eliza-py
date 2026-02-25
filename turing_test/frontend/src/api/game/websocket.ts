@@ -1,6 +1,16 @@
-// 游戏相关 API
-import api from './index'
-import type { Session, MatchResponse, MidGameJudgmentResponse } from '@/types'
+/**
+ * WebSocket 管理器
+ *
+ * 提供完整的 WebSocket 连接管理、消息路由、心跳检测和自动重连功能
+ *
+ * 重连机制特性:
+ * - 指数退避策略：重连间隔按 2 的幂次增长
+ * - 最大间隔限制：防止等待时间过长
+ * - 连接超时检测：避免无限等待
+ * - 重连事件通知：支持回调和事件订阅
+ * - 状态恢复：重连成功后自动恢复订阅状态
+ */
+
 import type {
   WSMessage,
   WebSocketConfig,
@@ -14,132 +24,7 @@ import type {
 import { WS_BASE_URL } from '@/utils/constants'
 
 /**
- * 开始匹配
- * 注意：需要先建立 WebSocket 连接，然后通过 WebSocket 发送 join 消息
- */
-export async function startMatching(userId: number): Promise<MatchResponse> {
-  // 调用 HTTP API 加入匹配队列（使用 query 参数）
-  return api.post(`/match/join?user_id=${userId}`)
-}
-
-/**
- * 直接匹配 AI
- */
-export async function matchAI(userId: number): Promise<MatchResponse> {
-  return api.post('/match/ai', { user_id: userId })
-}
-
-/**
- * 获取会话信息
- */
-export async function getSession(sessionId: number): Promise<Session> {
-  return api.get(`/session/${sessionId}`)
-}
-
-/**
- * 获取会话历史消息
- */
-export async function getSessionMessages(sessionId: number): Promise<{
-  session_id: number
-  opponent_type: string
-  is_honeypot: boolean
-  turn_count: number
-  meta_conversation_count: number
-  messages: Array<{
-    id: number
-    session_id: number
-    sender: string
-    content: string
-    is_meta_conversation: boolean
-    meta_keyword: string | null
-    created_at: string
-  }>
-}> {
-  return api.get(`/session/${sessionId}/messages`)
-}
-
-/**
- * 结束会话
- */
-export async function endSession(sessionId: number): Promise<any> {
-  return api.post(`/session/${sessionId}/end`)
-}
-
-/**
- * 场中判断（立即结束）
- */
-export async function submitMidGameJudgment(
-  sessionId: number,
-  userGuess: 'human' | 'ai'
-): Promise<MidGameJudgmentResponse> {
-  return api.post(`/session/${sessionId}/end-game`, { user_guess: userGuess })
-}
-
-/**
- * 场中判断（不结束对话）
- * @param sessionId 会话 ID
- * @param userGuess 用户猜测
- */
-export async function makeMidGameJudgment(
-  sessionId: number,
-  userGuess: 'human' | 'ai'
-): Promise<{ is_correct: boolean; score_change: number }> {
-  return api.post(`/game/${sessionId}/mid-game`, { guess: userGuess })
-}
-
-/**
- * 提交问卷
- */
-export async function submitSurvey(
-  sessionId: number,
-  data: {
-    user_guess: 'human' | 'ai' | 'unsure'
-    confidence_level: 'low' | 'mid' | 'high'
-    fluency_rating: number
-    reason?: string
-    self_role: 'prover' | 'interferer' | 'other'
-    strategy?: string
-  }
-): Promise<import('@/types/result').GameResultResponse> {
-  return api.post('/survey', {
-    session_id: sessionId,
-    ...data
-  })
-}
-
-/**
- * 获取会话结果（问卷提交后的完整结果）
- */
-export async function getSessionResult(sessionId: number): Promise<import('@/types/result').GameResultResponse> {
-  return api.get(`/session/${sessionId}/result`)
-}
-
-/**
- * 获取用户统计
- */
-export async function getUserStats(userId: number): Promise<any> {
-  return api.get(`/stats/${userId}`)
-}
-
-/**
- * 获取积分历史
- */
-export async function getScoreHistory(userId: number): Promise<any[]> {
-  return api.get(`/user/${userId}/history`)
-}
-
-// ==================== WebSocket 管理器 ====================
-
-/**
  * WebSocket 管理器类
- * 提供完整的 WebSocket 连接管理、消息路由、心跳检测和自动重连功能
- * 
- * 重连机制特性:
- * - 指数退避策略：重连间隔按 2 的幂次增长
- * - 最大间隔限制：防止等待时间过长
- * - 连接超时检测：避免无限等待
- * - 重连事件通知：支持回调和事件订阅
- * - 状态恢复：重连成功后自动恢复订阅状态
  */
 class WebSocketManager implements IWebSocketManager {
   private ws: WebSocket | null = null
@@ -188,7 +73,7 @@ class WebSocketManager implements IWebSocketManager {
     try {
       this.ws = new WebSocket(this.config.url)
       this.setupEventHandlers()
-      
+
       // 设置连接超时
       this.setupConnectionTimeout()
     } catch (error) {
@@ -202,7 +87,7 @@ class WebSocketManager implements IWebSocketManager {
    */
   private setupConnectionTimeout(): void {
     this.clearConnectionTimeout()
-    
+
     this.connectionTimeoutTimer = window.setTimeout(() => {
       if (this.state === 'connecting') {
         console.warn('[WebSocket] 连接超时')
@@ -237,7 +122,7 @@ class WebSocketManager implements IWebSocketManager {
       this.setState('connected')
       this.startHeartbeat()
       this.config.onOpen?.(event)
-      
+
       // 如果是重连成功，触发重连成功回调
       if (this.disconnectStartTime > 0) {
         const downtime = Date.now() - this.disconnectStartTime
@@ -280,7 +165,7 @@ class WebSocketManager implements IWebSocketManager {
    */
   private handleMessage(data: WSMessage): void {
     console.log('[WebSocket] 收到原始消息:', data)
-    
+
     // 处理 ping/pong 心跳响应
     if (data.type === 'pong') {
       console.log('[WebSocket] 收到 pong 响应')
@@ -317,9 +202,9 @@ class WebSocketManager implements IWebSocketManager {
     if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
       console.error('[WebSocket] 达到最大重连次数，放弃重连')
       this.setState('disconnected')
-      this.config.onReconnectFailed({ 
+      this.config.onReconnectFailed({
         totalAttempts: this.reconnectAttempts,
-        lastError: undefined 
+        lastError: undefined
       })
       this.disconnectStartTime = 0
       return
@@ -331,14 +216,14 @@ class WebSocketManager implements IWebSocketManager {
     // 计算延迟时间：指数退避 + 最大限制
     const exponentialDelay = this.config.reconnectInterval * Math.pow(2, this.reconnectAttempts - 1)
     const delay = Math.min(exponentialDelay, this.config.maxReconnectInterval)
-    
+
     const reconnectEvent: ReconnectEvent = {
       attempt: this.reconnectAttempts,
       maxAttempts: this.config.maxReconnectAttempts,
       delay,
       willRetry: this.reconnectAttempts < this.config.maxReconnectAttempts
     }
-    
+
     console.log(`[WebSocket] 将在 ${delay}ms 后尝试第 ${this.reconnectAttempts} 次重连 (最大 ${this.config.maxReconnectInterval}ms)`)
     this.config.onReconnecting(reconnectEvent)
 
@@ -553,4 +438,5 @@ export function createChatWebSocket(sessionId: number, userId: number): WebSocke
   })
 }
 
+export { WebSocketManager }
 export default WebSocketManager

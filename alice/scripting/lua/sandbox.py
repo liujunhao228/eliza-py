@@ -172,29 +172,38 @@ class LuaSandbox:
     def create_runtime(self) -> Optional[LuaRuntime]:
         """
         创建安全的 Lua 运行时
-        
+
         Returns:
             LuaRuntime 实例
         """
         if not LUPA_AVAILABLE:
             logger.error("lupa 库未安装")
             return None
-        
+
         try:
-            runtime = LuaRuntime(
-                encoding='utf-8',
-                unpack_returned_tuples=True,
-                register_auxiliary_package=not self.strict_mode,
-            )
+            # 检查 lupa 版本是否支持 register_auxiliary_package 参数
+            import inspect
+            sig = inspect.signature(LuaRuntime.__init__)
+            supports_register_aux = 'register_auxiliary_package' in sig.parameters
+
+            runtime_kwargs = {
+                'encoding': 'utf-8',
+                'unpack_returned_tuples': True,
+            }
             
+            if supports_register_aux:
+                runtime_kwargs['register_auxiliary_package'] = not self.strict_mode
+
+            runtime = LuaRuntime(**runtime_kwargs)
+
             # 设置沙箱环境
             self._setup_sandbox(runtime)
-            
+
             # 注册安全函数
             self._register_functions(runtime)
-            
+
             return runtime
-            
+
         except Exception as e:
             logger.error(f"创建 Lua 运行时失败：{e}")
             return None

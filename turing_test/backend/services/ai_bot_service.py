@@ -41,7 +41,7 @@ class AIBotService:
             self._nlp_service = SharedNLPService()
 
             # 初始化 Bot 池
-            from turing_test.backend.bot_pool import init_bot_pool
+            from turing_test.backend.services.bot_pool import init_bot_pool
 
             # 使用 getattr 提供默认值以兼容不同配置
             # 注意：script_file 和 rules_file 在 settings.alice.scripting 下
@@ -80,7 +80,7 @@ class AIBotService:
             return
 
         try:
-            from turing_test.backend.bot_pool import shutdown_bot_pool
+            from turing_test.backend.services.bot_pool import shutdown_bot_pool
             shutdown_bot_pool()
             self._initialized = False
             logger.info("✅ AI Bot 服务已关闭")

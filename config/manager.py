@@ -36,7 +36,8 @@ from loguru import logger
 from .sources import ConfigSource, YamlConfigSource, EnvConfigSource, MemoryConfigSource
 from .validator import ConfigValidator, build_default_validator, validate_bot_configs, validate_scripting_paths
 from .bot_loader import BotConfig, BotConfigLoader
-from .types import Settings, ScriptingConfig, LuaScriptEngineConfig, YamlScriptEngineConfig
+from .builder import ConfigBuilder
+from .types import Settings, ScriptingConfig
 
 
 class ConfigManager:
@@ -78,6 +79,7 @@ class ConfigManager:
         self._config: Dict[str, Any] = {}
         self._loaded = False
         self._settings: Optional[Settings] = None
+        self._builder = ConfigBuilder(project_root)
 
     def add_source(self, name: str, source: ConfigSource, priority: int = 0) -> 'ConfigManager':
         """
@@ -176,10 +178,12 @@ class ConfigManager:
             self._loaded = True
             self._notify_listeners(merged)
 
-            # 保存 settings 引用 (用于脚本配置访问)
-            self._settings = self._build_settings(merged)
+            # 8. 构建类型化配置对象
+            self._settings = self._builder.build(merged)
 
-            logger.info(f"配置加载完成 (共 {len(merged)} 项，Bot 配置：{len(self._bot_configs)} 个)")
+            logger.info(
+                f"配置加载完成 (共 {len(merged)} 项，Bot 配置：{len(self._bot_configs)} 个)"
+            )
             return self._settings
 
     def _load_module_configs(self, merged: Dict[str, Any]) -> None:
@@ -196,7 +200,12 @@ class ConfigManager:
         turing_config_file = turing_ref.get("config_file", "config.turing.yaml")
         self._load_single_module_config(merged, "turing", turing_config_file)
 
-    def _load_single_module_config(self, merged: Dict[str, Any], module_name: str, config_file: str) -> None:
+    def _load_single_module_config(
+        self,
+        merged: Dict[str, Any],
+        module_name: str,
+        config_file: str
+    ) -> None:
         """
         加载单个模块配置
 
@@ -217,7 +226,7 @@ class ConfigManager:
         else:
             logger.warning(f"模块配置文件不存在：{module_config}")
 
-    def _load_bot_configs(self, config: Dict[str, Any]):
+    def _load_bot_configs(self, config: Dict[str, Any]) -> None:
         """从配置加载 Bot 配置"""
         paths_cfg = config.get('paths', {})
         bots_dir = paths_cfg.get('bots_dir', 'bots')
@@ -286,6 +295,13 @@ class ConfigManager:
 
             if notify:
                 self._notify_listeners(self._config)
+
+            # 重新构建 settings
+            if self._loaded:
+                try:
+                    self._settings = self._builder.build(self._config)
+                except Exception as e:
+                    logger.warning(f"重新构建配置失败：{e}")
 
             return True
 
@@ -367,28 +383,28 @@ class ConfigManager:
         return list(self._bot_configs.keys())
 
     # =========================================================================
-    # 脚本配置访问方法 (新增)
+    # 脚本配置访问方法
     # =========================================================================
 
     def get_scripting_config(self) -> Optional[ScriptingConfig]:
         """
         获取脚本引擎配置
-        
+
         Returns:
             ScriptingConfig 实例，未配置则返回 None
         """
         with self._lock:
-            return self._settings.alice.scripting if hasattr(self, '_settings') else None
+            return self._settings.alice.scripting if self._settings else None
 
     def get_lua_script_dir(self) -> Optional[Path]:
         """
         获取 Lua 脚本目录
-        
+
         Returns:
             Lua 脚本目录路径，未配置则返回 None
         """
         with self._lock:
-            scripting = self._settings.alice.scripting if hasattr(self, '_settings') else None
+            scripting = self._settings.alice.scripting if self._settings else None
             if scripting and scripting.lua:
                 return scripting.lua.script_dir
             return None
@@ -396,12 +412,12 @@ class ConfigManager:
     def get_yaml_script_file(self) -> Optional[Path]:
         """
         获取 YAML 脚本文件路径
-        
+
         Returns:
             YAML 脚本文件路径，未配置则返回 None
         """
         with self._lock:
-            scripting = self._settings.alice.scripting if hasattr(self, '_settings') else None
+            scripting = self._settings.alice.scripting if self._settings else None
             if scripting and scripting.yaml:
                 return scripting.yaml.script_file
             return None
@@ -409,7 +425,7 @@ class ConfigManager:
     def list_lua_scripts(self) -> List[str]:
         """
         列出所有 Lua 脚本 ID
-        
+
         Returns:
             脚本 ID 列表
         """
@@ -421,7 +437,7 @@ class ConfigManager:
     def validate_scripting_paths(self) -> List:
         """
         验证脚本配置路径存在性
-        
+
         Returns:
             验证错误列表
         """
@@ -583,6 +599,11 @@ class ConfigManager:
         """获取配置验证器"""
         return self._validator
 
+    @property
+    def settings(self) -> Optional[Settings]:
+        """获取类型化配置对象"""
+        return self._settings
+
     @staticmethod
     def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
         """深度合并两个字典"""
@@ -616,17 +637,6 @@ class ConfigManager:
                 current[k] = {}
             current = current[k]
         current[keys[-1]] = value
-
-    def _build_settings(self, config: Dict[str, Any]) -> Settings:
-        """
-        构建类型化配置对象
-
-        复用 loader.py 中的构建逻辑。
-        """
-        from .loader import ConfigLoader
-        loader = ConfigLoader(self.project_root)
-        loader._config = config
-        return loader._build_settings(config)
 
 
 # =============================================================================

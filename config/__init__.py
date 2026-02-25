@@ -49,7 +49,7 @@ from .types import (
     BotPoolRefConfig,
     ScoreConfig,
     MidGameConfig,
-    # 脚本引擎配置 (新增)
+    # 脚本引擎配置
     ScriptingConfig,
     LuaScriptEngineConfig,
     YamlScriptEngineConfig,
@@ -72,6 +72,15 @@ from .validator import (
     build_strict_validator,
     validate_bot_configs,
     validate_scripting_paths,
+)
+from .builder import (
+    ConfigBuilder,
+)
+from .env_loader import (
+    EnvLoader,
+)
+from .yaml_loader import (
+    YamlLoader,
 )
 
 __all__ = [
@@ -104,7 +113,7 @@ __all__ = [
     "BotPoolRefConfig",
     "ScoreConfig",
     "MidGameConfig",
-    # 脚本引擎配置 (新增)
+    # 脚本引擎配置
     "ScriptingConfig",
     "LuaScriptEngineConfig",
     "YamlScriptEngineConfig",
@@ -123,4 +132,9 @@ __all__ = [
     "build_strict_validator",
     "validate_bot_configs",
     "validate_scripting_paths",
+    # 配置构建器
+    "ConfigBuilder",
+    # 配置加载器
+    "EnvLoader",
+    "YamlLoader",
 ]

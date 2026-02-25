@@ -1,67 +1,21 @@
 """
-AliceBot 池管理器
+Bot 池管理模块
 
-管理多个轻量级 AliceBot 实例，支持负载均衡和动态扩缩容。
-
-特性：
-- 线程安全的实例管理
-- 自动负载均衡
-- 动态扩缩容
-- 故障转移
-- 空闲实例清理
-- 支持多 Bot 配置模板
+负责 Bot 池的获取/释放、负载均衡、扩缩容。
 """
 
 import threading
 import time
-from pathlib import Path
 from typing import Dict, List, Optional
+
 from loguru import logger
 
-from alice.bots.lightweight_alice_bot import LightweightAliceBot
 from alice.services.shared_nlp_service import SharedNLPService
+from alice.bots.lightweight_alice_bot import LightweightAliceBot
 from config import BotTemplate
 
-
-class BotInstanceInfo:
-    """Bot 实例信息"""
-
-    def __init__(self, bot: LightweightAliceBot, template_id: str = "default"):
-        self.bot = bot
-        self.bot_id = id(bot)
-        self.template_id = template_id  # Bot 使用的模板 ID
-        self.created_at = time.time()
-        self.last_used_at = time.time()
-        self.request_count = 0
-        self.is_busy = False
-        self.assigned_at: Optional[float] = None
-
-    def mark_busy(self):
-        """标记为忙碌状态"""
-        self.is_busy = True
-        self.assigned_at = time.time()
-
-    def mark_idle(self):
-        """标记为空闲状态"""
-        self.is_busy = False
-        self.last_used_at = time.time()
-        self.request_count += 1
-
-    def get_idle_duration(self) -> float:
-        """获取空闲时长（秒）"""
-        return time.time() - self.last_used_at
-
-    def get_stats(self) -> Dict:
-        """获取实例统计信息"""
-        return {
-            "bot_id": self.bot_id,
-            "template_id": self.template_id,
-            "created_at": self.created_at,
-            "last_used_at": self.last_used_at,
-            "request_count": self.request_count,
-            "is_busy": self.is_busy,
-            "idle_duration": self.get_idle_duration(),
-        }
+from .instance import BotInstanceInfo
+from .config import create_default_templates
 
 
 class AliceBotPool:
@@ -124,15 +78,7 @@ class AliceBotPool:
 
         # 向后兼容：如果没有模板，使用默认配置创建
         if not self.templates:
-            self.templates = {
-                "default": BotTemplate(
-                    id="default",
-                    name="Default",
-                    script_file=Path(script_file) if script_file else None,
-                    rules_file=Path(rules_file) if rules_file else None,
-                    enable_plugins=enable_plugins,
-                )
-            }
+            self.templates = create_default_templates(script_file, rules_file, enable_plugins)
 
         # 实例池
         self._instances: Dict[int, BotInstanceInfo] = {}
@@ -350,7 +296,7 @@ class AliceBotPool:
     def _maintain_pool(self):
         """
         维护池：定期清理空闲实例和补充最小实例数
-        
+
         优化：
         - 每 30 秒检查一次（原 60 秒），更及时响应
         - 智能清理：根据负载动态调整清理策略
@@ -364,7 +310,7 @@ class AliceBotPool:
     def _cleanup_idle_instances(self):
         """
         清理空闲实例，但保持最少实例数
-        
+
         优化：
         - 动态空闲超时：根据请求频率调整
         - 批量清理：减少锁竞争
@@ -412,7 +358,7 @@ class AliceBotPool:
     def _replenish_min_instances(self):
         """
         补充实例到最小数量
-        
+
         优化：
         - 按需补充：仅当可用实例不足时补充
         - 使用默认模板：确保有足够的基础实例
@@ -467,82 +413,3 @@ class AliceBotPool:
             self._available.clear()
 
         logger.info("✅ Bot 池已关闭")
-
-
-# =============================================================================
-# 全局 Bot 池实例（懒加载）
-# =============================================================================
-
-_bot_pool_instance: Optional[AliceBotPool] = None
-_bot_pool_lock = threading.Lock()
-
-
-def get_bot_pool() -> Optional[AliceBotPool]:
-    """
-    获取全局 Bot 池实例
-
-    Returns:
-        AliceBotPool 实例，如果未初始化则返回 None
-    """
-    return _bot_pool_instance
-
-
-def init_bot_pool(
-    nlp_service: SharedNLPService,
-    templates: Optional[Dict[str, BotTemplate]] = None,
-    default_template: str = "default",
-    min_instances: int = 2,
-    max_instances: int = 10,
-    idle_timeout: int = 300,
-    script_file: Optional[str] = None,
-    rules_file: Optional[str] = None,
-    enable_plugins: bool = True,
-) -> AliceBotPool:
-    """
-    初始化全局 Bot 池
-
-    Args:
-        nlp_service: 共享 NLP 服务
-        templates: Bot 模板字典 (模板 ID -> BotTemplate)
-        default_template: 默认模板 ID
-        min_instances: 最小实例数
-        max_instances: 最大实例数
-        idle_timeout: 空闲超时时间（秒）
-        script_file: 脚本文件路径 (向后兼容)
-        rules_file: 规则文件路径 (向后兼容)
-        enable_plugins: 是否启用插件 (向后兼容)
-
-    Returns:
-        AliceBotPool 实例
-    """
-    global _bot_pool_instance
-
-    with _bot_pool_lock:
-        if _bot_pool_instance is None:
-            _bot_pool_instance = AliceBotPool(
-                nlp_service=nlp_service,
-                templates=templates,
-                default_template=default_template,
-                min_instances=min_instances,
-                max_instances=max_instances,
-                idle_timeout=idle_timeout,
-                script_file=script_file,
-                rules_file=rules_file,
-                enable_plugins=enable_plugins,
-            )
-            logger.info(f"✅ 全局 Bot 池已初始化 (模板数：{len(templates) if templates else 1})")
-        else:
-            logger.warning("全局 Bot 池已存在，重复初始化被忽略")
-
-    return _bot_pool_instance
-
-
-def shutdown_bot_pool():
-    """关闭全局 Bot 池"""
-    global _bot_pool_instance
-
-    with _bot_pool_lock:
-        if _bot_pool_instance:
-            _bot_pool_instance.shutdown()
-            _bot_pool_instance = None
-            logger.info("✅ 全局 Bot 池已关闭")

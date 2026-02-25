@@ -1,129 +1,20 @@
 """
-邀请码管理服务
+邀请码服务模块
 
-提供邀请码的生成、验证、使用等功能。
+负责邀请码的 CRUD 服务、验证和使用。
 """
 
-import random
-import string
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+
 from loguru import logger
-from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from turing_test.backend.models import InviteCode, User
-from turing_test.backend.database import get_db
-from config import settings
+from .generator import InviteCodeGenerator
 
-
-# =============================================================================
-# 邀请码生成器
-# =============================================================================
-
-class InviteCodeGenerator:
-    """邀请码生成器"""
-
-    # 默认字符集（排除易混淆字符：0/O, 1/I/L）
-    DEFAULT_CHARSET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
-
-    @classmethod
-    def generate(
-        cls,
-        length: Optional[int] = None,
-        prefix: str = "",
-        suffix: str = "",
-        charset: Optional[str] = None
-    ) -> str:
-        """
-        生成单个邀请码
-
-        Args:
-            length: 邀请码总长度（包含前缀和后缀）
-            prefix: 前缀
-            suffix: 后缀
-            charset: 字符集
-
-        Returns:
-            生成的邀请码
-        """
-        if length is None:
-            length = settings.turing.auth.invite_code_length
-
-        if charset is None:
-            charset = cls.DEFAULT_CHARSET
-
-        # 计算随机部分长度
-        random_length = length - len(prefix) - len(suffix)
-        if random_length <= 0:
-            raise ValueError("邀请码长度不足以容纳前缀和后缀")
-
-        # 生成随机部分
-        random_part = ''.join(
-            random.choice(charset) for _ in range(random_length)
-        )
-
-        return f"{prefix}{random_part}{suffix}"
-
-    @classmethod
-    def generate_batch(
-        cls,
-        count: int,
-        length: Optional[int] = None,
-        prefix: str = "",
-        suffix: str = "",
-        charset: Optional[str] = None,
-        ensure_unique: bool = True,
-        existing_codes: Optional[List[str]] = None
-    ) -> List[str]:
-        """
-        批量生成邀请码
-
-        Args:
-            count: 生成数量
-            length: 邀请码长度
-            prefix: 前缀
-            suffix: 后缀
-            charset: 字符集
-            ensure_unique: 确保唯一性
-            existing_codes: 已存在的邀请码列表（用于去重）
-
-        Returns:
-            邀请码列表
-        """
-        codes = []
-        max_attempts = count * 10  # 防止无限循环
-
-        if ensure_unique:
-            existing = set(existing_codes or [])
-            attempts = 0
-
-            while len(codes) < count and attempts < max_attempts:
-                code = cls.generate(length, prefix, suffix, charset)
-                if code not in existing:
-                    codes.append(code)
-                    existing.add(code)
-                attempts += 1
-
-            if len(codes) < count:
-                logger.warning(
-                    f"只生成了 {len(codes)}/{count} 个唯一邀请码，"
-                    f"已达到最大尝试次数 {max_attempts}"
-                )
-        else:
-            codes = [
-                cls.generate(length, prefix, suffix, charset)
-                for _ in range(count)
-            ]
-
-        return codes
-
-
-# =============================================================================
-# 邀请码服务
-# =============================================================================
 
 class InviteCodeService:
     """邀请码服务"""
@@ -479,23 +370,3 @@ class InviteCodeService:
             "available": active - used,
             "batches": len(batch_ids),
         }
-
-
-# =============================================================================
-# 依赖注入
-# =============================================================================
-
-from fastapi import Depends
-
-
-# 依赖注入函数 - 不直接使用 AsyncSession 作为参数类型
-async def get_invite_code_service(db = Depends(get_db)) -> InviteCodeService:
-    """
-    获取邀请码服务实例（用于 FastAPI 依赖注入）
-    
-    用法:
-        @router.get("/test")
-        async def test(service: InviteCodeService = Depends(get_invite_code_service)):
-            ...
-    """
-    return InviteCodeService(db)

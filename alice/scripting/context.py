@@ -69,6 +69,15 @@ class ScriptContext:
     
     #: 依存句法关系
     dependencies: List[Dict[str, Any]] = field(default_factory=list)
+
+    #: 主谓宾三元组 [(主语，谓语，宾语), ...]
+    triples: List[Tuple[str, str, str]] = field(default_factory=list)
+
+    #: 语义角色标注
+    semantic_roles: List[Dict[str, Any]] = field(default_factory=list)
+
+    #: 语义依存关系
+    semantic_deps: List[Dict[str, Any]] = field(default_factory=list)
     
     # =========================================================================
     # 对话上下文
@@ -106,9 +115,9 @@ class ScriptContext:
     def to_dict(self) -> Dict[str, Any]:
         """
         转换为字典（供脚本访问）
-        
+
         返回的字典包含所有可公开访问的上下文数据，适合传递给 Lua/YAML 脚本。
-        
+
         Returns:
             上下文字典
         """
@@ -120,13 +129,16 @@ class ScriptContext:
             'pos_tags': self.pos_tags.copy(),
             'dependencies': self.dependencies.copy(),
             'syntax': copy.deepcopy(self.syntax) if self.syntax else None,
-            
+            'triples': self.triples.copy(),
+            'semantic_roles': copy.deepcopy(self.semantic_roles),
+            'semantic_deps': copy.deepcopy(self.semantic_deps),
+
             # 对话上下文
             'turn_count': self.turn_count,
             'recent_turns': [turn.copy() for turn in self.recent_turns],
             'time_context': self.time_context.copy(),
             'user_profile': self.user_profile.copy(),
-            
+
             # 脚本执行状态
             'matched_scripts': self.matched_scripts.copy(),
             'variables': self.variables.copy(),
@@ -230,9 +242,9 @@ class ScriptContext:
     def freeze(self) -> 'ScriptContext':
         """
         创建只读副本
-        
+
         只读副本无法修改，适合安全地传递给脚本执行。
-        
+
         Returns:
             只读上下文副本
         """
@@ -243,6 +255,9 @@ class ScriptContext:
             pos_tags=self.pos_tags.copy(),
             dependencies=self.dependencies.copy(),
             syntax=copy.deepcopy(self.syntax) if self.syntax else None,
+            triples=self.triples.copy(),
+            semantic_roles=copy.deepcopy(self.semantic_roles),
+            semantic_deps=copy.deepcopy(self.semantic_deps),
             turn_count=self.turn_count,
             recent_turns=[turn.copy() for turn in self.recent_turns],
             time_context=self.time_context.copy(),
@@ -256,12 +271,12 @@ class ScriptContext:
     def merge(self, other: 'ScriptContext') -> 'ScriptContext':
         """
         合并另一个上下文
-        
+
         另一个上下文的值会覆盖当前上下文的同名值。
-        
+
         Args:
             other: 要合并的上下文
-            
+
         Returns:
             合并后的新上下文
         """
@@ -272,6 +287,9 @@ class ScriptContext:
             pos_tags=other.pos_tags or self.pos_tags,
             dependencies=other.dependencies or self.dependencies,
             syntax=other.syntax or self.syntax,
+            triples=other.triples or self.triples,
+            semantic_roles=other.semantic_roles or self.semantic_roles,
+            semantic_deps=other.semantic_deps or self.semantic_deps,
             turn_count=other.turn_count or self.turn_count,
             recent_turns=other.recent_turns or self.recent_turns,
             time_context=other.time_context or self.time_context,
@@ -352,7 +370,19 @@ class ScriptContext:
         if self.syntax:
             return self.syntax.get('object')
         return None
-    
+
+    def get_triples(self) -> List[Tuple[str, str, str]]:
+        """获取三元组列表"""
+        return self.triples
+
+    def get_semantic_roles(self) -> List[Dict[str, Any]]:
+        """获取语义角色列表"""
+        return self.semantic_roles
+
+    def get_semantic_deps(self) -> List[Dict[str, Any]]:
+        """获取语义依存列表"""
+        return self.semantic_deps
+
     def get_time(self, key: str, default: Any = None) -> Any:
         """
         获取时间上下文值

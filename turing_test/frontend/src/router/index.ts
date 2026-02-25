@@ -4,7 +4,7 @@ import type { RouteRecordRaw } from 'vue-router'
 // 延迟加载页面组件
 const Login = () => import('@/views/Login.vue')
 const Lobby = () => import('@/views/Lobby.vue')
-const Chat = () => import('@/views/Chat.vue')
+const Chat = () => import('@/views/Chat/index.vue')
 const Survey = () => import('@/views/Survey.vue')
 const Result = () => import('@/views/Result.vue')
 const Profile = () => import('@/views/Profile.vue')

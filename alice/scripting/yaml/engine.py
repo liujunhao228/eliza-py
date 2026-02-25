@@ -84,46 +84,55 @@ class ScriptIntent:
 class YAMLScriptEngine(BaseScriptEngine):
     """
     YAML 脚本引擎
-    
+
     特性:
     - 声明式 YAML 配置
     - 基于条件的意图匹配
     - 响应模板管理
     - 优先级调度
-    
+
     优先级分级:
     - P0 (90-100): 非常重要
     - P1 (70-89): 实体挖掘
     - P2 (40-69): 叙事助推
     - P3 (0-39): 万能回复
     """
-    
+
     def __init__(
         self,
         default_script_file: Optional[Path] = None,
         config_loader: Optional[ScriptConfigLoader] = None,
+        script_file: Optional[str] = None,  # 向后兼容参数
+        reassembly_engine: Optional[Any] = None,  # 重组引擎（可选）
     ):
         """
         初始化 YAML 脚本引擎
-        
+
         Args:
-            default_script_file: 默认脚本文件路径
+            default_script_file: 默认脚本文件路径（Path 对象）
+            script_file: 默认脚本文件路径（字符串路径，向后兼容）
+            reassembly_engine: 句法重组引擎实例（用于代词替换）
             config_loader: 配置加载器
         """
         super().__init__(engine_type="yaml")
-        
+
         if not YAML_AVAILABLE:
             raise ImportError("PyYAML 未安装，请运行：pip install pyyaml")
-        
+
+        # 支持两种参数形式：default_script_file (Path) 或 script_file (str)
         self.default_script_file = default_script_file
+        if script_file and not default_script_file:
+            self.default_script_file = Path(script_file)
+
         self.config_loader = config_loader or ScriptConfigLoader()
-        
+        self.reassembly_engine = reassembly_engine
+
         # 意图存储
         self._intents: Dict[str, ScriptIntent] = {}
         self._script_hashes: Dict[str, str] = {}
-        
+
         # 如果指定了默认文件，加载它
-        if default_script_file:
+        if self.default_script_file:
             self._load_default_script()
     
     def _load_default_script(self) -> bool:
@@ -294,14 +303,16 @@ class YAMLScriptEngine(BaseScriptEngine):
         self,
         script_id: str,
         context: ScriptContext,
+        user_input: Optional[str] = None,
     ) -> Optional[ScriptResponse]:
         """
         生成响应
-        
+
         Args:
             script_id: 脚本 ID
             context: 脚本上下文
-            
+            user_input: 用户输入（用于重组引擎的代词替换）
+
         Returns:
             响应结果
         """
@@ -309,17 +320,26 @@ class YAMLScriptEngine(BaseScriptEngine):
         if not intent:
             logger.error(f"意图不存在：{script_id}")
             return None
-        
+
         if not intent.templates:
             logger.warning(f"意图没有响应模板：{script_id}")
             return None
-        
+
         # 选择模板
         template = self._select_template(intent)
-        
-        # 填充占位符
-        filled_template = self._fill_placeholders(template, context)
-        
+
+        # 如果是 keyword_only 模板，直接填充占位符（不进行代词替换）
+        if intent.keyword_only:
+            filled_template = self._fill_placeholders(template, context)
+        # 如果有重组引擎和用户输入，使用重组引擎进行代词替换
+        elif self.reassembly_engine and user_input:
+            filled_template = self._generate_with_reassembly(
+                template, context, user_input
+            )
+        else:
+            # 默认填充占位符
+            filled_template = self._fill_placeholders(template, context)
+
         return ScriptResponse(
             text=filled_template,
             script_id=script_id,
@@ -329,6 +349,38 @@ class YAMLScriptEngine(BaseScriptEngine):
                 'keyword_only': intent.keyword_only,
             }
         )
+
+    def _generate_with_reassembly(
+        self,
+        template: str,
+        context: ScriptContext,
+        user_input: str,
+    ) -> str:
+        """
+        使用重组引擎生成响应（进行代词替换）
+
+        Args:
+            template: 模板字符串
+            context: 上下文信息
+            user_input: 用户输入
+
+        Returns:
+            重组后的响应
+        """
+        if not self.reassembly_engine:
+            return self._fill_placeholders(template, context)
+
+        # 先填充实体占位符
+        filled_template = self._fill_placeholders(template, context)
+
+        # 使用重组引擎应用代词映射
+        response = self.reassembly_engine.reassemble(
+            components=[user_input],
+            reassembly_rule=filled_template,
+            apply_pronoun_mapping=True,
+        )
+
+        return response.strip() if response else filled_template
     
     def reload_script(self, script_id: str) -> bool:
         """热重载脚本"""
@@ -440,103 +492,165 @@ class YAMLScriptEngine(BaseScriptEngine):
     def _check_condition(self, intent: ScriptIntent, context: ScriptContext) -> bool:
         """
         检查条件是否满足
-        
+
         支持的条件类型:
         - entities: 命名实体匹配
         - keywords: 关键词匹配
         - pos_tags: 词性标签匹配
         - dependencies: 依存关系匹配
         - subject/predicate/object: 句法成分匹配
+        - triples: 三元组匹配
+        - semantic_roles: 语义角色匹配
+        - semantic_deps: 语义依存匹配
         - min_tokens/max_tokens: 分词数量范围
         - min_turns/max_turns: 对话轮数范围
-        
+
         Args:
             intent: 意图
             context: 上下文
-            
+
         Returns:
             条件是否满足
         """
         condition = intent.condition
-        
+
         if condition is None:
             return True  # 无条件，总是匹配
-        
+
         # 检查实体条件
         if "entities" in condition:
             required_entities = condition["entities"]
             context_entities = context.entities
-            
+
             if not any(
-                etype.upper() in [e.upper() for e in required_entities] 
+                etype.upper() in [e.upper() for e in required_entities]
                 for etype, _ in context_entities
             ):
                 return False
-        
+
         # 检查关键词条件
         if "keywords" in condition:
             keywords = condition["keywords"]
             if not any(kw in context.text for kw in keywords):
                 return False
-        
+
         # 检查 POS 标签条件
         if "pos_tags" in condition:
             required_pos = condition["pos_tags"]
             pos_list = [pos for _, pos in context.pos_tags]
-            
+
             if not any(pos in pos_list for pos in required_pos):
                 return False
-        
+
         # 检查依存关系条件
         if "dependencies" in condition:
             required_deps = condition["dependencies"]
             deps = context.dependencies
-            
+
             if not any(dep.get("relation") in required_deps for dep in deps):
                 return False
-        
+
         # 检查主语条件
         if "subject" in condition:
             required_subjects = condition["subject"]
             subject = context.get_subject()
-            
+
             if not subject or not any(subj in subject for subj in required_subjects):
                 return False
-        
+
         # 检查谓语条件
         if "predicate" in condition:
             required_predicates = condition["predicate"]
             predicate = context.get_predicate()
-            
+
             if not predicate or not any(pred in predicate for pred in required_predicates):
                 return False
-        
+
         # 检查宾语条件
         if "object" in condition:
             required_objects = condition["object"]
             obj = context.get_object()
-            
+
             if not obj or not any(o in obj for o in required_objects):
                 return False
-        
+
+        # 检查三元组条件
+        if "triples" in condition:
+            required_triples = condition["triples"]
+            triples = context.triples
+
+            if not triples:
+                return False
+
+            for req in required_triples:
+                if isinstance(req, dict):
+                    # 支持更复杂的三元组匹配
+                    if "subject" in req:
+                        if not any(t[0] == req["subject"] for t in triples):
+                            return False
+                    if "predicate" in req:
+                        if not any(t[1] == req["predicate"] for t in triples):
+                            return False
+                    if "object" in req:
+                        if not any(t[2] == req["object"] for t in triples):
+                            return False
+                else:
+                    # 简单匹配：req 是字符串，匹配三元组的任何部分
+                    if not any(req in str(t) for t in triples):
+                        return False
+
+        # 检查语义角色条件
+        if "semantic_roles" in condition:
+            required_roles = condition["semantic_roles"]
+            semantic_roles = context.semantic_roles
+
+            if not semantic_roles:
+                return False
+
+            for role in semantic_roles:
+                if isinstance(role, dict):
+                    if role.get("role_type") in required_roles:
+                        return True
+                elif isinstance(role, str):
+                    if role in required_roles:
+                        return True
+            return False
+
+        # 检查语义依存条件
+        if "semantic_deps" in condition:
+            required_deps = condition["semantic_deps"]
+            semantic_deps = context.semantic_deps
+
+            if not semantic_deps:
+                return False
+
+            for dep in semantic_deps:
+                if isinstance(dep, dict):
+                    if dep.get("relation") in required_deps:
+                        return True
+                elif isinstance(dep, str):
+                    if dep in required_deps:
+                        return True
+            return False
+
         # 检查分词数量范围
         if "min_tokens" in condition:
             if len(context.tokens) < condition["min_tokens"]:
                 return False
-        
+
         if "max_tokens" in condition:
             if len(context.tokens) > condition["max_tokens"]:
                 return False
-        
+
         # 检查对话轮数范围
         if "min_turns" in condition:
             if context.turn_count < condition["min_turns"]:
                 return False
-        
+
         if "max_turns" in condition:
             if context.turn_count > condition["max_turns"]:
                 return False
-        
+
         return True
     
     def _calculate_confidence(
@@ -600,7 +714,7 @@ class YAMLScriptEngine(BaseScriptEngine):
     ) -> str:
         """
         填充模板占位符
-        
+
         支持的占位符:
         - {entity_TYPE}: 命名实体（如 {entity_PERSON}）
         - {subject}: 主语
@@ -609,27 +723,34 @@ class YAMLScriptEngine(BaseScriptEngine):
         - {token_N}: 第 N 个分词
         - {first_token}: 第一个分词
         - {last_token}: 最后一个分词
+        - {pos_X}: 特定词性的词（如 {pos_v} 动词，{pos_n} 名词）
+        - {dep_REL}: 特定依存关系的词（如 {dep_SBV} 主谓关系）
+        - {triple_subject}: 三元组中的主语
+        - {triple_object}: 三元组中的宾语
+        - {triple_predicate}: 三元组中的谓语
+        - {role_ROLE}: 特定语义角色的词（如 {role_A0} 施事）
+        - {sdp_REL}: 特定语义依存关系的词
         - {turn_count}: 对话轮数
         - {time_KEY}: 时间变量（如 {time_hour}）
         - {user_KEY}: 用户信息（如 {user_name}）
         - {var_KEY}: 脚本变量（如 {var_mood}）
-        
+
         Args:
             template: 模板字符串
             context: 上下文
-            
+
         Returns:
             填充后的字符串
         """
         result = template
-        
+
         # 填充命名实体 {entity_TYPE}
         entity_pattern = re.compile(r"\{entity_(\w+)\}", re.IGNORECASE)
         for match in entity_pattern.finditer(template):
             entity_type = match.group(1).upper()
             entity_text = context.get_first_entity(entity_type) or ""
             result = result.replace(match.group(0), entity_text)
-        
+
         # 填充句法成分
         if context.get_subject():
             result = result.replace("{subject}", context.get_subject())
@@ -637,45 +758,100 @@ class YAMLScriptEngine(BaseScriptEngine):
             result = result.replace("{predicate}", context.get_predicate())
         if context.get_object():
             result = result.replace("{object}", context.get_object())
-        
+
         # 填充分词
         if context.tokens:
             result = result.replace("{first_token}", context.tokens[0])
             result = result.replace("{last_token}", context.tokens[-1])
-        
+
         token_pattern = re.compile(r"\{token_(\d+)\}")
         for match in token_pattern.finditer(template):
             idx = int(match.group(1))
             if 0 <= idx < len(context.tokens):
                 result = result.replace(match.group(0), context.tokens[idx])
-        
+
+        # 填充 POS 占位符 {pos_X}
+        pos_pattern = re.compile(r"\{pos_(\w+)\}", re.IGNORECASE)
+        for match in pos_pattern.finditer(template):
+            pos_tag = match.group(1).lower()
+            for token, token_pos in context.pos_tags:
+                if token_pos.lower() == pos_tag:
+                    result = result.replace(match.group(0), token)
+                    break
+
+        # 填充依存关系占位符 {dep_REL}
+        dep_pattern = re.compile(r"\{dep_(\w+)\}", re.IGNORECASE)
+        for match in dep_pattern.finditer(template):
+            dep_rel = match.group(1).upper()
+            for dep in context.dependencies:
+                if dep.get("relation", "").upper() == dep_rel:
+                    result = result.replace(match.group(0), dep.get("word", dep.get("dependent", "")))
+                    break
+
+        # 填充三元组占位符
+        triples = context.triples
+        if triples:
+            first_triple = triples[0]
+            if len(first_triple) >= 3:
+                if "{triple_subject}" in result:
+                    result = result.replace("{triple_subject}", first_triple[0] or "")
+                if "{triple_predicate}" in result:
+                    result = result.replace("{triple_predicate}", first_triple[1] or "")
+                if "{triple_object}" in result:
+                    result = result.replace("{triple_object}", first_triple[2] or "")
+
+        # 填充语义角色占位符 {role_ROLE}
+        role_pattern = re.compile(r"\{role_(\w+)\}", re.IGNORECASE)
+        for match in role_pattern.finditer(template):
+            role_type = match.group(1).upper()
+            for role in context.semantic_roles:
+                if isinstance(role, dict):
+                    if role.get("role_type", "").upper() == role_type:
+                        result = result.replace(match.group(0), role.get("text", ""))
+                        break
+                elif isinstance(role, str):
+                    # 旧格式：直接是角色类型字符串
+                    if role.upper() == role_type:
+                        result = result.replace(match.group(0), role)
+                        break
+
+        # 填充语义依存占位符 {sdp_REL}
+        sdp_pattern = re.compile(r"\{sdp_(\w+)\}", re.IGNORECASE)
+        for match in sdp_pattern.finditer(template):
+            sdp_rel = match.group(1).upper()
+            for dep in context.semantic_deps:
+                if isinstance(dep, dict):
+                    if dep.get("relation", "").upper() == sdp_rel:
+                        result = result.replace(match.group(0), dep.get("dependent", dep.get("word", "")))
+                        break
+
         # 填充对话轮数
         result = result.replace("{turn_count}", str(context.turn_count))
-        
+
         # 填充时间变量 {time_KEY}
         time_pattern = re.compile(r"\{time_(\w+)\}", re.IGNORECASE)
         for match in time_pattern.finditer(template):
             key = match.group(1).lower()
             value = context.get_time(key, "")
             result = result.replace(match.group(0), str(value))
-        
+
         # 填充用户信息 {user_KEY}
         user_pattern = re.compile(r"\{user_(\w+)\}", re.IGNORECASE)
         for match in user_pattern.finditer(template):
             key = match.group(1).lower()
             value = context.get_user_info(key, "")
             result = result.replace(match.group(0), str(value))
-        
+
         # 填充脚本变量 {var_KEY}
         var_pattern = re.compile(r"\{var_(\w+)\}", re.IGNORECASE)
         for match in var_pattern.finditer(template):
             key = match.group(1).lower()
             value = context.get_variable(key, "")
             result = result.replace(match.group(0), str(value))
-        
+
         # 清理未匹配的占位符
         result = re.sub(r"\{[^}]+\}", "", result)
-        
+
         return result
     
     # =========================================================================
