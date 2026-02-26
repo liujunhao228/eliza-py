@@ -75,7 +75,7 @@ import { computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUserStore } from '@/stores/user'
-import { ElMessage } from 'element-plus'
+import { useToast } from '@/composables/useToast'
 import { Bottom } from '@element-plus/icons-vue'
 import ChatHeader from '@/components/Chat/ChatHeader.vue'
 import MessageList from '@/components/Chat/MessageList.vue'
@@ -85,6 +85,7 @@ import { useChatState } from './composables/useChatState'
 import { useMessageHandler } from './composables/useMessageHandler'
 import { useScroll } from './composables/useScroll'
 
+const { showError, showWarning } = useToast()
 const router = useRouter()
 const gameStore = useGameStore()
 const userStore = useUserStore()
@@ -131,14 +132,14 @@ const handleSendMessage = async (content: string) => {
 onMounted(async () => {
   // 检查用户登录状态
   if (!userStore.userId) {
-    ElMessage.warning('请先登录')
+    showWarning('请先登录')
     router.push('/login')
     return
   }
 
   // 检查会话状态
   if (!gameStore.sessionId) {
-    ElMessage.warning('请先进行匹配')
+    showWarning('请先进行匹配')
     router.push('/lobby')
     return
   }
@@ -152,9 +153,10 @@ onMounted(async () => {
   // 手动连接 WebSocket
   if (canConnect.value) {
     console.log('[Chat] 开始连接 WebSocket...')
+    reconnect() // 显式调用连接
   } else {
     console.error('[Chat] 无法连接 WebSocket：sessionId 或 userId 无效')
-    ElMessage.error('连接参数无效，无法建立 WebSocket 连接')
+    showError('连接参数无效，无法建立 WebSocket 连接')
   }
 
   // 添加滚动事件监听

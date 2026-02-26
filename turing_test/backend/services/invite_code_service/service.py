@@ -189,12 +189,17 @@ class InviteCodeService:
             }
 
         # 检查是否过期
-        if invite_code.expire_at and invite_code.expire_at < datetime.now(timezone.utc):
-            return {
-                "valid": False,
-                "message": "邀请码已过期",
-                "invite_code": invite_code
-            }
+        if invite_code.expire_at:
+            # 确保时区一致：如果 expire_at 没有时区，假设为 UTC
+            expire_at = invite_code.expire_at
+            if expire_at.tzinfo is None:
+                expire_at = expire_at.replace(tzinfo=timezone.utc)
+            if expire_at < datetime.now(timezone.utc):
+                return {
+                    "valid": False,
+                    "message": "邀请码已过期",
+                    "invite_code": invite_code
+                }
 
         # 检查使用次数
         if invite_code.max_uses != -1 and invite_code.current_uses >= invite_code.max_uses:

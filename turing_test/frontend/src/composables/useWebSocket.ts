@@ -3,9 +3,9 @@
 
 import { ref, onMounted, onUnmounted, type Ref } from 'vue'
 import { createMatchWebSocket, createChatWebSocket } from '@/api/game'
-import type { 
-  WSConnectionState, 
-  WSMessageHandler, 
+import type {
+  WSConnectionState,
+  WSMessageHandler,
   IWebSocketManager,
   ReconnectEvent,
   ReconnectSuccessEvent,
@@ -77,11 +77,31 @@ export function useWebSocket(
   const state = ref<WSConnectionState>('disconnected')
   const isConnected = ref(false)
   const reconnectAttempts = ref(0)
-  
+
   // 记录注册的处理器，用于组件卸载时清理
+  // 使用 Map<string, Set<WeakRef<WSMessageHandler>>> 防止内存泄漏
   const registeredHandlers = ref<Map<string, Set<WSMessageHandler>>>(new Map())
-  // 记录一次性监听器（用于状态变化等）
-  const onceListeners = ref<Map<string, Set<WSMessageHandler>>>(new Map())
+  
+  // 记录内部包装的处理器，用于正确移除监听器
+  const wrappedHandlers = ref<Map<string, Map<WSMessageHandler, WSMessageHandler>>>(new Map())
+
+  /**
+   * 清理所有注册的处理器
+   */
+  function cleanupHandlers(): void {
+    const currentWs = ws.value
+    
+    // 移除所有 WebSocket 监听器
+    if (currentWs) {
+      registeredHandlers.value.forEach((_, messageType) => {
+        currentWs.off(messageType)
+      })
+    }
+    
+    // 清空记录
+    registeredHandlers.value.clear()
+    wrappedHandlers.value.clear()
+  }
 
   /**
    * 连接 WebSocket
@@ -144,11 +164,12 @@ export function useWebSocket(
   function disconnect(): void {
     if (ws.value) {
       ws.value.disconnect()
-      ws.value = null
     }
+    ws.value = null
     state.value = 'disconnected'
     isConnected.value = false
     reconnectAttempts.value = 0
+    cleanupHandlers()
   }
 
   /**
@@ -157,11 +178,12 @@ export function useWebSocket(
   function reset(): void {
     if (ws.value) {
       ws.value.reset()
-      ws.value = null
     }
+    ws.value = null
     state.value = 'disconnected'
     isConnected.value = false
     reconnectAttempts.value = 0
+    cleanupHandlers()
   }
 
   /**
@@ -191,12 +213,28 @@ export function useWebSocket(
    */
   function on(messageType: string, handler: WSMessageHandler): void {
     const currentWs = ws.value
-    
+
     // 记录处理器到已注册列表（无论 WebSocket 是否已连接）
     if (!registeredHandlers.value.has(messageType)) {
       registeredHandlers.value.set(messageType, new Set())
     }
     registeredHandlers.value.get(messageType)!.add(handler)
+
+    /**
+     * 包装处理器，用于追踪和清理
+     */
+    const wrappedHandler = (data: any) => {
+      // 仅在 WebSocket 仍连接时调用
+      if (ws.value && isConnected.value) {
+        handler(data)
+      }
+    }
+
+    // 记录包装后的处理器
+    if (!wrappedHandlers.value.has(messageType)) {
+      wrappedHandlers.value.set(messageType, new Map())
+    }
+    wrappedHandlers.value.get(messageType)!.set(handler, wrappedHandler)
 
     if (!currentWs) {
       console.warn('[useWebSocket] WebSocket 未初始化，延迟注册处理器:', messageType)
@@ -204,7 +242,7 @@ export function useWebSocket(
       const delayedRegister = () => {
         const wsInstance = ws.value
         if (wsInstance && isConnected.value) {
-          wsInstance.on(messageType, handler)
+          wsInstance.on(messageType, wrappedHandler)
         }
       }
 
@@ -212,26 +250,10 @@ export function useWebSocket(
       if (isConnected.value) {
         delayedRegister()
       } else {
-        // 使用 once 模式监听连接成功事件
-        const onceKey = `once_connect_${messageType}`
-        const handleConnect = () => {
-          delayedRegister()
-          // 清理一次性监听器
-          if (onceListeners.value.has(onceKey)) {
-            onceListeners.value.delete(onceKey)
-          }
-        }
-
-        // 记录一次性监听器
-        if (!onceListeners.value.has(onceKey)) {
-          onceListeners.value.set(onceKey, new Set())
-        }
-        onceListeners.value.get(onceKey)!.add(handleConnect)
-
-        // 监听状态变化，连接成功后注册处理器
+        // 使用一次性监听器，连接成功后注册
         const stateChangeHandler = (newState: WSConnectionState) => {
           if (newState === 'connected') {
-            handleConnect()
+            delayedRegister()
             // 移除状态变化监听
             const wsInstance = ws.value
             if (wsInstance) {
@@ -249,7 +271,7 @@ export function useWebSocket(
     }
 
     // WebSocket 已连接，直接注册
-    currentWs.on(messageType, handler)
+    currentWs.on(messageType, wrappedHandler)
   }
 
   /**
@@ -260,19 +282,30 @@ export function useWebSocket(
       console.warn('[useWebSocket] WebSocket 未初始化')
       return
     }
-    ws.value.off(messageType, handler)
-    
-    // 清除记录
-    if (registeredHandlers.value.has(messageType)) {
-      const handlers = registeredHandlers.value.get(messageType)!
-      if (handler) {
+
+    if (handler) {
+      // 移除特定处理器
+      const wrappedMap = wrappedHandlers.value.get(messageType)
+      const wrappedHandler = wrappedMap?.get(handler)
+
+      if (wrappedHandler && wrappedMap) {
+        ws.value.off(messageType, wrappedHandler)
+        wrappedMap.delete(handler)
+      }
+      
+      // 清除记录
+      const handlers = registeredHandlers.value.get(messageType)
+      if (handlers) {
         handlers.delete(handler)
-      } else {
-        handlers.clear()
+        if (handlers.size === 0) {
+          registeredHandlers.value.delete(messageType)
+        }
       }
-      if (handlers.size === 0) {
-        registeredHandlers.value.delete(messageType)
-      }
+    } else {
+      // 移除所有处理器
+      ws.value.off(messageType)
+      registeredHandlers.value.delete(messageType)
+      wrappedHandlers.value.delete(messageType)
     }
   }
 
@@ -285,16 +318,6 @@ export function useWebSocket(
 
   // 组件卸载时自动断开并清理处理器
   onUnmounted(() => {
-    // 清除所有注册的处理器
-    if (ws.value) {
-      registeredHandlers.value.forEach((_, messageType) => {
-        ws.value!.off(messageType)
-      })
-      registeredHandlers.value.clear()
-      
-      // 清除所有一次性监听器
-      onceListeners.value.clear()
-    }
     disconnect()
   })
 

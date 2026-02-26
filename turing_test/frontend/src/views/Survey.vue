@@ -115,12 +115,14 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { type FormInstance, type FormRules } from 'element-plus'
 import { useGameStore } from '@/stores/game'
+import { useToast } from '@/composables/useToast'
 import type { SurveyData } from '@/types'
 import { submitSurvey as submitSurveyAPI } from '@/api/survey'
 import ConfidenceSelector from '@/components/Survey/ConfidenceSelector.vue'
 
+const { showError, showSuccess, showWarning } = useToast()
 const router = useRouter()
 const gameStore = useGameStore()
 
@@ -167,10 +169,10 @@ async function submitSurvey() {
 
     submitting.value = true
 
-    // 获取会话ID
+    // 获取会话 ID
     const sessionId = gameStore.sessionId
     if (!sessionId) {
-      ElMessage.error('会话信息丢失，请重新开始')
+      showError('会话信息丢失，请重新开始')
       router.push({ name: 'Lobby' })
       return
     }
@@ -178,17 +180,17 @@ async function submitSurvey() {
     // 提交问卷
     const result = await submitSurveyAPI(sessionId, surveyForm)
 
-    // 保存结果到localStorage（Result页面需要）
+    // 保存结果到 localStorage（Result 页面需要）
     localStorage.setItem('surveyResult', JSON.stringify(result))
     localStorage.setItem('surveyData', JSON.stringify(surveyForm))
 
-    ElMessage.success('问卷提交成功！')
+    showSuccess('问卷提交成功！')
 
     // 跳转到结果页
     router.push({ name: 'Result' })
   } catch (error) {
     console.error('提交问卷失败:', error)
-    ElMessage.error('提交失败，请稍后重试')
+    showError('提交失败，请稍后重试')
   } finally {
     submitting.value = false
   }
@@ -197,7 +199,7 @@ async function submitSurvey() {
 // 页面加载时检查会话
 onMounted(() => {
   if (!gameStore.sessionId) {
-    ElMessage.warning('请先完成对话')
+    showWarning('请先完成对话')
     router.push({ name: 'Lobby' })
   }
 })

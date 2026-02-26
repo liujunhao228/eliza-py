@@ -50,9 +50,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useGameStore } from '@/stores/game'
+import { useToast } from '@/composables/useToast'
 import { getSessionResult } from '@/api/game'
 import {
   TruthCard,
@@ -61,6 +61,7 @@ import {
 } from '@/components/Result'
 import type { SurveyData } from '@/types/result'
 
+const { showError } = useToast()
 const router = useRouter()
 const userStore = useUserStore()
 const gameStore = useGameStore()
@@ -109,7 +110,7 @@ onMounted(async () => {
   const sessionId = gameStore.sessionId
 
   if (!sessionId) {
-    ElMessage.error('会话信息丢失，请重新开始')
+    showError('会话信息丢失，请重新开始')
     router.push({ name: 'Lobby' })
     return
   }
@@ -144,7 +145,7 @@ onMounted(async () => {
 
   } catch (error) {
     console.error('获取会话结果失败:', error)
-    ElMessage.error('结果数据获取失败，请重新开始')
+    showError('结果数据获取失败，请重新开始')
     router.push({ name: 'Lobby' })
   }
 })

@@ -97,6 +97,7 @@ class AliceBotPool:
 
         # 启动维护线程
         self._maintenance_active = True
+        self._maintenance_stop_event = threading.Event()
         self._maintenance_thread = threading.Thread(
             target=self._maintain_pool,
             daemon=True,
@@ -303,10 +304,14 @@ class AliceBotPool:
             # 动态检查间隔：实例越多，检查间隔越长
             with self._lock:
                 instance_count = len(self._instances)
-            
+
             # 基础间隔 60 秒，每多一个实例增加 10 秒，最大 120 秒
             check_interval = min(120, max(60, 60 + instance_count * 10))
-            time.sleep(check_interval)
+            
+            # 使用 wait() 替代 sleep()，以便能够响应停止信号
+            if self._maintenance_stop_event.wait(timeout=check_interval):
+                # 如果 stop_event 被设置，立即退出循环
+                break
             
             self._cleanup_idle_instances()
             self._replenish_min_instances()
@@ -406,7 +411,15 @@ class AliceBotPool:
         """关闭池，清理所有实例"""
         logger.info("正在关闭 Bot 池...")
 
+        # 发送停止信号
         self._maintenance_active = False
+        self._maintenance_stop_event.set()
+        
+        # 等待维护线程退出（最多等待 5 秒）
+        if self._maintenance_thread.is_alive():
+            self._maintenance_thread.join(timeout=5.0)
+            if self._maintenance_thread.is_alive():
+                logger.warning("⚠️  Bot 池维护线程未能在 5 秒内退出")
 
         with self._lock:
             # 清理所有实例

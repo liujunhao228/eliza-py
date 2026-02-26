@@ -135,4 +135,20 @@ async def init_db():
 
 async def close_db():
     """关闭数据库连接"""
-    await engine.dispose()
+    logger.info("正在关闭数据库连接...")
+    
+    # 首先关闭 Session 工厂
+    try:
+        await async_session_maker.close()
+        logger.debug("数据库 Session 工厂已关闭")
+    except Exception as e:
+        logger.warning(f"关闭 Session 工厂时出错：{e}")
+    
+    # 然后处置引擎，这将关闭所有连接池连接
+    try:
+        await engine.dispose()
+        logger.debug("数据库引擎已处置")
+    except Exception as e:
+        logger.warning(f"处置数据库引擎时出错：{e}")
+    
+    logger.info("✅ 数据库连接已关闭")

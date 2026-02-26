@@ -129,6 +129,7 @@ export interface MatchResponse {
   status: 'found' | 'waiting' | 'timeout'
   session_id?: number
   opponent_type?: 'human' | 'ai' | 'unknown'
+  is_honeypot?: boolean
   message?: string
 }
 

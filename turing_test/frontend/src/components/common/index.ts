@@ -17,6 +17,9 @@ export { default as BaseProgress } from './BaseProgress.vue'
 export { default as BaseBadge } from './BaseBadge.vue'
 export { default as ErrorBoundary } from './ErrorBoundary.vue'
 
+// Toast 组合式 API
+export { setToastInstance, showToast, showSuccess, showError, showWarning, showInfo, closeToast, closeAllToasts, useToast } from '../../composables/useToast'
+
 // 组件安装函数（可选，用于全局注册）
 import type { App } from 'vue'
 import BaseButton from './BaseButton.vue'

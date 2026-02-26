@@ -123,8 +123,17 @@ class AIBotService:
             return
 
         try:
+            # 先关闭 Bot 池
             from turing_test.backend.services.bot_pool import shutdown_bot_pool
             shutdown_bot_pool()
+            
+            # 再关闭 NLP 服务
+            if self._nlp_service:
+                try:
+                    self._nlp_service.shutdown()
+                except Exception as e:
+                    logger.error(f"关闭 NLP 服务失败：{e}")
+            
             self._initialized = False
             logger.info("✅ AI Bot 服务已关闭")
         except Exception as e:

@@ -11,7 +11,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUserStore } from '@/stores/user'
-import { ElMessage } from 'element-plus'
+import { useToast } from '@/composables/useToast'
 import { useChatWebSocket } from '@/composables/useWebSocket'
 import type { MessageDisplay } from '@/types'
 
@@ -19,6 +19,7 @@ export function useChatState() {
   const router = useRouter()
   const gameStore = useGameStore()
   const userStore = useUserStore()
+  const { showError, showWarning, showSuccess, showInfo } = useToast()
 
   // 状态
   const isLoading = ref(false)
@@ -42,12 +43,12 @@ export function useChatState() {
     onMessage: handleWSMessage,
     onError: (error) => {
       console.error('[WebSocket] 连接错误:', error)
-      ElMessage.error('WebSocket 连接失败，请检查后端服务')
+      showError('WebSocket 连接失败，请检查后端服务')
     },
     onStateChange: (state) => {
       console.log('[WebSocket] 连接状态变化:', state)
       if (state === 'error') {
-        ElMessage.warning('WebSocket 连接异常，正在尝试重连...')
+        showWarning('WebSocket 连接异常，正在尝试重连...')
       }
     }
   })
@@ -85,20 +86,20 @@ export function useChatState() {
     // 注册 session_ended 消息处理器
     on('session_ended', () => {
       console.log('[Chat] 收到 session_ended 消息')
-      ElMessage.info('会话已结束')
+      showInfo('会话已结束')
       router.push('/survey')
     })
 
     // 注册 mid_game_result 消息处理器
     on('mid_game_result', (data: any) => {
       console.log('[Chat] 收到 mid_game_result 消息:', data)
-      ElMessage.success(`场中判断结果：${data.is_correct ? '正确' : '错误'}，积分变化：${data.final_score}`)
+      showSuccess(`场中判断结果：${data.is_correct ? '正确' : '错误'}，积分变化：${data.final_score}`)
     })
 
     // 注册 connected 消息处理器
     on('connected', (data: any) => {
       console.log('[Chat] WebSocket 连接已确认:', data)
-      
+
       // 同步服务器状态
       if (data.data) {
         gameStore.syncFromServer({
@@ -107,7 +108,7 @@ export function useChatState() {
           meta_conversation_count: data.data.meta_conversation_count,
         })
       }
-      
+
       if (isInitialLoading.value) {
         isInitialLoading.value = false
       }
@@ -116,7 +117,7 @@ export function useChatState() {
     // 注册 error 消息处理器
     on('error', (data: any) => {
       console.error('[Chat] WebSocket 错误:', data)
-      ElMessage.error(data?.message || '发生错误')
+      showError(data?.message || '发生错误')
     })
   }
 

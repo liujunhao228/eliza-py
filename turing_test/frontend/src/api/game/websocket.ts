@@ -1,7 +1,9 @@
 /**
  * WebSocket 管理器
  *
- * 提供完整的 WebSocket 连接管理、消息路由、心跳检测和自动重连功能
+ * 提供完整的 WebSocket 连接管理、消息路由、被动心跳（响应后端）和自动重连功能
+ *
+ * 心跳机制：由后端单向发起 ping，前端仅响应 pong
  *
  * 重连机制特性:
  * - 指数退避策略：重连间隔按 2 的幂次增长
@@ -31,7 +33,6 @@ class WebSocketManager implements IWebSocketManager {
   private config: Required<WebSocketConfig>
   private state: WSConnectionState = 'disconnected'
   private messageHandlers: Map<string, Set<WSMessageHandler>> = new Map()
-  private heartbeatTimer: number | null = null
   private reconnectTimer: number | null = null
   private connectionTimeoutTimer: number | null = null
   private reconnectAttempts: number = 0
@@ -115,13 +116,11 @@ class WebSocketManager implements IWebSocketManager {
   private setupEventHandlers(): void {
     if (!this.ws) return
 
-    this.ws.onopen = (event) => {
+    this.ws.onopen = () => {
       console.log('[WebSocket] 连接已建立')
       this.clearConnectionTimeout() // 清除连接超时
       this.reconnectAttempts = 0
       this.setState('connected')
-      this.startHeartbeat()
-      this.config.onOpen?.(event)
 
       // 如果是重连成功，触发重连成功回调
       if (this.disconnectStartTime > 0) {
@@ -147,7 +146,6 @@ class WebSocketManager implements IWebSocketManager {
 
     this.ws.onclose = (event) => {
       console.log('[WebSocket] 连接已关闭:', event.code, event.reason)
-      this.stopHeartbeat()
       this.clearConnectionTimeout()
       this.disconnectStartTime = Date.now() // 记录断开时间
       this.config.onClose?.(event)
@@ -166,9 +164,24 @@ class WebSocketManager implements IWebSocketManager {
   private handleMessage(data: WSMessage): void {
     console.log('[WebSocket] 收到原始消息:', data)
 
-    // 处理 ping/pong 心跳响应
-    if (data.type === 'pong') {
-      console.log('[WebSocket] 收到 pong 响应')
+    // 服务器发送 ping，响应 pong（被动心跳）
+    if (data.type === 'ping') {
+      console.log('[WebSocket] 收到 ping，响应 pong')
+      this.send('pong', { timestamp: new Date().toISOString() })
+      return
+    }
+
+    // 处理 error 消息
+    if (data.type === 'error') {
+      console.warn('[WebSocket] 收到错误:', data.data)
+      const errorEvent = new Event('error') as any
+      errorEvent.error_code = data.data?.error_code
+      errorEvent.message = data.data?.message
+      this.config.onError?.(errorEvent)
+      const errorHandlers = this.messageHandlers.get('error')
+      if (errorHandlers) {
+        errorHandlers.forEach(handler => handler(data.data))
+      }
       return
     }
 
@@ -233,34 +246,10 @@ class WebSocketManager implements IWebSocketManager {
   }
 
   /**
-   * 开始心跳检测
-   */
-  private startHeartbeat(): void {
-    this.stopHeartbeat() // 清除已有的心跳定时器
-
-    this.heartbeatTimer = window.setInterval(() => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.send('ping')
-      }
-    }, this.config.heartbeatInterval)
-  }
-
-  /**
-   * 停止心跳检测
-   */
-  private stopHeartbeat(): void {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer)
-      this.heartbeatTimer = null
-    }
-  }
-
-  /**
    * 断开连接
    */
   disconnect(): void {
     this.manuallyClosed = true
-    this.stopHeartbeat()
     this.clearReconnectTimer()
     this.clearConnectionTimeout()
 
@@ -415,7 +404,7 @@ export function createMatchWebSocket(userId: number): WebSocketManager {
     maxReconnectAttempts: 3,
     reconnectInterval: 2000,
     maxReconnectInterval: 15000, // 最大 15 秒
-    heartbeatInterval: 25000,
+    heartbeatInterval: 0, // 禁用心跳（由后端单向发起）
     connectionTimeout: 8000 // 8 秒超时
   })
 }
@@ -433,7 +422,7 @@ export function createChatWebSocket(sessionId: number, userId: number): WebSocke
     maxReconnectAttempts: 5,
     reconnectInterval: 3000,
     maxReconnectInterval: 30000, // 最大 30 秒
-    heartbeatInterval: 30000,
+    heartbeatInterval: 0, // 禁用心跳（由后端单向发起）
     connectionTimeout: 10000 // 10 秒超时
   })
 }

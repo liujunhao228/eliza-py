@@ -28,6 +28,7 @@ from .types import (
     AuthConfig,
     MatchConfig,
     AiBotConfig,
+    HoneypotConfig,
     SessionConfig,
     ServerConfig,
     NlpServiceConfig,
@@ -361,6 +362,21 @@ class ConfigBuilder:
             rules_file=rules_file,
         )
 
+    def _build_honeypot_config(self, cfg: Dict[str, Any]) -> HoneypotConfig:
+        """构建钓鱼机器人配置"""
+        return HoneypotConfig(
+            reply_delay_min=self._get_optional(cfg, "reply_delay_min", float, 2.0, "turing.ai_bot.honeypot"),
+            reply_delay_max=self._get_optional(cfg, "reply_delay_max", float, 8.0, "turing.ai_bot.honeypot"),
+            opening_delay_min=self._get_optional(cfg, "opening_delay_min", float, 5.0, "turing.ai_bot.honeypot"),
+            opening_delay_max=self._get_optional(cfg, "opening_delay_max", float, 15.0, "turing.ai_bot.honeypot"),
+            typing_delay_per_char=self._get_optional(cfg, "typing_delay_per_char", float, 0.05, "turing.ai_bot.honeypot"),
+            occasional_long_delay_probability=self._get_optional(cfg, "occasional_long_delay_probability", float, 0.1, "turing.ai_bot.honeypot"),
+            occasional_long_delay_min=self._get_optional(cfg, "occasional_long_delay_min", float, 15.0, "turing.ai_bot.honeypot"),
+            occasional_long_delay_max=self._get_optional(cfg, "occasional_long_delay_max", float, 60.0, "turing.ai_bot.honeypot"),
+            meta_delay_multiplier=self._get_optional(cfg, "meta_delay_multiplier", float, 1.5, "turing.ai_bot.honeypot"),
+            early_session_delay_multiplier=self._get_optional(cfg, "early_session_delay_multiplier", float, 1.3, "turing.ai_bot.honeypot"),
+        )
+
     def _build_turing_config(self, cfg: Dict[str, Any], paths: PathsConfig) -> TuringConfig:
         """构建 Turing 配置"""
         db_cfg = cfg.get("database", {})
@@ -423,14 +439,17 @@ class ConfigBuilder:
             ),
             match=MatchConfig(
                 timeout=self._get_required(match_cfg, "timeout", int, "turing.match"),
-                time_distribution=match_cfg.get("time_distribution", {}),
+                fixed_wait_time=self._get_optional(match_cfg, "fixed_wait_time", int, 3, "turing.match"),
+                ai_control_group_rate=self._get_optional(match_cfg, "ai_control_group_rate", float, 0.2, "turing.match"),
                 honeypot_probability=self._get_optional(match_cfg, "honeypot_probability", float, 0.15, "turing.match"),
                 honeypot_high_meta_probability=self._get_optional(match_cfg, "honeypot_high_meta_probability", float, 0.30, "turing.match"),
+                time_distribution=match_cfg.get("time_distribution", {}),
             ),
             ai_bot=AiBotConfig(
                 name=self._get_required(ai_bot_cfg, "name", str, "turing.ai_bot"),
                 typing_delay_base=self._get_required(ai_bot_cfg, "typing_delay_base", float, "turing.ai_bot"),
                 typing_delay_per_char=self._get_required(ai_bot_cfg, "typing_delay_per_char", float, "turing.ai_bot"),
+                honeypot=self._build_honeypot_config(ai_bot_cfg.get("honeypot", {})),
             ),
             session=SessionConfig(
                 min_chat_turns=self._get_required(session_cfg, "min_chat_turns", int, "turing.session"),

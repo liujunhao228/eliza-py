@@ -271,11 +271,28 @@ class TimeDistributionConfig:
 
 @dataclass
 class MatchConfig:
-    """匹配配置"""
-    timeout: int  # 秒
-    time_distribution: Dict[str, Dict[str, float]] = field(default_factory=dict)
-    honeypot_probability: float = 0.15
-    honeypot_high_meta_probability: float = 0.30
+    """匹配配置（简化版）"""
+    timeout: int  # 保留字段（兼容验证）
+    fixed_wait_time: int = 3  # 前端固定等待时间（秒）
+    ai_control_group_rate: float = 0.2  # 20% AI 对照组
+    honeypot_probability: float = 0.15  # 15% 钓鱼机器人
+    honeypot_high_meta_probability: float = 0.30  # 保留字段
+    time_distribution: Dict[str, Dict[str, float]] = field(default_factory=dict)  # 保留字段
+
+
+@dataclass
+class HoneypotConfig:
+    """钓鱼机器人配置"""
+    reply_delay_min: float = 2.0
+    reply_delay_max: float = 8.0
+    opening_delay_min: float = 5.0
+    opening_delay_max: float = 15.0
+    typing_delay_per_char: float = 0.05
+    occasional_long_delay_probability: float = 0.1
+    occasional_long_delay_min: float = 15.0
+    occasional_long_delay_max: float = 60.0
+    meta_delay_multiplier: float = 1.5
+    early_session_delay_multiplier: float = 1.3
 
 
 @dataclass
@@ -284,6 +301,7 @@ class AiBotConfig:
     name: str
     typing_delay_base: float
     typing_delay_per_char: float
+    honeypot: Optional[HoneypotConfig] = None
 
 
 @dataclass

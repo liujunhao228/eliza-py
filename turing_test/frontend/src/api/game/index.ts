@@ -9,7 +9,7 @@ export { getSession, endSession, getSessionResult } from './session'
 export { getSessionMessages } from './message'
 
 // 匹配相关
-export { startMatching, matchAI } from './match'
+export { startMatching, getMatchResult, leaveMatch, getMatchStatus } from './match'
 
 // 判断相关
 export { submitMidGameJudgment, makeMidGameJudgment } from './judgment'

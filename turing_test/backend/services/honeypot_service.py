@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from loguru import logger
 
 from config import settings
+from config.types import HoneypotConfig
 
 
 class HoneypotBehavior:
@@ -459,19 +460,19 @@ class HoneypotService:
     def _get_delay_config(self) -> Dict:
         """获取延迟配置"""
         if hasattr(settings, 'turing') and settings.turing:
-            ai_bot_cfg = settings.turing.get('ai_bot', {})
-            honeypot_cfg = ai_bot_cfg.get('honeypot', {})
+            ai_bot_cfg = settings.turing.ai_bot
+            honeypot_cfg = ai_bot_cfg.honeypot if ai_bot_cfg.honeypot else HoneypotConfig()
             return {
-                'reply_delay_min': honeypot_cfg.get('reply_delay_min', 2.0),
-                'reply_delay_max': honeypot_cfg.get('reply_delay_max', 8.0),
-                'opening_delay_min': honeypot_cfg.get('opening_delay_min', 5.0),
-                'opening_delay_max': honeypot_cfg.get('opening_delay_max', 15.0),
-                'typing_delay_per_char': ai_bot_cfg.get('typing_delay_per_char', 0.05),
-                'occasional_long_delay_probability': honeypot_cfg.get('occasional_long_delay_probability', 0.1),
-                'occasional_long_delay_min': honeypot_cfg.get('occasional_long_delay_min', 15.0),
-                'occasional_long_delay_max': honeypot_cfg.get('occasional_long_delay_max', 60.0),
-                'meta_delay_multiplier': honeypot_cfg.get('meta_delay_multiplier', 1.5),
-                'early_session_delay_multiplier': honeypot_cfg.get('early_session_delay_multiplier', 1.3),
+                'reply_delay_min': honeypot_cfg.reply_delay_min,
+                'reply_delay_max': honeypot_cfg.reply_delay_max,
+                'opening_delay_min': honeypot_cfg.opening_delay_min,
+                'opening_delay_max': honeypot_cfg.opening_delay_max,
+                'typing_delay_per_char': ai_bot_cfg.typing_delay_per_char,
+                'occasional_long_delay_probability': honeypot_cfg.occasional_long_delay_probability,
+                'occasional_long_delay_min': honeypot_cfg.occasional_long_delay_min,
+                'occasional_long_delay_max': honeypot_cfg.occasional_long_delay_max,
+                'meta_delay_multiplier': honeypot_cfg.meta_delay_multiplier,
+                'early_session_delay_multiplier': honeypot_cfg.early_session_delay_multiplier,
             }
         # 默认配置
         return {

@@ -79,7 +79,10 @@ async def lifespan(app: FastAPI):
     logger.info("🔄 正在关闭应用...")
 
     # 停止 WebSocket 心跳监控
-    await manager.stop_heartbeat_monitor()
+    try:
+        await manager.stop_heartbeat_monitor()
+    except Exception as e:
+        logger.error(f"❌ WebSocket 心跳监控关闭失败：{e}")
 
     # 关闭 AI Bot 池
     try:
@@ -89,7 +92,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ 机器人池关闭失败：{e}")
 
-    await close_db()
+    # 关闭数据库
+    try:
+        await close_db()
+        logger.info("✅ 数据库已关闭")
+    except Exception as e:
+        logger.error(f"❌ 数据库关闭失败：{e}")
+
     logger.info("✅ 应用已关闭")
 
 

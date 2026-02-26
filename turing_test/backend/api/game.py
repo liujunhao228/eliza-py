@@ -737,7 +737,15 @@ async def update_user_stats(
 
     # 时间统计（简化处理）
     if session.started_at and session.ended_at:
-        duration = int((session.ended_at - session.started_at).total_seconds())
+        # 统一时区处理：如果一个是时区感知，另一个是时区非感知，则统一移除时区信息
+        started_at = session.started_at
+        ended_at = session.ended_at
+        # 检查时区一致性
+        if started_at.tzinfo is not None and ended_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=None)
+        elif started_at.tzinfo is None and ended_at.tzinfo is not None:
+            ended_at = ended_at.replace(tzinfo=None)
+        duration = int((ended_at - started_at).total_seconds())
         stats.total_chat_time += duration
         stats.avg_session_duration = (
             (stats.avg_session_duration * (stats.total_sessions - 1) + duration)

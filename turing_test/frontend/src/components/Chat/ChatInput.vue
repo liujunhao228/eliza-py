@@ -57,9 +57,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
 import { InfoFilled, Promotion } from '@element-plus/icons-vue'
 import { BaseButton } from '@/components/common'
+import { useToast } from '@/composables/useToast'
 import { MAX_MESSAGE_LENGTH, META_KEYWORDS, SENSITIVE_WORDS } from '@/utils/constants'
 
 interface Props {
@@ -80,6 +80,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
+const { showWarning } = useToast()
 const inputText = ref('')
 const isSending = ref(false)
 
@@ -116,14 +117,14 @@ function handleKeyDown(event: KeyboardEvent) {
 function handleInput() {
   // 如果检测到元对话，显示警告
   if (isMetaConversation.value && !props.sending) {
-    ElMessage.warning('检测到元对话内容，可能会提高风险系数')
+    showWarning('检测到元对话内容，可能会提高风险系数')
   }
 }
 
 // 发送消息
 async function handleSend() {
   if (!inputText.value.trim()) {
-    ElMessage.warning('请输入消息内容')
+    showWarning('请输入消息内容')
     return
   }
 
@@ -134,7 +135,7 @@ async function handleSend() {
   // 敏感词检测
   const sensitiveWord = checkSensitiveWords(content)
   if (sensitiveWord) {
-    ElMessage.warning(`消息包含敏感词：${sensitiveWord}`)
+    showWarning(`消息包含敏感词：${sensitiveWord}`)
     return
   }
 

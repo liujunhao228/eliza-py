@@ -10,12 +10,12 @@
     <h2 class="matching-title">正在匹配对手...</h2>
 
     <!-- 状态信息 -->
-    <p class="status-message">{{ statusMessage }}</p>
+    <p class="status-message">正在为您寻找合适的对话者</p>
 
     <!-- 进度条 -->
     <div class="progress-container">
       <BaseProgress :percentage="progress" :show-text="false" />
-      <div class="progress-text">{{ waitTime }} 秒 / 30 秒</div>
+      <div class="progress-text">{{ waitTime }} 秒 / {{ fixedWaitTime }} 秒</div>
     </div>
 
     <!-- 匹配提示 -->
@@ -47,32 +47,34 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { BaseCard, BaseProgress, BaseButton } from '@/components/common'
 
 const emit = defineEmits<{
   (e: 'cancel'): void
+  (e: 'complete'): void
 }>()
+
+// 固定等待时间（秒）
+const fixedWaitTime = 3
 
 // 状态
 const waitTime = ref(0)
 const progress = ref(0)
+const hasEmittedComplete = ref(false)  // 防止重复触发 complete 事件
 let timer: number | null = null
-
-// 状态信息（根据等待时间变化，与实际时间分布保持一致）
-// 时间分布：50% 0-3 秒，30% 3-8 秒，15% 8-15 秒，5% 15-30 秒
-const statusMessage = computed(() => {
-  if (waitTime.value < 3) return '正在寻找对手...'
-  if (waitTime.value < 8) return '稍等片刻，马上就好...'
-  if (waitTime.value < 15) return '正在为您匹配最佳对手...'
-  return '正在为您匹配对手...'
-})
 
 // 开始计时
 onMounted(() => {
   timer = window.setInterval(() => {
     waitTime.value++
-    progress.value = Math.min(100, (waitTime.value / 30) * 100)
+    progress.value = Math.min(100, (waitTime.value / fixedWaitTime) * 100)
+
+    // 达到固定等待时间后，通知父组件获取结果（仅触发一次）
+    if (waitTime.value >= fixedWaitTime && !hasEmittedComplete.value) {
+      hasEmittedComplete.value = true
+      emit('complete')
+    }
   }, 1000)
 })
 
@@ -98,15 +100,12 @@ defineExpose({
     }
     waitTime.value = 0
     progress.value = 0
+    hasEmittedComplete.value = false
   }
 })
 </script>
 
 <style scoped>
-/* ==============================================
-   MatchingSection 样式 - 使用主题系统
-   ============================================== */
-
 .matching-section {
   max-width: 800px;
   margin: 0 auto;
@@ -118,7 +117,6 @@ defineExpose({
   border: 1px solid var(--border-primary);
 }
 
-/* 匹配动画容器 */
 .spinner-container {
   position: relative;
   width: 120px;
@@ -126,7 +124,6 @@ defineExpose({
   margin: 0 auto 40px;
 }
 
-/* 主旋转器 */
 .spinner {
   position: absolute;
   top: 0;
@@ -139,7 +136,6 @@ defineExpose({
   animation: spin 1s linear infinite;
 }
 
-/* 脉冲环 */
 .pulse-ring {
   position: absolute;
   top: 10px;
@@ -168,7 +164,6 @@ defineExpose({
   }
 }
 
-/* 匹配标题 */
 .matching-title {
   font-size: 28px;
   color: var(--text-primary);
@@ -176,14 +171,12 @@ defineExpose({
   font-weight: bold;
 }
 
-/* 状态信息 */
 .status-message {
   font-size: 16px;
   color: var(--text-secondary);
   margin-bottom: 40px;
 }
 
-/* 进度条容器 */
 .progress-container {
   margin: 0 auto 40px;
   width: 100%;
@@ -196,7 +189,6 @@ defineExpose({
   margin-top: 8px;
 }
 
-/* 匹配提示 */
 .matching-tips {
   display: flex;
   justify-content: center;
@@ -241,13 +233,11 @@ defineExpose({
   line-height: 1.4;
 }
 
-/* 取消按钮 - 使用 BaseButton 组件，覆盖特定样式 */
 .btn-cancel {
   width: 100%;
   max-width: 300px;
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
   .matching-section {
     padding: 40px 20px;

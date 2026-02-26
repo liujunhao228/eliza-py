@@ -516,3 +516,42 @@ class SharedNLPService(SyntaxAnalyzer, EntityRecognizer):
     def get_degradation_report(self) -> Dict[str, Any]:
         """获取降级报告"""
         return degradation_monitor.get_degradation_report()
+
+    def shutdown(self):
+        """
+        关闭 NLP 服务，清理资源
+        
+        清理内容:
+        - 清除所有缓存
+        - 释放 LTP 引擎资源
+        - 重置工厂实例
+        """
+        logger.info("正在关闭 NLP 服务...")
+        
+        # 清除缓存
+        with self._cache_lock:
+            self._cache.clear()
+            logger.debug("NLP 缓存已清除")
+        
+        # 重置工厂实例
+        self._factory = None
+        
+        # 关闭 LTP 引擎（如果有）
+        if self._ltp_engine is not None:
+            try:
+                if hasattr(self._ltp_engine, 'shutdown'):
+                    self._ltp_engine.shutdown()
+                logger.debug("LTP 引擎已关闭")
+            except Exception as e:
+                logger.warning(f"关闭 LTP 引擎时出错：{e}")
+        
+        # 关闭 jieba 引擎（如果有）
+        if self._jieba_engine is not None:
+            try:
+                if hasattr(self._jieba_engine, 'shutdown'):
+                    self._jieba_engine.shutdown()
+                logger.debug("jieba 引擎已关闭")
+            except Exception as e:
+                logger.warning(f"关闭 jieba 引擎时出错：{e}")
+        
+        logger.info("✅ NLP 服务已关闭")

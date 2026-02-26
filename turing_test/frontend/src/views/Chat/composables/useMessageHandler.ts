@@ -12,10 +12,11 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUserStore } from '@/stores/user'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 import { getSessionMessages, makeMidGameJudgment, endSession } from '@/api/game'
 import { validateMessage } from '@/utils/validation'
 import { isUserCancel, getErrorMessage } from '@/utils/error'
+import { useToast } from '@/composables/useToast'
 import type { MessageDisplay } from '@/types'
 import { MIN_CHAT_TURNS } from '@/utils/constants'
 
@@ -23,6 +24,7 @@ export function useMessageHandler() {
   const router = useRouter()
   const gameStore = useGameStore()
   const userStore = useUserStore()
+  const { showError, showSuccess, showWarning } = useToast()
 
   // 状态
   const isSending = ref(false)
@@ -36,24 +38,26 @@ export function useMessageHandler() {
   async function handleSendMessage(content: string, sendFn: (type: string, data: any) => void): Promise<void> {
     if (!content.trim()) return
     if (!gameStore.sessionId) {
-      ElMessage.error('会话不存在')
+      showError('会话不存在')
       return
     }
     if (!userStore.userId) {
-      ElMessage.error('用户未登录')
+      showError('用户未登录')
       return
     }
 
     // 验证消息内容
     const validation = validateMessage(content)
     if (!validation.valid) {
-      ElMessage.error(validation.error)
+      if (validation.error) {
+        showError(validation.error)
+      }
       return
     }
 
     // 检查是否为用户回合
     if (!gameStore.isUserTurn) {
-      ElMessage.warning('请等待对方发送消息')
+      showWarning('请等待对方发送消息')
       return
     }
 
@@ -84,7 +88,7 @@ export function useMessageHandler() {
       }
     } catch (error) {
       console.error('[Chat] 发送消息失败:', error)
-      ElMessage.error('发送失败，请重试')
+      showError('发送失败，请重试')
       // 发送失败时移除刚才添加的消息
       const lastMessage = gameStore.messages[gameStore.messages.length - 1]
       if (lastMessage && lastMessage.sender === 'user') {
@@ -100,7 +104,7 @@ export function useMessageHandler() {
    */
   async function handleMidGameJudgment(choice: 'human' | 'ai'): Promise<void> {
     if (!gameStore.sessionId) {
-      ElMessage.error('会话不存在')
+      showError('会话不存在')
       return
     }
 
@@ -111,11 +115,11 @@ export function useMessageHandler() {
       // 发送场中判断请求
       const result = await makeMidGameJudgment(gameStore.sessionId, choice)
 
-      ElMessage.success(`场中判断已提交，${choice === 'human' ? '你认为是人类' : '你认为是 AI'}，结果：${result.is_correct ? '正确' : '错误'}`)
+      showSuccess(`场中判断已提交，${choice === 'human' ? '你认为是人类' : '你认为是 AI'}，结果：${result.is_correct ? '正确' : '错误'}`)
     } catch (error: any) {
       console.error('[Chat] 场中判断失败:', error)
       const errorMsg = getErrorMessage(error, '提交失败，请重试')
-      ElMessage.error(errorMsg)
+      showError(errorMsg)
       gameStore.setTriggeredMidGame(false)
     }
   }
@@ -127,7 +131,7 @@ export function useMessageHandler() {
     // 检查最低轮数
     const currentTurns = Math.floor(gameStore.turn / 2)
     if (currentTurns < MIN_CHAT_TURNS) {
-      ElMessage.warning(`请多聊几句再结束哦（至少${MIN_CHAT_TURNS}轮，当前${currentTurns}轮）`)
+      showWarning(`请多聊几句再结束哦（至少${MIN_CHAT_TURNS}轮，当前${currentTurns}轮）`)
       return
     }
 
@@ -146,14 +150,14 @@ export function useMessageHandler() {
       // 用户确认结束
       if (gameStore.sessionId) {
         await endSession(gameStore.sessionId)
-        ElMessage.success('对话已结束')
+        showSuccess('对话已结束')
         router.push('/survey')
       }
     } catch (error) {
       // 用户取消操作不显示错误
       if (!isUserCancel(error)) {
         const errorMsg = getErrorMessage(error, '结束对话失败，请重试')
-        ElMessage.error(errorMsg)
+        showError(errorMsg)
       }
     }
   }
@@ -186,7 +190,7 @@ export function useMessageHandler() {
       console.log(`[Chat] 加载了 ${historyMessages.length} 条历史消息`)
     } catch (error) {
       console.error('[Chat] 加载历史消息失败:', error)
-      ElMessage.error('加载历史消息失败')
+      showError('加载历史消息失败')
     }
   }
 

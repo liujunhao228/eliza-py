@@ -1,16 +1,28 @@
 <template>
   <router-view />
+  <BaseToast ref="toastRef" />
 </template>
 
 <script setup lang="ts">
-// App根组件
+import { ref, onMounted } from 'vue'
+import { BaseToast, setToastInstance } from '@/components/common'
+
+// Toast 实例引用
+const toastRef = ref<InstanceType<typeof BaseToast> | null>(null)
+
+// 在组件挂载后设置 Toast 实例
+onMounted(() => {
+  if (toastRef.value) {
+    setToastInstance(toastRef.value)
+  }
+})
 </script>
 
 <style>
 /* 导入主题样式 */
 @import './styles/theme.css';
 
-/* App根元素样式 */
+/* App 根元素样式 */
 #app {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;

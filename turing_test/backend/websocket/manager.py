@@ -37,7 +37,11 @@ class ConnectionState:
 class ConnectionManager:
     """WebSocket 连接管理器（改进版）"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        heartbeat_interval: int = 30,  # 心跳间隔（秒）
+        heartbeat_timeout: int = 90,    # 心跳超时（秒）= 3 次心跳间隔
+    ):
         # 用户 ID 到连接状态的映射
         self.active_connections: Dict[int, ConnectionState] = {}
 
@@ -49,11 +53,13 @@ class ConnectionManager:
         self.total_disconnections = 0
         self.total_messages_sent = 0
         self.total_messages_received = 0
+        self.heartbeat_sent_count = 0
+        self.heartbeat_timeout_count = 0
 
         # 心跳任务
         self._heartbeat_task: Optional[asyncio.Task] = None
-        self._heartbeat_interval = 30  # 心跳间隔（秒）
-        self._heartbeat_timeout = 60  # 心跳超时（秒）
+        self._heartbeat_interval = heartbeat_interval  # 心跳间隔（秒）
+        self._heartbeat_timeout = heartbeat_timeout    # 心跳超时（秒）
 
         # 用户断开连接标志
         self._disconnecting_users: Set[int] = set()
@@ -74,9 +80,12 @@ class ConnectionManager:
         if self._heartbeat_task:
             self._heartbeat_task.cancel()
             try:
-                await self._heartbeat_task
+                # 等待任务完成取消，设置超时避免无限等待
+                await asyncio.wait_for(self._heartbeat_task, timeout=5.0)
             except asyncio.CancelledError:
                 pass
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ 心跳监控任务取消超时")
             self._heartbeat_task = None
             logger.info("❤️ 心跳监控任务已停止")
 
@@ -86,26 +95,31 @@ class ConnectionManager:
             try:
                 await asyncio.sleep(self._heartbeat_interval)
 
-                # 检查过期连接
+                # 检查过期连接（使用 list() 创建快照，避免迭代过程中字典被修改）
                 stale_connections = [
                     user_id
-                    for user_id, conn in self.active_connections.items()
+                    for user_id, conn in list(self.active_connections.items())
                     if conn.is_stale(self._heartbeat_timeout)
                 ]
 
                 for user_id in stale_connections:
-                    logger.warning(f"用户 {user_id} 连接已过期，强制断开")
+                    logger.warning(f"用户 {user_id} 心跳超时，强制断开")
+                    self.heartbeat_timeout_count += 1
                     await self.disconnect(user_id)
 
-                # 向所有活跃连接发送心跳
-                for user_id, conn in self.active_connections.items():
+                # 向所有活跃连接发送心跳（使用 list() 创建快照）
+                for user_id, conn in list(self.active_connections.items()):
                     try:
+                        if conn.websocket is None:
+                            logger.warning(f"用户 {user_id} 的 websocket 为 None，跳过心跳")
+                            continue
                         await conn.websocket.send_json({
                             "type": "ping",
                             "data": {
                                 "timestamp": datetime.now(timezone.utc).isoformat(),
                             }
                         })
+                        self.heartbeat_sent_count += 1
                     except Exception as e:
                         logger.error(f"发送心跳给用户 {user_id} 失败：{e}")
                         await self.disconnect(user_id)
@@ -343,6 +357,8 @@ class ConnectionManager:
             "total_messages_sent": self.total_messages_sent,
             "total_messages_received": self.total_messages_received,
             "active_sessions": len(self.session_users),
+            "heartbeat_sent_count": self.heartbeat_sent_count,
+            "heartbeat_timeout_count": self.heartbeat_timeout_count,
         }
 
     async def handle_message(self, user_id: int, message: dict):
@@ -360,5 +376,7 @@ class ConnectionManager:
         pass
 
 
-# 全局连接管理器实例
-manager = ConnectionManager()
+# 全局连接管理器实例（可配置心跳参数）
+# heartbeat_interval: 心跳间隔（秒），默认 30 秒
+# heartbeat_timeout: 心跳超时（秒），默认 90 秒（3 次心跳间隔）
+manager = ConnectionManager(heartbeat_interval=30, heartbeat_timeout=90)

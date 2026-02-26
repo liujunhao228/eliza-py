@@ -35,7 +35,7 @@ export interface WebSocketConfig {
   maxReconnectAttempts?: number // 最大重连次数
   reconnectInterval?: number // 基础重连间隔（毫秒）
   maxReconnectInterval?: number // 最大重连间隔（毫秒），用于限制指数退避的上限
-  heartbeatInterval?: number // 心跳间隔（毫秒）
+  heartbeatInterval?: number // 心跳间隔（毫秒），0 表示由后端单向发起心跳
   connectionTimeout?: number // 连接超时时间（毫秒）
   onMessage?: (message: WSMessage) => void
   onError?: (error: Event) => void
