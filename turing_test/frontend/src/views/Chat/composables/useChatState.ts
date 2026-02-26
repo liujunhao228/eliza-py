@@ -98,6 +98,16 @@ export function useChatState() {
     // 注册 connected 消息处理器
     on('connected', (data: any) => {
       console.log('[Chat] WebSocket 连接已确认:', data)
+      
+      // 同步服务器状态
+      if (data.data) {
+        gameStore.syncFromServer({
+          turn_count: data.data.turn_count,
+          is_user_turn: data.data.is_user_turn,
+          meta_conversation_count: data.data.meta_conversation_count,
+        })
+      }
+      
       if (isInitialLoading.value) {
         isInitialLoading.value = false
       }

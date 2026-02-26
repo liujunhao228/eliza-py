@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import random
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, TYPE_CHECKING
 
@@ -292,6 +293,8 @@ class MatchService:
         from turing_test.backend.websocket.manager import manager
         from turing_test.backend.database import async_session_maker
         from turing_test.backend.models import Session
+        from turing_test.backend.services.session_state import session_state_manager
+        from turing_test.backend.services.message_service import MessageService
 
         # 判断是否为钓鱼机器人
         is_honeypot = self.algorithm.should_assign_honeypot(
@@ -310,6 +313,14 @@ class MatchService:
             await db.commit()
             await db.refresh(session)
 
+            # 创建内存状态
+            await session_state_manager.create(
+                session_id=session.id,
+                user_id=user_id,
+                is_honeypot=is_honeypot,
+                opponent_type="honeypot" if is_honeypot else "ai",
+            )
+
             match_type = "honeypot" if is_honeypot else "ai"
             logger.info(f"为用户 {user_id} 分配 {match_type} 对手，会话 ID: {session.id}")
 
@@ -318,9 +329,6 @@ class MatchService:
             wait_time = datetime.now(timezone.utc).timestamp() - user_info["timestamp"]
             self._record_match(user_id, -1, match_type, wait_time)  # -1 表示 AI 对手
 
-            # 计算 AI 响应延迟
-            ai_delay = self.algorithm.calculate_typing_delay()
-
             # 发送匹配成功消息
             await manager.send_personal_message(user_id, {
                 "type": "match_found",
@@ -328,10 +336,20 @@ class MatchService:
                     "session_id": session.id,
                     "opponent_type": "honeypot" if is_honeypot else "ai",
                     "is_honeypot": is_honeypot,
-                    "matched_at": datetime.utcnow().isoformat(),
-                    "ai_delay": ai_delay,  # AI 响应延迟（秒）
+                    "matched_at": datetime.now(timezone.utc).isoformat(),
                 }
             })
+            
+            # 延迟发送开场白（2-5 秒随机）
+            async def send_opening_with_delay():
+                await asyncio.sleep(random.uniform(2.0, 5.0))
+                await MessageService.send_opening_message(
+                    session_id=session.id,
+                    user_id=user_id,
+                    db=db,
+                )
+            
+            asyncio.create_task(send_opening_with_delay())
 
     async def _create_session(
         self,

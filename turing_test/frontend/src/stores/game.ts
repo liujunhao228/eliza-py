@@ -42,7 +42,13 @@ export const useGameStore = defineStore('game', () => {
     isHoneypot.value = session.is_honeypot || false
     triggeredMidGame.value = session.triggered_mid_game || false
     metaConversationCount.value = session.meta_conversation_count || 0
-    isUserTurn.value = true // 新会话开始时总是用户先发送
+    
+    // 使用服务器返回的状态（如果有）
+    const serverTurnCount = (session as any).turn_count ?? 0
+    const serverIsUserTurn = (session as any).is_user_turn ?? true
+    
+    turn.value = serverTurnCount
+    isUserTurn.value = serverIsUserTurn
     isOpponentTyping.value = false
 
     if (session.started_at) {
@@ -51,6 +57,26 @@ export const useGameStore = defineStore('game', () => {
 
     localStorage.setItem(STORAGE_KEYS.SESSION_ID, session.id.toString())
     localStorage.setItem(STORAGE_KEYS.OPPONENT_TYPE, session.opponent_type)
+  }
+
+  /**
+   * 同步服务器状态
+   * 用于 WebSocket connected 消息后同步状态
+   */
+  function syncFromServer(data: {
+    turn_count?: number
+    is_user_turn?: boolean
+    meta_conversation_count?: number
+  }) {
+    if (data.turn_count !== undefined) {
+      turn.value = data.turn_count
+    }
+    if (data.is_user_turn !== undefined) {
+      isUserTurn.value = data.is_user_turn
+    }
+    if (data.meta_conversation_count !== undefined) {
+      metaConversationCount.value = data.meta_conversation_count
+    }
   }
 
   function addMessage(message: MessageDisplay) {
@@ -167,6 +193,7 @@ export const useGameStore = defineStore('game', () => {
     setTriggeredMidGame,
     setUserTurn,
     setOpponentTyping,
+    syncFromServer,
     reset
   }
 })

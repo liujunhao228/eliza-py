@@ -1,7 +1,8 @@
 """
-聊天 WebSocket 端点（完善版）
+聊天 WebSocket 端点（重构版）
 
-处理聊天相关的 WebSocket 通信，优化消息处理和 AI 响应逻辑。
+处理聊天相关的 WebSocket 通信，使用 MessageService 和 SessionStateManager
+实现内存级状态管理和并发控制。
 """
 
 from typing import Optional
@@ -18,34 +19,6 @@ from turing_test.backend.database import async_session_maker
 from config import settings
 
 router = APIRouter()
-
-
-# =============================================================================
-# 元对话关键词检测
-# =============================================================================
-
-META_KEYWORDS = [
-    '真人', '机器', 'AI', '机器人', '人工智能',
-    '程序', '算法', '人类', '人', '电脑', '计算',
-    '你是', '我是', '身份', '真假', '还是', '到底'
-]
-
-
-def is_meta_conversation(message: str) -> tuple[bool, Optional[str]]:
-    """
-    检测消息是否为元对话
-
-    Args:
-        message: 用户消息
-
-    Returns:
-        (是否为元对话，触发的关键词)
-    """
-    message_lower = message.lower()
-    for keyword in META_KEYWORDS:
-        if keyword in message_lower:
-            return True, keyword
-    return False, None
 
 
 # =============================================================================
@@ -69,6 +42,7 @@ class ChatMessageHandler:
             会话对象，失败则返回 None
         """
         from turing_test.backend.models import Session
+        from turing_test.backend.services.session_state import session_state_manager
 
         # 验证会话
         result = await db.execute(
@@ -100,15 +74,25 @@ class ChatMessageHandler:
         # 设置用户会话关联
         manager.set_user_session(user_id, session_id)
 
-        # 发送连接确认消息
+        # 创建或获取内存状态
+        await session_state_manager.create(
+            session_id=session_id,
+            user_id=user_id,
+            is_honeypot=session.is_honeypot,
+            opponent_type=session.opponent_type,
+        )
+        
+        state = session_state_manager.get(session_id)
+
+        # 发送连接确认消息（包含状态信息）
         await manager.send_personal_message(user_id, {
             "type": "connected",
             "data": {
                 "session_id": session_id,
                 "opponent_type": session.opponent_type,
                 "is_honeypot": session.is_honeypot,
-                "meta_conversation_count": session.meta_conversation_count,
-                "turn_count": session.turn_count,
+                "turn_count": state.turn_count if state else 0,
+                "is_user_turn": state.is_user_turn if state else True,
             }
         })
 
@@ -122,10 +106,19 @@ class ChatMessageHandler:
         db: AsyncSession,
     ):
         """处理收到的消息"""
+        from turing_test.backend.services.message_service import MessageService
+        
         msg_type = data.get("type")
 
         if msg_type in ["chat", "message"]:
-            await handle_chat_message(user_id, session, data, db)
+            content = data.get("data", {}).get("content", "")
+            # 使用新的 MessageService 处理用户消息
+            await MessageService.handle_user_message(
+                session_id=session.id,
+                user_id=user_id,
+                content=content,
+                db=db,
+            )
         elif msg_type == "mid_game_judgment":
             await handle_mid_game_judgment(user_id, session, data, db)
         elif msg_type == "end_session":
@@ -242,84 +235,9 @@ async def chat_websocket(
         finally:
             # 确保清理资源
             manager.disconnect(user_id)
-
-
-async def handle_chat_message(
-    user_id: int,
-    session: "Session",
-    data: dict,
-    db: AsyncSession,
-):
-    """处理聊天消息"""
-    from turing_test.backend.models import Message
-
-    content = data.get("data", {}).get("content", "")
-
-    # 验证消息内容
-    if not content or not content.strip():
-        await manager.send_personal_message(user_id, {
-            "type": "error",
-            "data": {
-                "error_code": "EMPTY_MESSAGE",
-                "message": "消息内容不能为空",
-            }
-        })
-        return
-
-    max_length = settings.turing.performance.max_input_length
-    if len(content) > max_length:
-        await manager.send_personal_message(user_id, {
-            "type": "error",
-            "data": {
-                "error_code": "MESSAGE_TOO_LONG",
-                "message": f"消息长度不能超过 {max_length} 字符",
-            }
-        })
-        return
-
-    # 检测元对话
-    is_meta, keyword = is_meta_conversation(content)
-
-    # 保存消息到数据库
-    message = Message(
-        session_id=session.id,
-        sender="user",
-        content=content,
-        is_meta_conversation=is_meta,
-        meta_keyword=keyword if is_meta else None,
-    )
-    db.add(message)
-
-    # 更新会话统计
-    if is_meta:
-        session.meta_conversation_count += 1
-        logger.info(f"检测到元对话，关键词：{keyword}")
-
-    await db.commit()
-    
-    # 获取消息 ID
-    await db.refresh(message)
-    
-    logger.debug(f"handle_chat_message: 用户消息已保存，message_id={message.id}")
-
-    # 转发消息到会话中的其他用户
-    await manager.send_to_session(session.id, {
-        "type": "chat",
-        "data": {
-            "id": message.id,
-            "sender": "user",
-            "content": content,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "is_meta_conversation": is_meta,
-        }
-    })
-
-    # 如果是 AI 对手，生成响应
-    if session.opponent_type in ["ai", "honeypot"]:
-        logger.debug(f"开始处理 AI 响应：session_id={session.id}, opponent_type={session.opponent_type}, is_honeypot={session.is_honeypot}")
-        await handle_ai_response(session.id, content, db)
-    else:
-        logger.debug(f"跳过 AI 响应：session_id={session.id}, opponent_type={session.opponent_type}")
+            # 清理会话状态
+            from turing_test.backend.services.session_state import session_state_manager
+            session_state_manager.cleanup(session_id)
 
 
 async def handle_mid_game_judgment(
@@ -441,151 +359,3 @@ async def handle_end_session(
     session.ended_at = datetime.now(timezone.utc)
     await db.commit()
     logger.info(f"用户 {user_id} 结束会话 {session.id}")
-
-
-async def handle_ai_response(
-    session_id: int,
-    user_message: str,
-    db: AsyncSession,
-):
-    """
-    处理 AI 响应
-
-    使用 AliceBot 生成真实的响应，支持打字延迟模拟。
-    对于钓鱼机器人，添加更多人类行为特征。
-    """
-    from turing_test.backend.models import Message, Session
-    from sqlalchemy import select
-    from turing_test.backend.websocket.manager import manager
-
-    # 获取会话中的用户 ID
-    session_users = manager.session_users.get(session_id, set())
-    user_ids = list(session_users)
-
-    logger.debug(f"handle_ai_response: session_id={session_id}, session_users={session_users}, user_ids={user_ids}")
-    logger.debug(f"handle_ai_response: 用户连接状态={[(uid, manager.is_user_connected(uid)) for uid in user_ids]}")
-
-    # 检查是否还有在线用户
-    if not user_ids or not any(manager.is_user_connected(uid) for uid in user_ids):
-        logger.warning(f"会话 {session_id} 中没有在线用户，跳过 AI 响应")
-        return
-
-    # 获取会话信息（用于检测是否为开场白）
-    result = await db.execute(
-        select(Session).where(Session.id == session_id)
-    )
-    session = result.scalar_one()
-
-    # 检测是否为开场白（会话的第一条消息）
-    is_opening = session.turn_count == 0
-
-    # 发送打字提示
-    typing_sent = await manager.send_to_session(session_id, {
-        "type": "typing",
-        "data": {
-            "sender": "opponent",
-            "is_typing": True,
-        }
-    })
-
-    logger.debug(f"handle_ai_response: 打字提示发送结果={typing_sent}")
-
-    if typing_sent == 0:
-        logger.warning(f"会话 {session_id} 中没有可接收消息的用户，跳过 AI 响应")
-        return
-
-    ai_response = "系统出现故障，请稍后再试。"
-    ai_delay = 1.0
-    is_meta = False
-
-    try:
-        # 调用 AI Bot 服务生成响应
-        from turing_test.backend.services.ai_bot_service import get_bot_response
-        base_response, base_delay = await get_bot_response(
-            user_message,
-            is_opening=is_opening,
-            is_honeypot=session.is_honeypot,
-            session_turn_count=session.turn_count,
-        )
-
-        # 检测是否为元对话
-        is_meta, _ = is_meta_conversation(user_message)
-
-        # 如果是钓鱼机器人，使用钓鱼机器人服务增强拟真度
-        if session.is_honeypot:
-            from turing_test.backend.services.honeypot_service import get_honeypot_service
-            honeypot_service = get_honeypot_service()
-
-            # 生成带拟人特征的响应
-            ai_response, ai_delay = honeypot_service.get_response_with_delay(
-                base_response=base_response,
-                session_id=session_id,
-                is_meta=is_meta,
-                user_message=user_message,
-                session_turn_count=session.turn_count,
-            )
-
-            # 记录元对话响应
-            if is_meta:
-                honeypot_service.record_meta_response(session_id)
-        else:
-            # 普通 AI 机器人
-            ai_response = base_response
-            ai_delay = base_delay
-
-        logger.info(f"AI 响应生成成功：session_id={session_id}, 响应长度={len(ai_response)}, 延迟={ai_delay:.2f}秒")
-
-    except Exception as e:
-        logger.error(f"生成 AI 响应失败：{e}", exc_info=True)
-
-    # 等待延迟（模拟打字）
-    if ai_delay > 0:
-        await asyncio.sleep(ai_delay)
-
-    # 发送停止打字提示（无论 AI 响应是否成功都发送）
-    stop_typing_result = await manager.send_to_session(session_id, {
-        "type": "stop_typing",
-        "data": {
-            "sender": "opponent",
-            "is_typing": False,
-        }
-    })
-
-    logger.info(f"handle_ai_response: 停止打字提示发送结果={stop_typing_result}")
-
-    # 保存 AI 消息
-    message = Message(
-        session_id=session_id,
-        sender="opponent",
-        content=ai_response,
-        is_meta_conversation=is_meta_conversation(ai_response)[0],
-    )
-    db.add(message)
-
-    # 更新轮数
-    result = await db.execute(
-        select(Session).where(Session.id == session_id)
-    )
-    session = result.scalar_one()
-    session.turn_count += 2  # 一轮包括用户和对手各一条消息
-
-    await db.commit()
-
-    # 获取消息 ID 用于前端显示
-    await db.refresh(message)
-    message_id = message.id
-    logger.debug(f"handle_ai_response: AI 消息已保存，message_id={message_id}")
-
-    # 发送 AI 响应
-    send_result = await manager.send_to_session(session_id, {
-        "type": "chat",
-        "data": {
-            "id": message_id,
-            "sender": "opponent",
-            "content": ai_response,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "is_meta_conversation": is_meta_conversation(ai_response)[0],
-        }
-    })
-
-    logger.info(f"handle_ai_response: AI 响应已发送：session_id={session_id}, 发送结果={send_result}, 响应长度={len(ai_response)}, message_id={message_id}")
