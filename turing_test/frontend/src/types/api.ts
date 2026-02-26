@@ -53,7 +53,7 @@ export interface Message {
 // 问卷相关类型
 export interface SurveyData {
   user_guess: 'human' | 'ai' | 'unsure'
-  confidence_level: 'low' | 'mid' | 'high'
+  confidence_level?: 'low' | 'mid' | 'high'  // 场中判断后无需填写
   fluency_rating: number
   reason?: string
   self_role: 'prover' | 'interferer' | 'other'

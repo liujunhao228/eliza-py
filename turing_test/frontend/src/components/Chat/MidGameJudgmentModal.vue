@@ -1,6 +1,6 @@
 <template>
   <el-dialog
-    v-model="dialogVisible"
+    v-model="modelValue"
     title="场中判断"
     width="600px"
     :close-on-click-modal="false"
@@ -68,14 +68,23 @@
 import { ref } from 'vue'
 import { Trophy } from '@element-plus/icons-vue'
 
+interface Props {
+  modelValue: boolean
+}
+
 interface Emits {
+  (e: 'update:modelValue', value: boolean): void
   (e: 'confirm', choice: 'human' | 'ai'): void
   (e: 'cancel'): void
 }
 
+const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const dialogVisible = ref(true)
+// 使用计算属性同步 v-model
+const modelValue = props.modelValue
+
+// 提交状态
 const isSubmitting = ref(false)
 
 // 处理选择
@@ -88,7 +97,6 @@ function handleChoice(choice: 'human' | 'ai') {
 // 处理取消
 function handleCancel() {
   if (isSubmitting.value) return
-  dialogVisible.value = false
   emit('cancel')
 }
 </script>

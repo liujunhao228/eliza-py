@@ -5,6 +5,26 @@
         <h1 class="survey-title">📝 对话结束</h1>
         <p class="survey-subtitle">请填写问卷，告诉我们你的想法</p>
 
+        <!-- 场中判断状态提示 -->
+        <el-alert
+          v-if="hasMidGameJudgment"
+          type="success"
+          title="您已进行过场中判断"
+          :closable="false"
+          show-icon
+          class="mid-game-alert"
+        >
+          <template #default>
+            <p class="mid-game-info">
+              您的判断：<strong>{{ midGameGuessText }}</strong>
+              <span v-if="midGameIsCorrect !== null" :class="['result-badge', midGameIsCorrect ? 'correct' : 'incorrect']">
+                {{ midGameIsCorrect ? '✓ 判断正确' : '✗ 判断错误' }}
+              </span>
+            </p>
+            <p class="mid-game-hint">信心等级：<strong>high</strong>（场中判断固定）</p>
+          </template>
+        </el-alert>
+
         <el-form
           ref="surveyFormRef"
           :model="surveyForm"
@@ -12,8 +32,13 @@
           label-position="top"
           @submit.prevent="submitSurvey"
         >
-          <!-- 身份判断 -->
-          <el-form-item label="你认为对方是？" prop="user_guess" required>
+          <!-- 身份判断：场中判断后隐藏 -->
+          <el-form-item
+            v-if="!hasMidGameJudgment"
+            label="你认为对方是？"
+            prop="user_guess"
+            required
+          >
             <el-radio-group v-model="surveyForm.user_guess" class="guess-options">
               <el-radio value="human" class="guess-radio">
                 <span class="guess-icon">👤</span>
@@ -30,8 +55,13 @@
             </el-radio-group>
           </el-form-item>
 
-          <!-- 信心等级 -->
-          <el-form-item label="信心等级" prop="confidence_level" required>
+          <!-- 信心等级：场中判断后隐藏 -->
+          <el-form-item
+            v-if="!hasMidGameJudgment"
+            label="信心等级"
+            prop="confidence_level"
+            required
+          >
             <ConfidenceSelector v-model="surveyForm.confidence_level" />
           </el-form-item>
 
@@ -75,7 +105,7 @@
                 <span class="role-text">干扰者（试图模拟机器，骗过对方）</span>
               </el-radio>
               <el-radio value="other" class="role-radio">
-                <span class="role-icon">❓</span>
+                <span class="guess-icon">❓</span>
                 <span class="role-text">其他（不确定或没有特定角色，或在对话中切换了角色）</span>
               </el-radio>
             </el-radio-group>
@@ -113,7 +143,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { type FormInstance, type FormRules } from 'element-plus'
 import { useGameStore } from '@/stores/game'
@@ -139,7 +169,24 @@ const surveyForm = reactive<SurveyData>({
   strategy: ''
 })
 
-// 表单验证规则
+// 计算属性：是否已进行场中判断
+const hasMidGameJudgment = computed(() => {
+  return gameStore.triggeredMidGame
+})
+
+// 计算属性：场中判断的文本显示
+const midGameGuessText = computed(() => {
+  if (gameStore.midGameGuess === 'human') return '人类'
+  if (gameStore.midGameGuess === 'ai') return 'AI'
+  return '未知'
+})
+
+// 计算属性：场中判断是否正确
+const midGameIsCorrect = computed(() => {
+  return gameStore.midGameIsCorrect
+})
+
+// 表单验证规则：场中判断后不需要验证 user_guess 和 confidence_level
 const formRules: FormRules<SurveyData> = {
   user_guess: [
     { required: true, message: '请选择你的判断', trigger: 'change' }
@@ -177,12 +224,19 @@ async function submitSurvey() {
       return
     }
 
+    // 场中判断后，不传递 user_guess 和 confidence_level
+    const submitData: SurveyData = {
+      ...surveyForm,
+      user_guess: hasMidGameJudgment.value ? 'unsure' : surveyForm.user_guess,
+      confidence_level: hasMidGameJudgment.value ? undefined : surveyForm.confidence_level,
+    }
+
     // 提交问卷
-    const result = await submitSurveyAPI(sessionId, surveyForm)
+    const result = await submitSurveyAPI(sessionId, submitData)
 
     // 保存结果到 localStorage（Result 页面需要）
     localStorage.setItem('surveyResult', JSON.stringify(result))
-    localStorage.setItem('surveyData', JSON.stringify(surveyForm))
+    localStorage.setItem('surveyData', JSON.stringify(submitData))
 
     showSuccess('问卷提交成功！')
 
@@ -245,6 +299,52 @@ onMounted(() => {
   color: var(--text-secondary);
   margin-bottom: 40px;
   font-size: 16px;
+}
+
+/* 场中判断提示卡片 */
+.mid-game-alert {
+  margin-bottom: 24px;
+}
+
+.mid-game-info {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.mid-game-info strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.result-badge {
+  display: inline-block;
+  margin-left: 12px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.result-badge.correct {
+  background-color: var(--color-success-100);
+  color: var(--color-success-700);
+}
+
+.result-badge.incorrect {
+  background-color: var(--color-error-100);
+  color: var(--color-error-700);
+}
+
+.mid-game-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.mid-game-hint strong {
+  font-weight: 600;
+  color: var(--color-primary-600);
 }
 
 /* 猜测选项 */

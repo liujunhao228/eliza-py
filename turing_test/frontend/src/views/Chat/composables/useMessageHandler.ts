@@ -12,7 +12,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUserStore } from '@/stores/user'
-import { getSessionMessages, makeMidGameJudgment, endSession } from '@/api/game'
+import { getSessionMessages, endSession } from '@/api/game'
 import { validateMessage } from '@/utils/validation'
 import { isUserCancel, getErrorMessage } from '@/utils/error'
 import { useToast } from '@/composables/useToast'
@@ -99,21 +99,22 @@ export function useMessageHandler() {
 
   /**
    * 处理场中判断
+   * @param choice 用户选择 'human' | 'ai'
+   * @param send WebSocket send 函数
    */
-  async function handleMidGameJudgment(choice: 'human' | 'ai'): Promise<void> {
+  async function handleMidGameJudgment(choice: 'human' | 'ai', send: (type: string, data: any) => void): Promise<void> {
     if (!gameStore.sessionId) {
       showError('会话不存在')
       return
     }
 
     try {
-      gameStore.setTriggeredMidGame(true)
-      showMidGameModal.value = false
+      // 通过 WebSocket 发送场中判断
+      send('mid_game_judgment', { user_guess: choice })
+      // 更新 store 状态（结果将通过 mid_game_result 消息返回）
+      // 注意：实际结果在 WebSocket 消息处理器中更新
 
-      // 发送场中判断请求
-      const result = await makeMidGameJudgment(gameStore.sessionId, choice)
-
-      showSuccess(`场中判断已提交，${choice === 'human' ? '你认为是人类' : '你认为是 AI'}，结果：${result.is_correct ? '正确' : '错误'}`)
+      showSuccess(`场中判断已提交：${choice === 'human' ? '你认为是人类' : '你认为是 AI'}`)
     } catch (error: any) {
       console.error('[Chat] 场中判断失败:', error)
       const errorMsg = getErrorMessage(error, '提交失败，请重试')

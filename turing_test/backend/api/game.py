@@ -262,7 +262,7 @@ async def submit_mid_game_judgment(
     final_score, breakdown = calculate_final_score(
         user_guess=request.user_guess,
         opponent_type=session.opponent_type,
-        confidence_level="mid",  # 场中判断默认为中等信心
+        confidence_level="high",  # 场中判断固定为高信心
         turn=turn,
         meta_count=meta_count,
         is_mid_game=True,  # 场中判断双倍乘数
@@ -270,7 +270,8 @@ async def submit_mid_game_judgment(
 
     # 更新会话
     session.triggered_mid_game = True
-    session.confidence_level = "mid"
+    session.confidence_level = "high"
+    session.user_guess = request.user_guess
     session.is_correct = breakdown.is_correct
     session.final_score = int(final_score)
     session.score_breakdown = get_score_breakdown_dict(breakdown)
@@ -376,7 +377,7 @@ async def get_session_result(
         final_score=session.final_score or 0,
         is_correct=session.is_correct or False,
     )
-    
+
     # 构建问卷响应
     survey_response = None
     if survey:
@@ -389,11 +390,22 @@ async def get_session_result(
             self_role=survey.self_role,
             strategy=survey.strategy,
         )
-    
+    elif session.triggered_mid_game:
+        # 场中判断后，尚未提交问卷时，使用 Session 中的值
+        survey_response = SurveyResponse(
+            session_id=session.id,
+            user_guess=session.user_guess or "unknown",
+            confidence_level=session.confidence_level or "high",
+            fluency_rating=0,  # 尚未评分
+            reason=None,
+            self_role="other",  # 尚未选择
+            strategy=None,
+        )
+
     return GameResultResponse(
         session_id=session.id,
         opponent_type=_normalize_opponent_type(session.opponent_type),
-        user_guess=survey.user_guess if survey else "unknown",
+        user_guess=session.user_guess if session.user_guess else ("unknown" if not survey else survey.user_guess),
         is_correct=session.is_correct or False,
         final_score=session.final_score or 0,
         score_breakdown=score_breakdown,
@@ -457,61 +469,85 @@ async def submit_survey(
             detail="该会话的问卷已提交过，无法重复提交",
         )
 
-    # 正常处理问卷提交（无论会话是否已结束）
-    # 注意：endSession 可能已经设置了 ended_at，但不影响积分结算
-    # 正常结束会话
-    turn = session.turn_count
-    meta_count = session.meta_conversation_count
-
-    # 计算积分
-    final_score, breakdown = calculate_final_score(
-        user_guess=request.user_guess,
-        opponent_type=session.opponent_type,
-        confidence_level=request.confidence_level,
-        turn=turn,
-        meta_count=meta_count,
-        is_mid_game=False,
-    )
-
-    # 更新会话
-    session.confidence_level = request.confidence_level
-    session.is_correct = breakdown.is_correct
-    session.final_score = int(final_score)
-    session.score_breakdown = get_score_breakdown_dict(breakdown)
-    session.ended_at = datetime.now(timezone.utc)
-
-    # 更新用户积分
-    score_before = user.score
-    user.score += int(final_score)
-
-    if final_score > 0:
-        user.total_score_earned += int(final_score)
+    # 检查是否已进行场中判断
+    if session.triggered_mid_game:
+        # 场中判断后，使用 Session 中存储的值
+        if not session.user_guess or not session.confidence_level:
+            raise HTTPException(
+                status_code=500,
+                detail="场中判断数据不完整，无法提交问卷",
+            )
+        user_guess = session.user_guess
+        confidence_level = session.confidence_level  # 'high'
+        # 场中判断后积分已结算，无需重复计算
+        final_score = session.final_score
+        breakdown_is_correct = session.is_correct
     else:
-        user.total_score_lost += abs(int(final_score))
+        # 正常问卷提交，使用请求体中的值
+        if not request.user_guess or not request.confidence_level:
+            raise HTTPException(
+                status_code=400,
+                detail="缺少身份判断或信心等级",
+            )
+        user_guess = request.user_guess
+        confidence_level = request.confidence_level
 
-    # 更新最高/最低分
-    if user.score > user.highest_score:
-        user.highest_score = user.score
-    if user.score < user.lowest_score:
-        user.lowest_score = user.score
+        # 计算积分
+        turn = session.turn_count
+        meta_count = session.meta_conversation_count
 
-    # 记录积分历史
-    score_history = ScoreHistory(
-        user_id=user.id,
-        session_id=session.id,
-        score_change=int(final_score),
-        score_before=score_before,
-        score_after=user.score,
-        reason="session_end",
-    )
-    db.add(score_history)
+        final_score, breakdown = calculate_final_score(
+            user_guess=user_guess,
+            opponent_type=session.opponent_type,
+            confidence_level=confidence_level,
+            turn=turn,
+            meta_count=meta_count,
+            is_mid_game=False,
+        )
+
+        # 更新会话积分字段
+        session.confidence_level = confidence_level
+        session.is_correct = breakdown.is_correct
+        session.final_score = int(final_score)
+        session.score_breakdown = get_score_breakdown_dict(breakdown)
+        breakdown_is_correct = breakdown.is_correct
+
+    # 更新用户积分（场中判断后已计算过，跳过）
+    if not session.triggered_mid_game:
+        score_before = user.score
+        user.score += int(final_score)
+
+        if final_score > 0:
+            user.total_score_earned += int(final_score)
+        else:
+            user.total_score_lost += abs(int(final_score))
+
+        # 更新最高/最低分
+        if user.score > user.highest_score:
+            user.highest_score = user.score
+        if user.score < user.lowest_score:
+            user.lowest_score = user.score
+
+        # 记录积分历史
+        score_history = ScoreHistory(
+            user_id=user.id,
+            session_id=session.id,
+            score_change=int(final_score),
+            score_before=score_before,
+            score_after=user.score,
+            reason="session_end",
+        )
+        db.add(score_history)
+
+    # 设置结束时间
+    session.ended_at = datetime.now(timezone.utc)
 
     # 保存问卷数据
     survey_record = Survey(
         session_id=session.id,
         user_id=user.id,
-        user_guess=request.user_guess,
-        confidence_level=request.confidence_level,
+        user_guess=user_guess,
+        confidence_level=confidence_level,
         fluency_rating=request.fluency_rating,
         reason=request.reason,
         self_role=request.self_role,
@@ -520,27 +556,27 @@ async def submit_survey(
     db.add(survey_record)
 
     # 更新用户统计
-    await update_user_stats(db, user, session, breakdown.is_correct, meta_count)
+    await update_user_stats(db, user, session, breakdown_is_correct, meta_count)
 
     await db.commit()
 
     logger.info(
         f"问卷提交：user_id={user.id}, session_id={session.id}, "
-        f"guess={request.user_guess}, confidence={request.confidence_level}, "
-        f"correct={breakdown.is_correct}, score={final_score}"
+        f"guess={user_guess}, confidence={confidence_level}, "
+        f"correct={breakdown_is_correct}, score={final_score}"
     )
 
     # 构建简化的积分明细
     score_breakdown = ScoreBreakdownResponse(
         final_score=int(final_score),
-        is_correct=breakdown.is_correct,
+        is_correct=breakdown_is_correct,
     )
 
     # 构建问卷响应
     survey_response = SurveyResponse(
         session_id=session.id,
-        user_guess=request.user_guess,
-        confidence_level=request.confidence_level,
+        user_guess=user_guess,
+        confidence_level=confidence_level,
         fluency_rating=request.fluency_rating,
         reason=request.reason,
         self_role=request.self_role,
@@ -550,8 +586,8 @@ async def submit_survey(
     return GameResultResponse(
         session_id=session.id,
         opponent_type=_normalize_opponent_type(session.opponent_type),
-        user_guess=request.user_guess,
-        is_correct=breakdown.is_correct,
+        user_guess=user_guess,
+        is_correct=breakdown_is_correct,
         final_score=int(final_score),
         score_breakdown=score_breakdown,
         survey=survey_response,

@@ -25,6 +25,7 @@ export function useChatState() {
   const isLoading = ref(false)
   const isInitialLoading = ref(false)
   const showMidGameModal = ref(false)
+  const hasTriggeredMidGame = ref(false)  // 防止重复触发场中判断
 
   // 验证连接参数
   const canConnect = computed(() => {
@@ -78,7 +79,9 @@ export function useChatState() {
     // 注册 mid_game_available 消息处理器
     on('mid_game_available', () => {
       console.log('[Chat] 收到 mid_game_available 消息')
-      if (!gameStore.triggeredMidGame) {
+      // 只有在 store 中未触发且本地未触发过时才显示弹窗
+      if (!gameStore.triggeredMidGame && !hasTriggeredMidGame.value) {
+        hasTriggeredMidGame.value = true
         showMidGameModal.value = true
       }
     })
@@ -94,6 +97,14 @@ export function useChatState() {
     on('mid_game_result', (data: any) => {
       console.log('[Chat] 收到 mid_game_result 消息:', data)
       showSuccess(`场中判断结果：${data.is_correct ? '正确' : '错误'}，积分变化：${data.final_score}`)
+      
+      // 更新 store 状态（场中判断后隐藏身份判断和信心等级）
+      // data 中包含 user_guess 和 is_correct
+      const userGuess = data.data?.user_guess || data.user_guess
+      const isCorrect = data.is_correct
+      if (userGuess && isCorrect !== undefined) {
+        gameStore.setMidGameResult(userGuess, isCorrect)
+      }
     })
 
     // 注册 connected 消息处理器

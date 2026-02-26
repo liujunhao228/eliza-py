@@ -137,6 +137,11 @@ class Session(Base):
         nullable=True,
         comment="判断是否正确"
     )
+    user_guess: Mapped[Optional[str]] = mapped_column(
+        String(10),
+        nullable=True,
+        comment="'human' | 'ai' - 场中判断时的用户选择"
+    )
 
     # 积分字段
     final_score: Mapped[Optional[int]] = mapped_column(

@@ -12,6 +12,8 @@ export const useGameStore = defineStore('game', () => {
   const metaConversationCount = ref<number>(0)
   const messages = ref<MessageDisplay[]>([])
   const triggeredMidGame = ref<boolean>(false)
+  const midGameGuess = ref<'human' | 'ai' | null>(null)  // 场中判断时的选择
+  const midGameIsCorrect = ref<boolean | null>(null)     // 场中判断是否正确
   const isHoneypot = ref<boolean>(false)
   const sessionStartedAt = ref<Date | null>(null)
   
@@ -143,7 +145,13 @@ export const useGameStore = defineStore('game', () => {
   function setTriggeredMidGame(value: boolean) {
     triggeredMidGame.value = value
   }
-  
+
+  function setMidGameResult(guess: 'human' | 'ai', isCorrect: boolean) {
+    triggeredMidGame.value = true
+    midGameGuess.value = guess
+    midGameIsCorrect.value = isCorrect
+  }
+
   function setUserTurn(turn: boolean) {
     isUserTurn.value = turn
   }
@@ -159,6 +167,8 @@ export const useGameStore = defineStore('game', () => {
     metaConversationCount.value = 0
     messages.value = []
     triggeredMidGame.value = false
+    midGameGuess.value = null
+    midGameIsCorrect.value = null
     isHoneypot.value = false
     sessionStartedAt.value = null
     isUserTurn.value = true
@@ -176,6 +186,8 @@ export const useGameStore = defineStore('game', () => {
     metaConversationCount,
     messages,
     triggeredMidGame,
+    midGameGuess,
+    midGameIsCorrect,
     isHoneypot,
     sessionStartedAt,
     isUserTurn,
@@ -191,6 +203,7 @@ export const useGameStore = defineStore('game', () => {
     setInitialMessages,
     incrementMetaCount,
     setTriggeredMidGame,
+    setMidGameResult,
     setUserTurn,
     setOpponentTyping,
     syncFromServer,

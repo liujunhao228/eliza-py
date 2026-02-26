@@ -63,7 +63,7 @@
 
     <!-- 场中判断弹窗 -->
     <MidGameJudgmentModal
-      v-if="showMidGameModal"
+      v-model="showMidGameModal"
       @confirm="handleMidGameJudgment"
       @cancel="showMidGameModal = false"
     />
@@ -127,7 +127,7 @@ const {
 const {
   isSending,
   handleSendMessage: handlerSendMessage,
-  handleMidGameJudgment,
+  handleMidGameJudgment: handleMidGameJudgmentAction,
   handleEndChat: baseHandleEndChat,
   loadHistoryMessages
 } = useMessageHandler()
@@ -146,6 +146,17 @@ const gameState = computed(() => gameStore.gameState)
 // 包装发送消息函数
 const handleSendMessage = async (content: string) => {
   await handlerSendMessage(content, send)
+}
+
+// 处理场中判断
+const handleMidGameJudgment = async (choice: 'human' | 'ai') => {
+  try {
+    await handleMidGameJudgmentAction(choice, send)
+    showMidGameModal.value = false  // 提交成功后关闭弹窗
+  } catch (error) {
+    console.error('[Chat] 场中判断失败:', error)
+    // 失败时保持弹窗打开
+  }
 }
 
 // 处理结束对话（显示确认弹窗）

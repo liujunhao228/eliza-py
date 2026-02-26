@@ -291,7 +291,7 @@ async def handle_mid_game_judgment(
     final_score, breakdown = calculate_final_score(
         user_guess=user_guess,
         opponent_type=session.opponent_type,
-        confidence_level="mid",  # 场中判断默认为中等信心
+        confidence_level="high",  # 场中判断固定为高信心
         turn=turn,
         meta_count=meta_count,
         is_mid_game=True,  # 场中判断双倍乘数
@@ -299,7 +299,8 @@ async def handle_mid_game_judgment(
 
     # 更新会话状态
     session.triggered_mid_game = True
-    session.confidence_level = "mid"
+    session.confidence_level = "high"
+    session.user_guess = user_guess
     session.is_correct = breakdown.is_correct
     session.final_score = int(final_score)
     session.score_breakdown = get_score_breakdown_dict(breakdown)
@@ -345,6 +346,7 @@ async def handle_mid_game_judgment(
         "type": "mid_game_result",
         "data": {
             "session_id": session.id,
+            "user_guess": user_guess,
             "is_correct": breakdown.is_correct,
             "opponent_type": session.opponent_type,
             "final_score": int(final_score),

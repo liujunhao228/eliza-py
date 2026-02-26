@@ -127,8 +127,8 @@ class MessageResponse(BaseSchema):
 class SurveyRequest(BaseModel):
     """问卷请求"""
     session_id: int
-    user_guess: str = Field(..., pattern="^(human|ai|unsure)$")
-    confidence_level: str = Field(..., pattern="^(low|mid|high)$")
+    user_guess: Optional[str] = Field(None, pattern="^(human|ai|unsure)$")  # 场中判断后无需传递
+    confidence_level: Optional[str] = Field(None, pattern="^(low|mid|high)$")  # 场中判断后无需传递
     fluency_rating: int = Field(..., ge=1, le=5)
     reason: Optional[str] = Field(None, max_length=1000)
     self_role: str = Field(..., pattern="^(prover|interferer|other)$")
