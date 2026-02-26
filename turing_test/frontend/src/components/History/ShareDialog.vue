@@ -8,13 +8,13 @@
 
       <div class="modal-body">
         <!-- 加载状态 -->
-        <div v-if="loading" class="loading">处理中...</div>
+        <div v-if="loading && !shareInfo" class="loading">处理中...</div>
 
         <!-- 错误提示 -->
         <div v-else-if="error" class="error">{{ error }}</div>
 
         <!-- 已有分享 - 显示信息 -->
-        <template v-else-if="existingShare && shareInfo">
+        <template v-else-if="hasExistingShare && shareInfo">
           <div class="share-info">
             <div class="info-row">
               <span class="label">分享链接：</span>
@@ -64,7 +64,7 @@
         </template>
 
         <!-- 创建分享表单 -->
-        <template v-else>
+        <template v-else-if="!hasExistingShare">
           <div class="form-group">
             <label>公开分享</label>
             <select v-model="form.is_public">
@@ -98,7 +98,7 @@
         </template>
       </div>
 
-      <div v-if="!existingShare && !loading" class="modal-footer">
+      <div v-if="!hasExistingShare && !loading" class="modal-footer">
         <button class="btn btn-secondary" @click="$emit('close')">取消</button>
         <button class="btn btn-primary" @click="createShare" :disabled="loading">
           {{ loading ? '创建中...' : '创建分享' }}
@@ -109,8 +109,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useHistoryStore } from '@/stores/history'
+import { ref, reactive, onMounted, computed } from 'vue'
+import * as historyApi from '@/api/history'
 import type { ShareInfo } from '@/api/history'
 
 const props = defineProps<{
@@ -122,14 +122,16 @@ const emit = defineEmits<{
   close: []
   'share-created': []
   'share-deleted': []
+  notify: [{ type: string; message: string }]
 }>()
-
-const historyStore = useHistoryStore()
 
 const loading = ref(false)
 const error = ref<string | null>(null)
 const shareInfo = ref<ShareInfo | null>(null)
 const shareLinkInput = ref<HTMLInputElement | null>(null)
+const existingShares = ref<ShareInfo[]>([])
+
+const hasExistingShare = computed(() => existingShares.value.length > 0)
 
 const form = reactive({
   is_public: true,
@@ -155,15 +157,18 @@ async function copyLink() {
       error.value = '无效的分享链接'
       return
     }
-    
+
     try {
       await navigator.clipboard.writeText(shareInfo.value.share_url)
-      alert('链接已复制到剪贴板')
+      emit('notify', { type: 'success', message: '链接已复制到剪贴板' })
     } catch (e) {
       // 降级处理
-      shareLinkInput.value?.select()
-      document.execCommand('copy')
-      alert('链接已复制到剪贴板')
+      const input = shareLinkInput.value
+      if (input) {
+        input.select()
+        document.execCommand('copy')
+        emit('notify', { type: 'success', message: '链接已复制到剪贴板' })
+      }
     }
   }
 }
@@ -174,15 +179,19 @@ async function createShare() {
   error.value = null
 
   try {
-    const result = await historyStore.createShare(props.sessionId, {
+    const result = await historyApi.createShare(props.sessionId, {
       is_public: form.is_public,
       expires_days: form.expires_days,
       password: form.password || undefined
     })
     shareInfo.value = result
+    emit('notify', { type: 'success', message: '分享链接创建成功' })
+    // 刷新分享列表
+    await fetchExistingShares()
     emit('share-created')
   } catch (e: any) {
-    error.value = e.message
+    error.value = e.message || '创建失败'
+    emit('notify', { type: 'error', message: error.value || '创建失败' })
   } finally {
     loading.value = false
   }
@@ -203,12 +212,30 @@ async function deleteShare() {
   error.value = null
 
   try {
-    await historyStore.deleteShare(shareInfo.value.share_id)
+    await historyApi.deleteShare(shareInfo.value.share_id)
+    emit('notify', { type: 'success', message: '分享链接已删除' })
+    // 刷新分享列表
+    await fetchExistingShares()
+    shareInfo.value = null
     emit('share-deleted')
   } catch (e: any) {
-    error.value = e.message
+    error.value = e.message || '删除失败'
+    emit('notify', { type: 'error', message: error.value || '删除失败' })
   } finally {
     loading.value = false
+  }
+}
+
+// 获取现有分享列表
+async function fetchExistingShares() {
+  try {
+    existingShares.value = await historyApi.getSessionShares(props.sessionId)
+    // 如果有分享，设置第一个为当前显示
+    if (existingShares.value.length > 0 && !shareInfo.value) {
+      shareInfo.value = existingShares.value[0] || null
+    }
+  } catch (e: any) {
+    console.error('获取分享列表失败:', e)
   }
 }
 
@@ -226,19 +253,7 @@ function formatDate(dateString: string): string {
 
 // 初始化
 onMounted(async () => {
-  if (props.existingShare) {
-    // 获取现有分享信息
-    // 这里简化处理，实际应该从 API 获取
-    shareInfo.value = {
-      share_id: props.existingShare.share_id,
-      share_token: '',
-      share_url: props.existingShare.share_url || `http://localhost:5173/share/xxx`,
-      expires_at: props.existingShare.expires_at,
-      has_password: props.existingShare.has_password,
-      is_expired: false,
-      view_count: 0
-    } as ShareInfo
-  }
+  await fetchExistingShares()
 })
 </script>
 

@@ -168,3 +168,10 @@ export async function updateShare(
 export async function deleteShare(shareId: number): Promise<{ success: boolean; message: string }> {
   return api.delete(`/share/${shareId}`)
 }
+
+/**
+ * 获取会话的分享列表
+ */
+export async function getSessionShares(sessionId: number): Promise<ShareInfo[]> {
+  return api.get(`/session/${sessionId}/shares`)
+}

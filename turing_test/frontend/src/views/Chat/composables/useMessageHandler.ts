@@ -12,19 +12,17 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUserStore } from '@/stores/user'
-import { ElMessageBox } from 'element-plus'
 import { getSessionMessages, makeMidGameJudgment, endSession } from '@/api/game'
 import { validateMessage } from '@/utils/validation'
 import { isUserCancel, getErrorMessage } from '@/utils/error'
 import { useToast } from '@/composables/useToast'
 import type { MessageDisplay } from '@/types'
-import { MIN_CHAT_TURNS } from '@/utils/constants'
 
 export function useMessageHandler() {
   const router = useRouter()
   const gameStore = useGameStore()
   const userStore = useUserStore()
-  const { showError, showSuccess, showWarning } = useToast()
+  const { error: showError, success: showSuccess, warning: showWarning } = useToast()
 
   // 状态
   const isSending = ref(false)
@@ -50,7 +48,7 @@ export function useMessageHandler() {
     const validation = validateMessage(content)
     if (!validation.valid) {
       if (validation.error) {
-        showError(validation.error)
+        showError(validation.error || '消息验证失败')
       }
       return
     }
@@ -127,33 +125,19 @@ export function useMessageHandler() {
   /**
    * 处理结束对话
    */
-  async function handleEndChat(): Promise<void> {
-    // 检查最低轮数
-    const currentTurns = Math.floor(gameStore.turn / 2)
-    if (currentTurns < MIN_CHAT_TURNS) {
-      showWarning(`请多聊几句再结束哦（至少${MIN_CHAT_TURNS}轮，当前${currentTurns}轮）`)
+  async function handleEndChat(endReason: string = 'user_gave_up'): Promise<void> {
+    if (!gameStore.sessionId) {
+      showError('会话不存在')
       return
     }
 
-    // 确认对话框
     try {
-      await ElMessageBox.confirm(
-        '确定要结束这次对话吗？',
-        '结束对话',
-        {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning'
-        }
-      )
-
-      // 用户确认结束
-      if (gameStore.sessionId) {
-        await endSession(gameStore.sessionId)
-        showSuccess('对话已结束')
-        router.push('/survey')
-      }
+      // 发送结束请求，传递结束原因
+      await endSession(gameStore.sessionId, endReason)
+      showSuccess('对话已结束，请提交问卷以结算积分')
+      router.push('/survey')
     } catch (error) {
+      console.error('[Chat] 结束对话失败:', error)
       // 用户取消操作不显示错误
       if (!isUserCancel(error)) {
         const errorMsg = getErrorMessage(error, '结束对话失败，请重试')

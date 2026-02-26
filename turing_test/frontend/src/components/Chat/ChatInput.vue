@@ -80,7 +80,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<Emits>()
 
-const { showWarning } = useToast()
+const { warning: showWarning } = useToast()
 const inputText = ref('')
 const isSending = ref(false)
 

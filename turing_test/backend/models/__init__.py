@@ -5,7 +5,7 @@ SQLAlchemy 模型
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy import (
     String,
     Integer,
@@ -161,6 +161,13 @@ class Session(Base):
     ended_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
+    )
+
+    # 结束原因
+    end_reason: Mapped[Optional[str]] = mapped_column(
+        String(30),
+        nullable=True,
+        comment="结束原因：'normal_end', 'user_gave_up', 'mid_game_judgment', 'timeout'"
     )
 
     # 关系
@@ -609,12 +616,58 @@ class SessionShare(Base):
         "User",
         back_populates="shared_sessions",
     )
+    access_logs: Mapped[List["SessionShareAccess"]] = relationship(
+        "SessionShareAccess",
+        back_populates="share",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return (
             f"<SessionShare(id={self.id}, session_id={self.session_id}, "
             f"token={self.share_token})>"
         )
+
+
+# =============================================================================
+# 会话分享访问日志表
+# =============================================================================
+
+class SessionShareAccess(Base):
+    """会话分享访问日志表"""
+
+    __tablename__ = "session_share_access_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    share_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("session_shares.id", ondelete="CASCADE"),
+        index=True,
+        comment="分享 ID"
+    )
+    ip_address: Mapped[str] = mapped_column(
+        String(45),
+        comment="访问者 IP 地址"
+    )
+    user_agent: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="User-Agent"
+    )
+    accessed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        comment="访问时间"
+    )
+
+    # 关系
+    share: Mapped["SessionShare"] = relationship(
+        "SessionShare",
+        back_populates="access_logs",
+    )
+
+    def __repr__(self) -> str:
+        return f"<SessionShareAccess(id={self.id}, share_id={self.share_id}, ip={self.ip_address})>"
 
 
 # =============================================================================

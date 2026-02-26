@@ -21,8 +21,8 @@ export async function getSession(sessionId: number): Promise<Session> {
 /**
  * 结束会话
  */
-export async function endSession(sessionId: number): Promise<any> {
-  return api.post(`/session/${sessionId}/end`)
+export async function endSession(sessionId: number, endReason: string = 'user_gave_up'): Promise<any> {
+  return api.post(`/session/${sessionId}/end`, { end_reason: endReason })
 }
 
 /**

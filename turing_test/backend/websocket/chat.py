@@ -107,7 +107,7 @@ class ChatMessageHandler:
     ):
         """处理收到的消息"""
         from turing_test.backend.services.message_service import MessageService
-        
+
         msg_type = data.get("type")
 
         if msg_type in ["chat", "message"]:
@@ -122,7 +122,9 @@ class ChatMessageHandler:
         elif msg_type == "mid_game_judgment":
             await handle_mid_game_judgment(user_id, session, data, db)
         elif msg_type == "end_session":
-            await handle_end_session(user_id, session, db)
+            # 从客户端获取结束原因，默认为 "user_gave_up"
+            end_reason = data.get("data", {}).get("end_reason", "user_gave_up")
+            await handle_end_session(user_id, session, db, end_reason)
         elif msg_type == "pong":
             # 心跳响应由 manager 处理
             pass
@@ -302,6 +304,7 @@ async def handle_mid_game_judgment(
     session.final_score = int(final_score)
     session.score_breakdown = get_score_breakdown_dict(breakdown)
     session.ended_at = datetime.now(timezone.utc)
+    session.end_reason = "mid_game_judgment"  # 场中判断结束
 
     # 更新用户积分
     score_before = user.score
@@ -354,8 +357,45 @@ async def handle_end_session(
     user_id: int,
     session: "Session",
     db: AsyncSession,
+    end_reason: str = "user_gave_up",
 ):
-    """处理结束会话"""
+    """
+    处理结束会话
+
+    注意：此函数仅标记会话结束，不进行积分结算。
+    积分结算需在问卷提交时进行。
+
+    Args:
+        user_id: 用户 ID
+        session: 会话对象
+        db: 数据库会话
+        end_reason: 结束原因
+            - "normal_end": 正常结束（用户已完成判断）
+            - "user_gave_up": 用户放弃（未判断主动结束）
+            - "timeout": 超时结束
+    """
+    from turing_test.backend.models import User
+
+    # 1. 设置结束时间和原因
     session.ended_at = datetime.now(timezone.utc)
+    session.end_reason = end_reason
+
+    # 2. 提交事务
     await db.commit()
-    logger.info(f"用户 {user_id} 结束会话 {session.id}")
+
+    logger.info(
+        f"会话结束：user_id={user_id}, session_id={session.id}, "
+        f"reason={end_reason}"
+    )
+
+    # 3. 发送通知（告知前端会话已结束，需提交问卷）
+    from turing_test.backend.websocket.manager import manager
+    await manager.send_personal_message(user_id, {
+        "type": "session_ended",
+        "data": {
+            "session_id": session.id,
+            "end_reason": end_reason,
+            "turn_count": session.turn_count,
+            "message": "会话已结束，请提交问卷以结算积分",
+        }
+    })

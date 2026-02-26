@@ -7,6 +7,18 @@
 
     <!-- 过滤栏 -->
     <div class="filter-bar">
+      <div class="search-group">
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="搜索会话 ID..."
+          class="search-input"
+          @keyup.enter="applySearch"
+        />
+        <button class="btn-search" @click="applySearch">搜索</button>
+        <button v-if="searchQuery" class="btn-clear" @click="clearSearch" title="清除搜索">×</button>
+      </div>
+
       <div class="filter-group">
         <label>对手类型：</label>
         <select v-model="filterOpponentType" @change="applyFilters">
@@ -46,7 +58,7 @@
     </div>
 
     <!-- 会话列表 -->
-    <div v-else-if="sessions.length > 0" class="session-list">
+    <div v-else-if="sessions && sessions.length > 0" class="session-list">
       <div
         v-for="session in sessions"
         :key="session.id"
@@ -130,7 +142,11 @@
       @close="closeShareDialog"
       @share-created="handleShareCreated"
       @share-deleted="handleShareDeleted"
+      @notify="showNotify"
     />
+
+    <!-- Toast 通知 -->
+    <Toast ref="toastRef" />
   </div>
 </template>
 
@@ -140,10 +156,12 @@ import { useRouter } from 'vue-router'
 import { useHistoryStore } from '@/stores/history'
 import { useUserStore } from '@/stores/user'
 import ShareDialog from '@/components/History/ShareDialog.vue'
+import Toast from '@/components/common/Toast.vue'
 
 const router = useRouter()
 const historyStore = useHistoryStore()
 const userStore = useUserStore()
+const toastRef = ref<InstanceType<typeof Toast> | null>(null)
 
 // 状态
 const loading = computed(() => historyStore.loading)
@@ -155,6 +173,7 @@ const hasMore = computed(() => historyStore.hasMore)
 const filterOpponentType = ref<string>('')
 const filterResult = ref<string>('')
 const pageSize = ref(20)
+const searchQuery = ref<string>('')
 
 // 分享对话框
 const showShareDialog = ref(false)
@@ -189,6 +208,20 @@ function applyFilters() {
     opponent_type: filterOpponentType.value || undefined,
     is_correct: filterResult.value ? filterResult.value === 'true' : undefined
   })
+}
+
+// 应用搜索
+function applySearch() {
+  historyStore.fetchSessions(userStore.userId!, {
+    opponent_type: filterOpponentType.value || undefined,
+    is_correct: filterResult.value ? filterResult.value === 'true' : undefined
+  })
+}
+
+// 清除搜索
+function clearSearch() {
+  searchQuery.value = ''
+  applyFilters()
 }
 
 // 改变每页大小
@@ -236,6 +269,7 @@ function handleShareCreated() {
   // 刷新列表
   historyStore.fetchSessions(userStore.userId!)
   closeShareDialog()
+  toastRef.value?.success('分享链接创建成功')
 }
 
 // 分享删除成功
@@ -243,6 +277,14 @@ function handleShareDeleted() {
   // 刷新列表
   historyStore.fetchSessions(userStore.userId!)
   closeShareDialog()
+  toastRef.value?.success('分享链接已删除')
+}
+
+// 显示通知
+function showNotify({ type, message }: { type: string; message: string }) {
+  if (toastRef.value) {
+    toastRef.value.showToast(message, type as any)
+  }
 }
 
 // 初始化
@@ -293,6 +335,53 @@ onMounted(() => {
   padding: 15px;
   background: #f9f9f9;
   border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.search-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 250px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.btn-search {
+  padding: 6px 16px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.btn-search:hover {
+  background: #0056b3;
+}
+
+.btn-clear {
+  padding: 6px 10px;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.btn-clear:hover {
+  background: #545b62;
 }
 
 .filter-group {

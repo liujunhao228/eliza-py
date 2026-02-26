@@ -1,124 +1,104 @@
 /**
- * Toast 提示组合式 API
+ * Toast 通知组合式函数
  * 
- * 提供便捷的 Toast 提示方法
+ * 用法:
+ * ```ts
+ * const toast = useToast()
+ * toast.success('操作成功')
+ * toast.error('操作失败')
+ * ```
  */
 
-import type { ToastOptions } from '@/components/common/BaseToast.vue'
+import { ref, type Ref } from 'vue'
 
-// 全局 Toast 实例引用
-let toastInstance: any = null
+type ToastType = 'success' | 'error' | 'info' | 'warning'
 
-/**
- * 设置 Toast 实例（在 App.vue 中调用）
- */
-export function setToastInstance(instance: any) {
-  toastInstance = instance
+interface Toast {
+  id: number
+  type: ToastType
+  message: string
+  duration: number
 }
 
+const toasts: Ref<Toast[]> = ref([])
+let toastId = 0
+
 /**
- * 显示 Toast 提示
+ * 显示 Toast
  */
-export function showToast(options: Omit<ToastOptions, 'id'>) {
-  if (!toastInstance) {
-    console.warn('[useToast] Toast 实例未初始化，请先在 App.vue 中调用 setToastInstance')
-    return
+function showToast(
+  message: string,
+  type: ToastType = 'info',
+  duration: number = 3000
+): number {
+  const id = ++toastId
+  const toast: Toast = { id, type, message, duration }
+
+  toasts.value.push(toast)
+
+  // 自动关闭
+  if (duration > 0) {
+    setTimeout(() => {
+      removeToast(id)
+    }, duration)
   }
-  return toastInstance.add(options)
+
+  return id
 }
 
 /**
- * 显示成功提示
+ * 移除 Toast
  */
-export function showSuccess(message: string, title?: string) {
-  return showToast({
-    type: 'success',
-    title,
-    message
-  })
-}
-
-/**
- * 显示错误提示
- */
-export function showError(message: string, title?: string) {
-  return showToast({
-    type: 'error',
-    title,
-    message
-  })
-}
-
-/**
- * 显示警告提示
- */
-export function showWarning(message: string, title?: string) {
-  return showToast({
-    type: 'warning',
-    title,
-    message
-  })
-}
-
-/**
- * 显示信息提示
- */
-export function showInfo(message: string, title?: string) {
-  return showToast({
-    type: 'info',
-    title,
-    message
-  })
-}
-
-/**
- * 关闭指定 Toast
- */
-export function closeToast(id: number) {
-  if (toastInstance) {
-    toastInstance.remove(id)
+function removeToast(id: number) {
+  const index = toasts.value.findIndex(t => t.id === id)
+  if (index !== -1) {
+    toasts.value.splice(index, 1)
   }
 }
 
 /**
- * 关闭所有 Toast
+ * 清空所有 Toast
  */
-export function closeAllToasts() {
-  if (toastInstance) {
-    toastInstance.clear()
-  }
+function clearToasts() {
+  toasts.value = []
+}
+
+// 快捷方法
+export function success(message: string, duration?: number) {
+  return showToast(message, 'success', duration)
+}
+
+export function error(message: string, duration?: number) {
+  return showToast(message, 'error', duration)
+}
+
+export function info(message: string, duration?: number) {
+  return showToast(message, 'info', duration)
+}
+
+export function warning(message: string, duration?: number) {
+  return showToast(message, 'warning', duration)
 }
 
 /**
- * useToast 组合式 API
- * 
- * 在组件中使用：
- * const { success, error, warning, info } = useToast()
- * 
- * success('操作成功')
- * error('操作失败')
+ * Toast 组合式函数
  */
 export function useToast() {
   return {
-    showSuccess,
-    showError,
-    showWarning,
-    showInfo,
+    toasts,
     showToast,
-    close: closeToast,
-    closeAll: closeAllToasts
+    removeToast,
+    clearToasts,
+    success,
+    error,
+    info,
+    warning,
+    // 别名，方便使用
+    showSuccess: success,
+    showError: error,
+    showInfo: info,
+    showWarning: warning
   }
 }
 
-// 默认导出
-export default {
-  setToastInstance,
-  showToast,
-  showSuccess,
-  showError,
-  showWarning,
-  showInfo,
-  closeToast,
-  closeAllToasts,
-  useToast
-}
+export type { Toast, ToastType }

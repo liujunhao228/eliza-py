@@ -1,0 +1,31 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.12, pytest-7.4.0, pluggy-1.6.0 -- F:\eliza-py\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: F:\eliza-py
+configfile: pyproject.toml
+plugins: anyio-3.7.1, asyncio-0.21.1, cov-4.1.0
+asyncio: mode=Mode.AUTO
+collecting ... 2026-02-26 17:43:27.293 | INFO     | config.yaml_loader:_load_main_config:76 - 已加载主配置：F:\eliza-py\config.yaml
+2026-02-26 17:43:27.300 | INFO     | config.yaml_loader:_load_single_module_config:112 - 已加载模块配置：alice (config.alice.yaml)
+2026-02-26 17:43:27.319 | INFO     | config.yaml_loader:_load_single_module_config:112 - 已加载模块配置：turing (config.turing.yaml)
+2026-02-26 17:43:27.334 | INFO     | config.bot_loader:load_all:118 - 从 F:\eliza-py\bots 加载了 4 个 Bot 配置
+2026-02-26 17:43:27.335 | INFO     | config.yaml_loader:_load_bot_configs:128 - 已加载 4 个 Bot 配置
+2026-02-26 17:43:27.335 | INFO     | config.loader:load:87 - 配置加载完成：Bot 配置=4, 调试模式=False
+⚠️  使用 SQLite 数据库，生产环境建议迁移到 PostgreSQL。配置说明：https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#threading-pooling
+2026-02-26 17:43:28.401 | WARNING  | turing_test.backend.middleware.rate_limiter:get_storage_uri:134 - ⚠️  限流存储使用内存模式，多实例部署请配置 Redis: CONFIG_RATE_LIMIT_STORAGE=redis://localhost:6379
+❌ 生产环境 CORS 未配置！请在启动前设置环境变量:
+   export CONFIG_TURING_CORS_ORIGINS="https://your-domain.com,https://api.your-domain.com"
+   当前将拒绝所有跨域请求
+2026-02-26 17:43:28.519 | INFO     | turing_test.backend.middleware.request_logger:setup_request_logger:313 - ✅ 请求日志中间件已启用
+2026-02-26 17:43:28.519 | DEBUG    | turing_test.backend.middleware.request_logger:setup_request_logger:316 -    - 记录请求体：False
+2026-02-26 17:43:28.519 | DEBUG    | turing_test.backend.middleware.request_logger:setup_request_logger:317 -    - 记录响应体：False
+2026-02-26 17:43:28.519 | DEBUG    | turing_test.backend.middleware.request_logger:setup_request_logger:318 -    - 慢请求阈值：1000ms
+2026-02-26 17:43:28.519 | DEBUG    | turing_test.backend.middleware.request_logger:setup_request_logger:319 -    - 忽略路径：['/health', '/docs', '/redoc', '/openapi.json']
+2026-02-26 17:43:28.519 | INFO     | turing_test.backend.middleware.rate_limiter:setup_rate_limiter:185 - ✅ 限流中间件已启用
+2026-02-26 17:43:28.519 | INFO     | turing_test.backend.middleware.error_tracker:setup_error_tracker:390 - ⚠️  Sentry DSN 未配置，错误追踪已禁用
+2026-02-26 17:43:28.519 | INFO     | turing_test.backend.middleware.error_tracker:setup_error_tracker:391 -    生产环境建议配置 SENTRY_DSN 以启用错误监控
+ERROR: file or directory not found: ;
+
+collected 0 items
+
+============================ no tests ran in 0.00s ============================

@@ -89,10 +89,11 @@ router = APIRouter()
     response_model=SuccessResponse,
     tags=["游戏"],
     summary="结束会话",
-    description="用户主动结束当前会话",
+    description="用户主动结束当前会话，仅标记会话结束，积分结算需在问卷提交时进行",
 )
 async def end_session(
     session_id: int,
+    request: dict,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -100,7 +101,10 @@ async def end_session(
 
     用户主动结束当前会话，仅标记会话结束时间，不进行积分结算。
     积分结算需在问卷提交时进行。
+    支持传递 end_reason 字段指定结束原因。
     """
+    from turing_test.backend.models import Session
+
     # 获取会话信息
     result = await db.execute(
         select(Session).where(Session.id == session_id)
@@ -120,11 +124,15 @@ async def end_session(
             detail="会话已结束，无法重复操作",
         )
 
-    # 更新会话结束时间
+    # 获取结束原因，默认为 user_gave_up
+    end_reason = request.get("end_reason", "user_gave_up")
+
+    # 设置结束时间和原因
     session.ended_at = datetime.now(timezone.utc)
+    session.end_reason = end_reason
     await db.commit()
 
-    logger.info(f"用户主动结束会话：session_id={session_id}")
+    logger.info(f"用户主动结束会话：session_id={session_id}, reason={end_reason}")
 
     return SuccessResponse(
         success=True,

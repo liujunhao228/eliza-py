@@ -61,7 +61,7 @@ import {
 } from '@/components/Result'
 import type { SurveyData } from '@/types/result'
 
-const { showError } = useToast()
+const { error: showError } = useToast()
 const router = useRouter()
 const userStore = useUserStore()
 const gameStore = useGameStore()

@@ -67,11 +67,20 @@
       @confirm="handleMidGameJudgment"
       @cancel="showMidGameModal = false"
     />
+
+    <!-- 结束对话确认弹窗 -->
+    <EndSessionModal
+      v-model="showEndSessionModal"
+      :has-made-judgment="hasMadeJudgment"
+      :loading="isEndingSession"
+      @cancel="showEndSessionModal = false"
+      @confirm="handleConfirmEndSession"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUserStore } from '@/stores/user'
@@ -81,14 +90,25 @@ import ChatHeader from '@/components/Chat/ChatHeader.vue'
 import MessageList from '@/components/Chat/MessageList.vue'
 import ChatInput from '@/components/Chat/ChatInput.vue'
 import MidGameJudgmentModal from '@/components/Chat/MidGameJudgmentModal.vue'
+import EndSessionModal from '@/components/Chat/EndSessionModal.vue'
 import { useChatState } from './composables/useChatState'
 import { useMessageHandler } from './composables/useMessageHandler'
 import { useScroll } from './composables/useScroll'
+import { MIN_CHAT_TURNS } from '@/utils/constants'
 
-const { showError, showWarning } = useToast()
+const { error: showError, warning: showWarning } = useToast()
 const router = useRouter()
 const gameStore = useGameStore()
 const userStore = useUserStore()
+
+// 本地状态
+const showEndSessionModal = ref(false)
+const isEndingSession = ref(false)
+
+// 计算是否已做判断（根据 triggeredMidGame 判断）
+const hasMadeJudgment = computed(() => {
+  return gameStore.gameState.triggeredMidGame
+})
 
 // 使用 ChatState composable
 const {
@@ -108,7 +128,7 @@ const {
   isSending,
   handleSendMessage: handlerSendMessage,
   handleMidGameJudgment,
-  handleEndChat,
+  handleEndChat: baseHandleEndChat,
   loadHistoryMessages
 } = useMessageHandler()
 
@@ -126,6 +146,33 @@ const gameState = computed(() => gameStore.gameState)
 // 包装发送消息函数
 const handleSendMessage = async (content: string) => {
   await handlerSendMessage(content, send)
+}
+
+// 处理结束对话（显示确认弹窗）
+const handleEndChat = () => {
+  // 检查最低轮数
+  const currentTurns = Math.floor(gameStore.turn / 2)
+  if (currentTurns < MIN_CHAT_TURNS) {
+    showWarning(`请多聊几句再结束哦（至少${MIN_CHAT_TURNS}轮，当前${currentTurns}轮）`)
+    return
+  }
+  showEndSessionModal.value = true
+}
+
+// 处理确认结束
+// 根据是否已做判断自动发送正确的 end_reason
+const handleConfirmEndSession = async () => {
+  isEndingSession.value = true
+  try {
+    // 已做判断 = normal_end, 未做判断 = user_gave_up
+    const endReason = hasMadeJudgment.value ? 'normal_end' : 'user_gave_up'
+    await baseHandleEndChat(endReason)
+    showEndSessionModal.value = false
+  } catch (error) {
+    console.error('[Chat] 结束会话失败:', error)
+  } finally {
+    isEndingSession.value = false
+  }
 }
 
 // 生命周期

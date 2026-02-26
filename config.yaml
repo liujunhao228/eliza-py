@@ -35,3 +35,10 @@ modules:
     bot_pool:
       config_dir: bots                  # Bot 配置目录
       default_template: default         # 默认 Bot 模板 ID
+
+# -----------------------------------------------------------------------------
+# 前端 URL 配置
+# -----------------------------------------------------------------------------
+# 用于生成分享链接等需要前端 URL 的场景
+frontend_url: "http://localhost:5173"   # 开发环境
+# frontend_url: "https://your-domain.com"  # 生产环境

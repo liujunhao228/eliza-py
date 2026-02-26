@@ -307,9 +307,11 @@ class MessageService:
                 content=opening,
             )
             db.add(message)
-            
-            # 更新状态
-            session_state_manager.next_turn(session_id)
+
+            # 更新状态：开场白后轮到用户发言
+            # turn_count 设为 1（表示已有 1 条消息），is_user_turn 设为 True
+            state.turn_count = 1
+            state.is_user_turn = True
             asyncio.create_task(_flush_turn_count(session_id, 1))
             
             await db.commit()

@@ -26,7 +26,7 @@ import { startMatching } from '@/api/game/match'
 import RulesSection from '@/components/Lobby/RulesSection.vue'
 import MatchingSection from '@/components/Lobby/MatchingSection.vue'
 
-const { showError, showSuccess } = useToast()
+const { error: showError, success: showSuccess } = useToast()
 const router = useRouter()
 const userStore = useUserStore()
 const gameStore = useGameStore()

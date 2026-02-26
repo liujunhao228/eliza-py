@@ -1,21 +1,8 @@
 <template>
   <router-view />
-  <BaseToast ref="toastRef" />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { BaseToast, setToastInstance } from '@/components/common'
-
-// Toast 实例引用
-const toastRef = ref<InstanceType<typeof BaseToast> | null>(null)
-
-// 在组件挂载后设置 Toast 实例
-onMounted(() => {
-  if (toastRef.value) {
-    setToastInstance(toastRef.value)
-  }
-})
 </script>
 
 <style>

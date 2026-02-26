@@ -122,7 +122,7 @@ import type { SurveyData } from '@/types'
 import { submitSurvey as submitSurveyAPI } from '@/api/survey'
 import ConfidenceSelector from '@/components/Survey/ConfidenceSelector.vue'
 
-const { showError, showSuccess, showWarning } = useToast()
+const { error: showError, success: showSuccess, warning: showWarning } = useToast()
 const router = useRouter()
 const gameStore = useGameStore()
 

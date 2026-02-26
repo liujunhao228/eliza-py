@@ -19,7 +19,7 @@ export function useChatState() {
   const router = useRouter()
   const gameStore = useGameStore()
   const userStore = useUserStore()
-  const { showError, showWarning, showSuccess, showInfo } = useToast()
+  const { error: showError, warning: showWarning, success: showSuccess, info: showInfo } = useToast()
 
   // 状态
   const isLoading = ref(false)

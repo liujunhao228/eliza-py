@@ -80,6 +80,9 @@
       </div>
     </template>
 
+    <!-- Toast 通知 -->
+    <Toast ref="toastRef" />
+
     <!-- 密码输入对话框 -->
     <div v-if="showPasswordModal" class="modal-overlay" @click.self="showPasswordModal = false">
       <div class="modal">
@@ -109,12 +112,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useHistoryStore } from '@/stores/history'
+import Toast from '@/components/common/Toast.vue'
 
 const route = useRoute()
 const historyStore = useHistoryStore()
+const toastRef = ref<InstanceType<typeof Toast> | null>(null)
 
 const shareToken = ref<string>(route.params.token as string)
 
@@ -126,9 +131,56 @@ const showPasswordModal = ref(false)
 const password = ref('')
 const passwordError = ref<string | null>(null)
 const verifying = ref(false)
+const verifyAttempt = ref(0)
 
 const shareInfo = computed(() => historyStore.currentShare)
 const messages = computed(() => historyStore.currentMessages)
+
+// SEO Meta 标签更新
+function updateMetaTags() {
+  // 标题
+  document.title = shareInfo.value
+    ? `会话 #${shareInfo.value.session_id} - ${shareInfo.value.opponent_type === 'human' ? '真人' : 'AI'}对手 - 图灵测试分享`
+    : '共享会话 - 图灵测试'
+
+  // Meta description
+  let metaDescription = document.querySelector('meta[name="description"]')
+  const description = shareInfo.value
+    ? `图灵测试会话记录：${shareInfo.value.turn_count}轮对话，${shareInfo.value.opponent_type === 'human' ? '真人' : 'AI'}对手`
+    : '查看分享的图灵测试会话记录'
+
+  if (!metaDescription) {
+    metaDescription = document.createElement('meta')
+    metaDescription.setAttribute('name', 'description')
+    document.head.appendChild(metaDescription)
+  }
+  metaDescription.setAttribute('content', description)
+
+  // Open Graph tags
+  const ogTags = [
+    { property: 'og:title', content: shareInfo.value ? `会话 #${shareInfo.value.session_id}` : '共享会话' },
+    { property: 'og:description', content: description },
+    { property: 'og:type', content: 'website' },
+    { property: 'og:site_name', content: '图灵测试' }
+  ]
+
+  ogTags.forEach(({ property, content }) => {
+    let tag = document.querySelector(`meta[property="${property}"]`)
+    if (!tag) {
+      tag = document.createElement('meta')
+      tag.setAttribute('property', property)
+      document.head.appendChild(tag)
+    }
+    tag.setAttribute('content', content)
+  })
+}
+
+// 监听 shareInfo 变化，更新 Meta 标签
+watch(shareInfo, () => {
+  if (shareInfo.value) {
+    updateMetaTags()
+  }
+}, { immediate: true })
 
 // 格式化日期
 function formatDate(dateString: string): string {
@@ -161,16 +213,22 @@ async function fetchShareInfo() {
       showPasswordModal.value = true
     } else if (!info.is_expired) {
       // 无需密码且未过期，加载消息
-      fetchMessages()
+      await fetchMessages()
+    } else {
+      shareError.value = '此分享已过期'
+      toastRef.value?.error('此分享已过期')
     }
   } catch (e: any) {
-    if (e.message.includes('密码') || e.message.includes('password')) {
+    const msg = e.message || '加载失败'
+    if (msg.includes('密码') || msg.includes('password')) {
       needsPassword.value = true
       showPasswordModal.value = true
-    } else if (e.message.includes('过期')) {
+    } else if (msg.includes('过期')) {
       shareError.value = '此分享已过期'
+      toastRef.value?.error('此分享已过期')
     } else {
-      shareError.value = e.message || '加载失败'
+      shareError.value = msg
+      toastRef.value?.error(msg)
     }
   } finally {
     loadingShare.value = false
@@ -184,6 +242,16 @@ async function verifyPassword() {
     return
   }
 
+  if (verifying.value) return  // 防止重复提交
+  verifyAttempt.value += 1
+
+  // 限制重试次数
+  if (verifyAttempt.value >= 5) {
+    passwordError.value = '重试次数过多，请稍后再试'
+    toastRef.value?.error('重试次数过多，请稍后再试')
+    return
+  }
+
   verifying.value = true
   passwordError.value = null
 
@@ -191,10 +259,16 @@ async function verifyPassword() {
     const result = await historyStore.verifySharePassword(shareToken.value, password.value)
     if (result.success) {
       showPasswordModal.value = false
-      fetchMessages()
+      toastRef.value?.success('密码验证成功')
+      await fetchMessages()
     }
   } catch (e: any) {
     passwordError.value = e.message || '密码错误'
+    toastRef.value?.error(e.message || '密码错误')
+    // 限制重试次数
+    if (verifyAttempt.value >= 5) {
+      passwordError.value = '重试次数过多，请稍后再试'
+    }
   } finally {
     verifying.value = false
   }
@@ -206,7 +280,9 @@ async function fetchMessages() {
   try {
     await historyStore.fetchSharedMessages(shareToken.value)
   } catch (e: any) {
-    shareError.value = e.message || '加载消息失败'
+    const msg = e.message || '加载消息失败'
+    shareError.value = msg
+    toastRef.value?.error(msg)
   } finally {
     loadingMessages.value = false
   }

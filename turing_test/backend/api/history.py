@@ -14,12 +14,14 @@ from sqlalchemy.orm import joinedload
 from jose import jwt, JWTError
 
 from turing_test.backend.database import get_db
-from turing_test.backend.models import User, Session, SessionShare
+from turing_test.backend.models import User, Session, SessionShare, Message
 from turing_test.backend.schemas import (
     SessionListResponse,
     SessionListItem,
     SessionDetailResponse,
     SuccessResponse,
+    SharedMessagesResponse,
+    MessageResponse,
 )
 from config import settings
 from loguru import logger
@@ -119,6 +121,7 @@ async def get_user_sessions(
     page_size: int = 20,
     opponent_type: Optional[str] = None,
     is_correct: Optional[bool] = None,
+    search: Optional[str] = None,
     current_user_id: int = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
@@ -139,12 +142,22 @@ async def get_user_sessions(
     
     # 构建查询
     query = select(Session).where(Session.user_id == user_id)
-    
+
     # 应用过滤
     if opponent_type:
         query = query.where(Session.opponent_type == opponent_type)
     if is_correct is not None:
         query = query.where(Session.is_correct == is_correct)
+    
+    # 应用搜索（按会话 ID）
+    if search:
+        # 尝试解析为整数
+        try:
+            search_id = int(search)
+            query = query.where(Session.id == search_id)
+        except ValueError:
+            # 如果不是整数，返回空结果
+            query = query.where(Session.id == -1)
     
     # 计算总数
     total_query = select(func.count()).select_from(query.subquery())
@@ -249,4 +262,67 @@ async def get_session_detail(
         started_at=session.started_at,
         ended_at=session.ended_at,
         duration_seconds=duration,
+    )
+
+
+@router.get(
+    "/session/{session_id}/messages",
+    response_model=SharedMessagesResponse,
+    tags=["历史会话"],
+    summary="获取会话消息",
+    description="获取指定会话的完整聊天记录。",
+)
+async def get_session_messages(
+    session_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    获取会话消息列表
+
+    权限：仅会话所有者或管理员可访问
+    """
+    # 获取会话并校验权限
+    result = await db.execute(
+        select(Session).where(Session.id == session_id)
+    )
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="会话不存在",
+        )
+
+    # 权限校验
+    if session.user_id != current_user_id:
+        is_admin = await is_admin_user(current_user_id, db)
+        if not is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权访问此会话",
+            )
+
+    # 获取消息
+    msg_result = await db.execute(
+        select(Message).where(Message.session_id == session_id)
+        .order_by(Message.created_at.asc())
+    )
+    messages = msg_result.scalars().all()
+
+    return SharedMessagesResponse(
+        session_id=session.id,
+        opponent_type=_normalize_opponent_type(session.opponent_type),
+        messages=[
+            MessageResponse(
+                id=msg.id,
+                session_id=msg.session_id,
+                sender=msg.sender,
+                content=msg.content,
+                is_meta_conversation=msg.is_meta_conversation,
+                meta_keyword=msg.meta_keyword,
+                created_at=msg.created_at,
+            )
+            for msg in messages
+        ],
     )

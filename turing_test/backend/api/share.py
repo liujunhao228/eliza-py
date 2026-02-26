@@ -6,7 +6,7 @@
 
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -15,7 +15,7 @@ from jose import jwt, JWTError
 import bcrypt
 
 from turing_test.backend.database import get_db
-from turing_test.backend.models import User, Session, SessionShare, Message
+from turing_test.backend.models import User, Session, SessionShare, Message, SessionShareAccess
 from turing_test.backend.schemas import (
     CreateShareRequest,
     CreateShareResponse,
@@ -29,9 +29,10 @@ from turing_test.backend.schemas import (
 )
 from config import settings
 from loguru import logger
+from fastapi import Request
 
 router = APIRouter()
-FRONTEND_URL = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+FRONTEND_URL = settings.frontend_url
 
 
 def _normalize_opponent_type(opponent_type: str) -> str:
@@ -160,7 +161,10 @@ async def verify_share_password(share_token: str, request: VerifyPasswordRequest
 
 @router.get("/share/{share_token}/messages", response_model=SharedMessagesResponse, tags=["分享会话"])
 async def get_shared_messages(
-    share_token: str, authorization: Optional[str] = Header(None), db: AsyncSession = Depends(get_db)
+    share_token: str,
+    request: Request,
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
         select(SessionShare).options(joinedload(SessionShare.session)).where(SessionShare.share_token == share_token)
@@ -168,11 +172,11 @@ async def get_shared_messages(
     share = result.scalar_one_or_none()
     if not share:
         raise HTTPException(status_code=404, detail="分享不存在")
-    
+
     session = share.session
     if share.expires_at and share.expires_at < now_utc():
         raise HTTPException(status_code=410, detail="分享已过期")
-    
+
     if share.password_hash:
         if not authorization:
             raise HTTPException(status_code=401, detail="需要密码验证")
@@ -185,14 +189,25 @@ async def get_shared_messages(
                 raise HTTPException(status_code=403, detail="访问令牌无效")
         except JWTError:
             raise HTTPException(status_code=403, detail="访问令牌已过期或无效")
-    
+
     msg_result = await db.execute(
         select(Message).where(Message.session_id == session.id).order_by(Message.created_at.asc())
     )
     messages = msg_result.scalars().all()
+
+    # 更新访问计数
     share.view_count += 1
+
+    # 记录访问日志
+    access_log = SessionShareAccess(
+        share_id=share.id,
+        ip_address=request.client.host if request.client else "unknown",
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.add(access_log)
+
     await db.commit()
-    
+
     return SharedMessagesResponse(
         session_id=session.id, opponent_type=_normalize_opponent_type(session.opponent_type),
         messages=[
@@ -203,6 +218,48 @@ async def get_shared_messages(
             ) for msg in messages
         ],
     )
+
+
+@router.get("/session/{session_id}/shares", response_model=List[CreateShareResponse], tags=["分享会话"])
+async def get_session_shares(
+    session_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    获取会话的所有分享链接
+
+    权限：仅会话所有者或管理员可访问
+    """
+    # 获取会话并校验权限
+    result = await db.execute(select(Session).where(Session.id == session_id))
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    if session.user_id != current_user_id:
+        is_admin = await is_admin_user(current_user_id, db)
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="无权访问此会话")
+
+    # 获取分享列表
+    shares_result = await db.execute(
+        select(SessionShare).where(SessionShare.session_id == session_id)
+        .order_by(SessionShare.created_at.desc())
+    )
+    shares = shares_result.scalars().all()
+
+    return [
+        CreateShareResponse(
+            share_id=share.id,
+            share_token=share.share_token,
+            share_url=f"{FRONTEND_URL}/share/{share.share_token}",
+            expires_at=share.expires_at,
+            has_password=share.password_hash is not None,
+        )
+        for share in shares
+    ]
 
 
 @router.put("/share/{share_id}", response_model=CreateShareResponse, tags=["分享会话"])
