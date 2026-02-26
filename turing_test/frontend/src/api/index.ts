@@ -20,7 +20,11 @@ const api = axios.create({
 // 请求拦截器
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // 可以在这里添加 token 等
+    // 添加认证 token
+    const token = localStorage.getItem('accessToken')
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
     return config
   },
   (error) => {

@@ -48,6 +48,17 @@ class UserResponse(BaseSchema):
     last_login_at: Optional[datetime] = None
 
 
+class UserLoginResponse(BaseSchema):
+    """用户登录响应（包含 token）"""
+    id: int
+    username: str
+    nickname: str
+    score: int
+    invite_code: str
+    access_token: str
+    token_type: str = "bearer"
+
+
 class UserStatsResponse(BaseSchema):
     """用户统计响应"""
     total_sessions: int

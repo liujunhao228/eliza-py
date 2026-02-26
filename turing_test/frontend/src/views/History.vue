@@ -158,7 +158,7 @@ import ShareDialog from '@/components/History/ShareDialog.vue'
 const router = useRouter()
 const historyStore = useHistoryStore()
 const userStore = useUserStore()
-const { success, error: showError } = useToast()
+const { success, error: showToastError } = useToast()
 
 // 状态
 const loading = computed(() => historyStore.loading)
@@ -203,7 +203,8 @@ function getConfidenceText(level: string): string {
 function applyFilters() {
   historyStore.fetchSessions(userStore.userId!, {
     opponent_type: filterOpponentType.value || undefined,
-    is_correct: filterResult.value ? filterResult.value === 'true' : undefined
+    is_correct: filterResult.value ? filterResult.value === 'true' : undefined,
+    search: searchQuery.value || undefined
   })
 }
 
@@ -211,7 +212,8 @@ function applyFilters() {
 function applySearch() {
   historyStore.fetchSessions(userStore.userId!, {
     opponent_type: filterOpponentType.value || undefined,
-    is_correct: filterResult.value ? filterResult.value === 'true' : undefined
+    is_correct: filterResult.value ? filterResult.value === 'true' : undefined,
+    search: searchQuery.value || undefined
   })
 }
 
@@ -226,7 +228,8 @@ function changePageSize() {
   historyStore.pagination.page_size = pageSize.value
   historyStore.fetchSessions(userStore.userId!, {
     opponent_type: filterOpponentType.value || undefined,
-    is_correct: filterResult.value ? filterResult.value === 'true' : undefined
+    is_correct: filterResult.value ? filterResult.value === 'true' : undefined,
+    search: searchQuery.value || undefined
   })
 }
 
@@ -237,12 +240,7 @@ function loadMore() {
 
 // 查看会话
 function viewSession(sessionId: number) {
-  historyStore.fetchSessionDetail(sessionId)
-  historyStore.fetchSessionMessages(sessionId)
-  historyStore.fetchSessions(userStore.userId!)
-  historyStore.fetchSessionDetail(sessionId).then(() => {
-    historyStore.fetchSessionMessages(sessionId)
-  })
+  // 在跳转前提前加载数据，SessionDetail 页面也会自行加载
   router.push(`/session/${sessionId}`)
 }
 
@@ -279,7 +277,7 @@ function handleShareDeleted() {
 
 // 显示通知
 function showNotify({ message }: { type: string; message: string }) {
-  showError(message)
+  showToastError(message)
 }
 
 // 初始化

@@ -150,8 +150,8 @@ async function registerUser() {
 
   try {
     // 直接登录，如果用户不存在会自动创建，同时传递昵称
-    const user = await login(inviteCode.value.trim().toUpperCase(), nickname.value.trim())
-    userStore.setUser(user)
+    const response = await login(inviteCode.value.trim().toUpperCase(), nickname.value.trim())
+    userStore.setLoginResponse(response)
     errorMessage.value = ''
     router.push('/lobby')
   } catch (error: any) {

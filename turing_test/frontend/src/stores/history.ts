@@ -85,7 +85,8 @@ export const useHistoryStore = defineStore('history', () => {
 
   const filters = ref({
     opponent_type: '' as string | undefined,
-    is_correct: undefined as boolean | undefined
+    is_correct: undefined as boolean | undefined,
+    search: undefined as string | undefined
   })
 
   // 分享相关状态

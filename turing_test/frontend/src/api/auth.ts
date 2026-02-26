@@ -1,6 +1,6 @@
 // 认证相关 API
 import api from './index'
-import type { User } from '@/types'
+import type { User, LoginResponse } from '@/types'
 
 /**
  * 用户登录/注册
@@ -8,7 +8,7 @@ import type { User } from '@/types'
  * @param code 邀请码
  * @param nickname 用户昵称（可选，新用户注册时必需）
  */
-export async function login(code: string, nickname?: string): Promise<User> {
+export async function login(code: string, nickname?: string): Promise<LoginResponse> {
   const payload: { invite_code: string; nickname?: string } = { invite_code: code }
   if (nickname && nickname.trim()) {
     payload.nickname = nickname.trim()

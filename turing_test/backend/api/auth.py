@@ -17,6 +17,7 @@ from turing_test.backend.schemas import (
     UserLogin,
     UserRegister,
     UserResponse,
+    UserLoginResponse,
     SuccessResponse,
 )
 from turing_test.backend.services.invite_code_service import get_invite_code_service, InviteCodeService
@@ -101,7 +102,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 @router.post(
     "/login",
-    response_model=UserResponse,
+    response_model=UserLoginResponse,
     status_code=status.HTTP_200_OK,
     summary="用户登录",
     description="使用邀请码登录或注册用户",
@@ -167,7 +168,21 @@ async def login(
     user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
 
-    return UserResponse.model_validate(user)
+    # 创建访问 token
+    access_token = create_access_token(
+        data={"sub": str(user.id)},
+        expires_delta=timedelta(minutes=settings.turing.auth.access_token_expire_minutes)
+    )
+
+    return UserLoginResponse(
+        id=user.id,
+        username=user.username,
+        nickname=user.username,
+        score=user.score,
+        invite_code=user.invite_code,
+        access_token=access_token,
+        token_type="bearer"
+    )
 
 
 @router.post(

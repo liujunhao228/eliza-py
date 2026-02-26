@@ -206,7 +206,7 @@ async def get_user_profile(
     db: AsyncSession = Depends(get_db)
 ):
     """获取用户完整档案"""
-    from turing_test.backend.models import User, UserStats, ScoreHistory
+    from turing_test.backend.models import User, UserStats, ScoreHistory, Session
 
     # 检查用户是否存在
     result = await db.execute(
@@ -235,11 +235,42 @@ async def get_user_profile(
     )
     score_history = result.scalars().all()
 
+    # 获取最近的会话历史（最近 10 条）
+    result = await db.execute(
+        select(Session)
+        .where(Session.user_id == user_id)
+        .order_by(Session.started_at.desc())
+        .limit(10)
+    )
+    sessions = result.scalars().all()
+
+    def _normalize_opponent_type(opponent_type: str) -> str:
+        """规范化对手类型，将 honeypot 隐藏为 ai"""
+        if opponent_type == "honeypot":
+            return "ai"
+        return opponent_type
+
     return {
         "user": UserResponse.model_validate(user),
         "stats": UserStatsResponse.model_validate(user_stats) if user_stats else None,
         "score_history": [
             ScoreHistoryResponse.model_validate(record)
             for record in score_history
+        ],
+        "history": [
+            {
+                "id": session.id,
+                "opponent_type": _normalize_opponent_type(session.opponent_type),
+                "turn_count": session.turn_count,
+                "final_score": session.final_score,
+                "is_correct": session.is_correct,
+                "confidence_level": session.confidence_level,
+                "started_at": session.started_at,
+                "ended_at": session.ended_at,
+                "has_share": False,  # 简化处理，不检查分享状态
+                "meta_conversation_count": session.meta_conversation_count,
+                "triggered_mid_game": session.triggered_mid_game,
+            }
+            for session in sessions
         ],
     }

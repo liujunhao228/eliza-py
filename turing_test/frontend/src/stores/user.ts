@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { User, UserStats } from '@/types'
+import type { User, UserStats, LoginResponse } from '@/types'
 import { STORAGE_KEYS } from '@/utils/constants'
 
 export const useUserStore = defineStore('user', () => {
@@ -8,18 +8,19 @@ export const useUserStore = defineStore('user', () => {
   // 注意：用户名字段统一使用 nickname，username 字段已废弃
   // 初始化时正确处理 localStorage 中的无效值（"0"、"null"、"undefined"、空字符串）
   const userIdFromStorage = localStorage.getItem(STORAGE_KEYS.USER_ID)
-  const isValidUserId = userIdFromStorage && 
-                        userIdFromStorage !== '0' && 
-                        userIdFromStorage !== 'null' && 
+  const isValidUserId = userIdFromStorage &&
+                        userIdFromStorage !== '0' &&
+                        userIdFromStorage !== 'null' &&
                         userIdFromStorage !== 'undefined' &&
                         userIdFromStorage !== ''
-  
+
   const userId = ref<number | null>(
     isValidUserId ? parseInt(userIdFromStorage, 10) || null : null
   )
   const nickname = ref<string>(localStorage.getItem(STORAGE_KEYS.NICKNAME) || '')
   const inviteCode = ref<string>(localStorage.getItem(STORAGE_KEYS.INVITE_CODE) || '')
   const score = ref<number>(parseInt(localStorage.getItem(STORAGE_KEYS.USER_SCORE) || '100', 10))
+  const accessToken = ref<string>(localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) || '')
   const stats = ref<UserStats | null>(null)
   const scoreHistory = ref<any[]>([])
 
@@ -44,7 +45,7 @@ export const useUserStore = defineStore('user', () => {
 
   // 方法
   /**
-   * 设置用户信息
+   * 设置用户信息（旧版 API，兼容用）
    * @param user 用户对象
    * 注意：优先使用 nickname 字段，兼容旧版 username 字段
    */
@@ -60,6 +61,25 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem(STORAGE_KEYS.NICKNAME, nickname.value)
     localStorage.setItem(STORAGE_KEYS.INVITE_CODE, user.invite_code)
     localStorage.setItem(STORAGE_KEYS.USER_SCORE, (user.score || 100).toString())
+  }
+
+  /**
+   * 设置登录响应（包含 token）
+   * @param response 登录响应
+   */
+  function setLoginResponse(response: LoginResponse) {
+    userId.value = response.id
+    nickname.value = response.nickname || response.username || ''
+    inviteCode.value = response.invite_code
+    score.value = response.score || 100
+    accessToken.value = response.access_token
+
+    // 持久化到 localStorage
+    localStorage.setItem(STORAGE_KEYS.USER_ID, response.id.toString())
+    localStorage.setItem(STORAGE_KEYS.NICKNAME, nickname.value)
+    localStorage.setItem(STORAGE_KEYS.INVITE_CODE, response.invite_code)
+    localStorage.setItem(STORAGE_KEYS.USER_SCORE, (response.score || 100).toString())
+    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, response.access_token)
   }
 
   function updateScore(newScore: number) {
@@ -80,6 +100,7 @@ export const useUserStore = defineStore('user', () => {
     nickname.value = ''
     inviteCode.value = ''
     score.value = 100
+    accessToken.value = ''
     stats.value = null
     scoreHistory.value = []
 
@@ -89,6 +110,7 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem(STORAGE_KEYS.INVITE_CODE)
     localStorage.removeItem(STORAGE_KEYS.SESSION_ID)
     localStorage.removeItem(STORAGE_KEYS.OPPONENT_TYPE)
+    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
   }
 
   return {
@@ -97,6 +119,7 @@ export const useUserStore = defineStore('user', () => {
     nickname,
     inviteCode,
     score,
+    accessToken,
     stats,
     scoreHistory,
 
@@ -106,6 +129,7 @@ export const useUserStore = defineStore('user', () => {
 
     // 方法
     setUser,
+    setLoginResponse,
     updateScore,
     setStats,
     setScoreHistory,

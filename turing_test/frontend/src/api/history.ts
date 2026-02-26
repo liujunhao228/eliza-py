@@ -44,8 +44,8 @@ export interface ShareInfo {
   share_url: string
   expires_at: string | null
   has_password: boolean
-  is_expired: boolean
-  view_count: number
+  is_expired?: boolean
+  view_count?: number
 }
 
 export interface SharePublicInfo {
@@ -94,6 +94,7 @@ export async function getUserSessions(
     page_size?: number
     opponent_type?: string
     is_correct?: boolean
+    search?: string
   }
 ): Promise<SessionListResponse> {
   return api.get(`/user/${userId}/sessions`, { params: filters })

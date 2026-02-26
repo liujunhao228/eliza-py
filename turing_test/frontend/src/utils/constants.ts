@@ -99,6 +99,7 @@ export const STORAGE_KEYS = {
   SESSION_ID: 'sessionId',
   OPPONENT_TYPE: 'opponentType',
   USER_SCORE: 'userScore',
+  ACCESS_TOKEN: 'accessToken',
   TRIGGERED_MID_GAME: 'triggeredMidGame'
 } as const
 

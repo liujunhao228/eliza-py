@@ -22,6 +22,17 @@ export interface User {
   last_login_at?: string
 }
 
+// 登录响应类型
+export interface LoginResponse {
+  id: number
+  username: string
+  nickname: string
+  score: number
+  invite_code: string
+  access_token: string
+  token_type: string
+}
+
 // 会话相关类型
 export interface Session {
   id: number
@@ -36,6 +47,11 @@ export interface Session {
   started_at?: string
   ended_at?: string
   created_at: string
+  turn_count?: number
+  final_score?: number | null
+  is_correct?: boolean | null
+  confidence_level?: 'low' | 'mid' | 'high' | null
+  has_share?: boolean
 }
 
 // 消息相关类型
