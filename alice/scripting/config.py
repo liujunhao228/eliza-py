@@ -92,17 +92,38 @@ class ScriptConfigLoader:
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 data = yaml.safe_load(f)
-            
-            if not data or 'scripts' not in data:
+
+            if not data:
+                logger.warning(f"配置文件内容为空：{path}")
+                return []
+
+            # 支持两种格式：
+            # 格式 1: {'scripts': [...]} - 脚本配置列表
+            # 格式 2: [{'intent': ...}, ...] - 直接的定义列表（YAML 脚本引擎格式）
+            if isinstance(data, dict):
+                if 'scripts' not in data:
+                    logger.warning(f"配置文件缺少 'scripts' 键：{path}")
+                    return []
+                scripts_list = data['scripts']
+            elif isinstance(data, list):
+                # 直接列表格式，包装为单个脚本配置
+                scripts_list = [{
+                    'id': path.stem,  # 使用文件名作为脚本 ID
+                    'name': path.stem,
+                    'type': 'yaml',
+                    'path': str(path),
+                    'priority': self.default_priority,
+                }]
+            else:
                 logger.warning(f"配置文件格式无效：{path}")
                 return []
-            
+
             configs = []
-            for script_data in data['scripts']:
+            for script_data in scripts_list:
                 config = self._parse_script_config(script_data, path.parent)
                 if config:
                     configs.append(config)
-            
+
             return configs
             
         except yaml.YAMLError as e:

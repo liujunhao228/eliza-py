@@ -54,7 +54,9 @@ def resolve_env_variables(value: str) -> str:
     """
     解析字符串中的环境变量
 
-    支持格式：${ENV_VAR} 或 $ENV_VAR
+    支持格式:
+    - ${ENV_VAR} - 直接获取环境变量
+    - ${ENV_VAR:default} - 如果环境变量不存在，使用默认值
 
     Args:
         value: 包含环境变量的字符串
@@ -65,12 +67,20 @@ def resolve_env_variables(value: str) -> str:
     if not isinstance(value, str):
         return value
 
-    # 处理 ${VAR} 格式
-    pattern = r'\$\{([^}]+)\}'
+    # 处理 ${VAR:default} 或 ${VAR} 格式
+    # 分组 1: 变量名，分组 2: 默认值 (可选)
+    pattern = r'\$\{([^}:]+)(?::([^}]*))?\}'
 
     def replace_env(match):
         env_var = match.group(1)
-        return os.environ.get(env_var, match.group(0))
+        default_value = match.group(2)
+        value = os.environ.get(env_var)
+        if value is not None:
+            return value
+        elif default_value is not None:
+            return default_value
+        else:
+            return match.group(0)  # 返回原始字符串
 
     return re.sub(pattern, replace_env, value)
 

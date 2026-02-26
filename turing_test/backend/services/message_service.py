@@ -9,6 +9,7 @@
 """
 
 import asyncio
+import random
 from datetime import datetime, timezone
 from typing import Tuple, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -241,6 +242,8 @@ class MessageService:
         """
         发送 Bot 开场白
         
+        注意：调用前应已完成概率检测和 turn_count 检查
+        
         开场白来源：
         - 普通 AI: scripts/opening.yaml
         - 钓鱼机器人：scripts/opening_honeypot.yaml
@@ -258,7 +261,7 @@ class MessageService:
             if not state:
                 return
             
-            # 检查是否已有消息
+            # 再次检查是否已有消息（双重保护）
             if state.turn_count > 0:
                 logger.info(f"会话已有消息，跳过开场白：session_id={session_id}")
                 return
@@ -283,17 +286,14 @@ class MessageService:
             if not opening:
                 opening = "你好，我是小图。"
             
-            # 延迟 2-5 秒
-            import random
-            delay = random.uniform(2.0, 5.0)
-            
             # 发送打字提示
             await manager.send_to_session(session_id, {
                 "type": "typing",
                 "data": {"sender": "opponent", "is_typing": True}
             })
             
-            await asyncio.sleep(delay)
+            # 等待短暂延迟（主延迟已在匹配服务中等待）
+            await asyncio.sleep(random.uniform(0.5, 1.0))
             
             await manager.send_to_session(session_id, {
                 "type": "stop_typing",
@@ -326,7 +326,7 @@ class MessageService:
                 }
             })
             
-            logger.info(f"开场白已发送：session_id={session_id}, content={opening}")
+            logger.info(f"开场白已发送：session_id={session_id}, content={opening[:20]}...")
             
         except Exception as e:
             logger.error(f"发送开场白失败：{e}", exc_info=True)

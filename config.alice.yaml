@@ -30,7 +30,7 @@ scripting:
     script_file: scripts/yaml/demo.yaml   # 默认配置
     opening_script_file: scripts/opening.yaml  # 开场白脚本
 
-  rules_file: alice/scripts/rules/mapping.yaml
+  rules_file: scripts/mapping/mapping.yaml
 
 # -----------------------------------------------------------------------------
 # 对话上下文配置

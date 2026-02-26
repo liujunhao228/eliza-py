@@ -81,50 +81,40 @@ class AIBotService:
 
     def _load_delay_config(self):
         """加载延迟配置"""
-        if hasattr(settings, 'turing') and settings.turing:
-            ai_bot_cfg = settings.turing.get('ai_bot', {})
-            self._delay_config = {
-                # 回复延迟
-                'reply_delay_min': ai_bot_cfg.get('reply_delay_min', 1.0),
-                'reply_delay_max': ai_bot_cfg.get('reply_delay_max', 3.0),
-                # 开场白延迟
-                'opening_delay_min': ai_bot_cfg.get('opening_delay_min', 2.0),
-                'opening_delay_max': ai_bot_cfg.get('opening_delay_max', 5.0),
-                # 每字符延迟
-                'typing_delay_per_char': ai_bot_cfg.get('typing_delay_per_char', 0.05),
-                # 钓鱼机器人延迟
-                'honeypot': {
-                    'reply_delay_min': ai_bot_cfg.get('honeypot', {}).get('reply_delay_min', 2.0),
-                    'reply_delay_max': ai_bot_cfg.get('honeypot', {}).get('reply_delay_max', 8.0),
-                    'opening_delay_min': ai_bot_cfg.get('honeypot', {}).get('opening_delay_min', 5.0),
-                    'opening_delay_max': ai_bot_cfg.get('honeypot', {}).get('opening_delay_max', 15.0),
-                    'occasional_long_delay_probability': ai_bot_cfg.get('honeypot', {}).get('occasional_long_delay_probability', 0.1),
-                    'occasional_long_delay_min': ai_bot_cfg.get('honeypot', {}).get('occasional_long_delay_min', 15.0),
-                    'occasional_long_delay_max': ai_bot_cfg.get('honeypot', {}).get('occasional_long_delay_max', 60.0),
-                    'meta_delay_multiplier': ai_bot_cfg.get('honeypot', {}).get('meta_delay_multiplier', 1.5),
-                    'early_session_delay_multiplier': ai_bot_cfg.get('honeypot', {}).get('early_session_delay_multiplier', 1.3),
-                }
+        # 从 ConfigManager 获取原始配置字典
+        from config.manager import get_config_manager
+        
+        try:
+            config_mgr = get_config_manager()
+            # 获取原始 turing 配置字典
+            turing_cfg = config_mgr._config.get('turing', {})
+            ai_bot_cfg = turing_cfg.get('ai_bot', {})
+        except Exception:
+            # 如果无法获取原始配置，使用默认值
+            ai_bot_cfg = {}
+        
+        self._delay_config = {
+            # 回复延迟
+            'reply_delay_min': ai_bot_cfg.get('reply_delay_min', 1.0),
+            'reply_delay_max': ai_bot_cfg.get('reply_delay_max', 3.0),
+            # 开场白延迟
+            'opening_delay_min': ai_bot_cfg.get('opening_delay_min', 2.0),
+            'opening_delay_max': ai_bot_cfg.get('opening_delay_max', 5.0),
+            # 每字符延迟
+            'typing_delay_per_char': ai_bot_cfg.get('typing_delay_per_char', 0.05),
+            # 钓鱼机器人延迟
+            'honeypot': {
+                'reply_delay_min': ai_bot_cfg.get('honeypot', {}).get('reply_delay_min', 2.0),
+                'reply_delay_max': ai_bot_cfg.get('honeypot', {}).get('reply_delay_max', 8.0),
+                'opening_delay_min': ai_bot_cfg.get('honeypot', {}).get('opening_delay_min', 5.0),
+                'opening_delay_max': ai_bot_cfg.get('honeypot', {}).get('opening_delay_max', 15.0),
+                'occasional_long_delay_probability': ai_bot_cfg.get('honeypot', {}).get('occasional_long_delay_probability', 0.1),
+                'occasional_long_delay_min': ai_bot_cfg.get('honeypot', {}).get('occasional_long_delay_min', 15.0),
+                'occasional_long_delay_max': ai_bot_cfg.get('honeypot', {}).get('occasional_long_delay_max', 60.0),
+                'meta_delay_multiplier': ai_bot_cfg.get('honeypot', {}).get('meta_delay_multiplier', 1.5),
+                'early_session_delay_multiplier': ai_bot_cfg.get('honeypot', {}).get('early_session_delay_multiplier', 1.3),
             }
-        else:
-            # 默认配置
-            self._delay_config = {
-                'reply_delay_min': 1.0,
-                'reply_delay_max': 3.0,
-                'opening_delay_min': 2.0,
-                'opening_delay_max': 5.0,
-                'typing_delay_per_char': 0.05,
-                'honeypot': {
-                    'reply_delay_min': 2.0,
-                    'reply_delay_max': 8.0,
-                    'opening_delay_min': 5.0,
-                    'opening_delay_max': 15.0,
-                    'occasional_long_delay_probability': 0.1,
-                    'occasional_long_delay_min': 15.0,
-                    'occasional_long_delay_max': 60.0,
-                    'meta_delay_multiplier': 1.5,
-                    'early_session_delay_multiplier': 1.3,
-                }
-            }
+        }
         logger.debug(f"延迟配置已加载：{self._delay_config}")
 
     async def shutdown(self):

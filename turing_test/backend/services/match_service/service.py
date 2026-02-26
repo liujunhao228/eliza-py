@@ -282,7 +282,7 @@ class MatchService:
         user_score: int
     ):
         """
-        为用户分配 AI 对手（可能是钓鱼机器人）
+        为用户分配 AI 对手（支持概率开场白）
 
         Args:
             user_id: 用户 ID
@@ -295,6 +295,7 @@ class MatchService:
         from turing_test.backend.models import Session
         from turing_test.backend.services.session_state import session_state_manager
         from turing_test.backend.services.message_service import MessageService
+        from config import get_config_manager
 
         # 判断是否为钓鱼机器人
         is_honeypot = self.algorithm.should_assign_honeypot(
@@ -302,7 +303,7 @@ class MatchService:
         )
 
         async with async_session_maker() as db:
-            # 创建 AI 会话
+            # 创建会话
             session = Session(
                 user_id=user_id,
                 opponent_type="honeypot" if is_honeypot else "ai",
@@ -319,6 +320,30 @@ class MatchService:
                 user_id=user_id,
                 is_honeypot=is_honeypot,
                 opponent_type="honeypot" if is_honeypot else "ai",
+            )
+            
+            # 获取开场白配置
+            config_mgr = get_config_manager()
+            opening_cfg = config_mgr.get('turing.ai_bot.opening', {})
+            
+            # 根据类型选择配置
+            if is_honeypot:
+                honeypot_cfg = opening_cfg.get('honeypot', {})
+                probability = honeypot_cfg.get('probability', 0.5)
+                delay_min = honeypot_cfg.get('delay_min', 5.0)
+                delay_max = honeypot_cfg.get('delay_max', 15.0)
+            else:
+                probability = opening_cfg.get('probability', 0.7)
+                delay_min = opening_cfg.get('delay_min', 2.0)
+                delay_max = opening_cfg.get('delay_max', 5.0)
+            
+            # 检查是否启用开场白
+            if not opening_cfg.get('enabled', True):
+                probability = 0.0
+            
+            logger.info(
+                f"开场白配置：session_id={session.id}, "
+                f"is_honeypot={is_honeypot}, probability={probability}"
             )
 
             match_type = "honeypot" if is_honeypot else "ai"
@@ -340,9 +365,26 @@ class MatchService:
                 }
             })
             
-            # 延迟发送开场白（2-5 秒随机）
+            # 延迟发送开场白（带概率检测）
             async def send_opening_with_delay():
-                await asyncio.sleep(random.uniform(2.0, 5.0))
+                # 等待随机延迟
+                await asyncio.sleep(random.uniform(delay_min, delay_max))
+                
+                # 检查是否已有消息（用户先发言）
+                state = session_state_manager.get(session_id)
+                if state and state.turn_count > 0:
+                    logger.info(f"用户已先发言，跳过开场白：session_id={session_id}")
+                    return
+                
+                # 概率检测
+                if random.random() >= probability:
+                    logger.info(
+                        f"跳过开场白（概率检测未通过）：session_id={session_id}, "
+                        f"probability={probability}"
+                    )
+                    return
+                
+                # 发送开场白
                 await MessageService.send_opening_message(
                     session_id=session.id,
                     user_id=user_id,
