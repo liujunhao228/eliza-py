@@ -3,7 +3,7 @@
     :model-value="modelValue"
     title="对话详情"
     size="medium"
-    :show-footer="false"
+    :show-footer="true"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div v-if="session" class="detail-content">
@@ -53,6 +53,14 @@
     <div v-else class="empty-tip">
       暂无会话详情
     </div>
+
+    <template #footer>
+      <div class="modal-footer-actions">
+        <button class="btn btn-share" @click="handleShare">
+          📤 分享此对话
+        </button>
+      </div>
+    </template>
   </BaseModal>
 </template>
 
@@ -69,6 +77,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
+  share: [sessionId: number]
 }>()
 
 // 计算会话时长（秒）
@@ -105,6 +114,12 @@ const getConfidenceLabel = (level: string): string => {
     high: '高'
   }
   return map[level] || level
+}
+
+const handleShare = () => {
+  if (props.session) {
+    emit('share', props.session.id)
+  }
 }
 </script>
 
@@ -177,5 +192,33 @@ const getConfidenceLabel = (level: string): string => {
   text-align: center;
   color: var(--text-secondary);
   padding: 20px;
+}
+
+.modal-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-share {
+  background: var(--color-primary-500);
+  color: white;
+}
+
+.btn-share:hover {
+  background: var(--color-primary-600);
 }
 </style>

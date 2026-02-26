@@ -2,7 +2,7 @@
   <div class="session-detail-page">
     <div class="header">
       <div class="header-left">
-        <button class="back-btn" @click="$router.push('/history')">
+        <button class="back-btn" @click="$router.push('/profile')">
           ← 返回列表
         </button>
         <h1>会话 #{{ session?.id }}</h1>

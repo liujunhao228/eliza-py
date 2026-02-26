@@ -2,9 +2,6 @@
   <div class="history-section">
     <div class="history-section-header">
       <h3>📜 对话历史</h3>
-      <BaseButton type="info" size="small" @click="handleGoToHistory">
-        查看全部 →
-      </BaseButton>
     </div>
 
     <BaseEmpty
@@ -23,6 +20,7 @@
         :key="session.id"
         :session="session"
         @click="handleClick"
+        @share="handleShare"
       />
     </div>
   </div>
@@ -34,18 +32,14 @@ import HistoryItem from './HistoryItem.vue'
 import type { Session } from '@/types'
 
 const emit = defineEmits<{
-  goToHistory: []
   goToLobby: []
   viewDetail: [session: Session]
+  share: [session: Session]
 }>()
 
 defineProps<{
   history: Session[]
 }>()
-
-const handleGoToHistory = () => {
-  emit('goToHistory')
-}
 
 const handleGoToLobby = () => {
   emit('goToLobby')
@@ -53,6 +47,10 @@ const handleGoToLobby = () => {
 
 const handleClick = (session: Session) => {
   emit('viewDetail', session)
+}
+
+const handleShare = (session: Session) => {
+  emit('share', session)
 }
 </script>
 

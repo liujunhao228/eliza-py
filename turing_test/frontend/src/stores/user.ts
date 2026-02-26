@@ -111,6 +111,8 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem(STORAGE_KEYS.SESSION_ID)
     localStorage.removeItem(STORAGE_KEYS.OPPONENT_TYPE)
     localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
+    localStorage.removeItem(STORAGE_KEYS.USER_SCORE)
+    localStorage.removeItem(STORAGE_KEYS.TRIGGERED_MID_GAME)
   }
 
   return {

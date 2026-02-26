@@ -32,9 +32,9 @@
       <!-- 历史记录 -->
       <HistorySection
         :history="history"
-        @go-to-history="goToHistory"
         @go-to-lobby="goToLobby"
         @view-detail="viewSessionDetail"
+        @share="handleShare"
       />
 
       <!-- 返回按钮 -->
@@ -45,7 +45,21 @@
     <SessionDetailModal
       v-model="showDetailModal"
       :session="selectedSession"
+      @share="handleShareFromDetail"
     />
+
+    <!-- 分享对话框 -->
+    <ShareDialog
+      v-if="showShareDialog"
+      :session-id="currentShareSessionId"
+      @close="showShareDialog = false"
+      @share-created="handleShareCreated"
+      @share-deleted="handleShareDeleted"
+      @notify="handleNotify"
+    />
+
+    <!-- Toast 通知 -->
+    <Toast />
   </div>
 </template>
 
@@ -53,25 +67,30 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { BaseButton, BaseLoading, BaseEmpty } from '@/components/common'
+import { useToast } from '@/composables/useToast'
+import { BaseButton, BaseLoading, BaseEmpty, Toast } from '@/components/common'
 import ProfileHeader from './components/ProfileHeader.vue'
 import UserInfoCard from './components/UserInfoCard.vue'
 import StatsSection from './components/StatsSection/index.vue'
 import HistorySection from './components/HistorySection/index.vue'
 import ActionButtons from './components/ActionButtons.vue'
 import SessionDetailModal from './components/SessionDetailModal.vue'
+import ShareDialog from '@/components/History/ShareDialog.vue'
 import { useProfileData } from './composables/useProfileData'
 import type { Session } from '@/types'
 
 const router = useRouter()
 const userStore = useUserStore()
+const { showToast } = useToast()
 
 // 使用 composable 管理数据
 const { loading, error, stats, history, scoreHistory, load } = useProfileData()
 
 // 状态
 const showDetailModal = ref(false)
+const showShareDialog = ref(false)
 const selectedSession = ref<Session | null>(null)
+const currentShareSessionId = ref<number>(0)
 
 // 加载数据
 const loadData = async () => {
@@ -98,14 +117,42 @@ const viewSessionDetail = (session: Session) => {
   showDetailModal.value = true
 }
 
+// 处理分享（来自 HistorySection）
+const handleShare = (session: Session) => {
+  currentShareSessionId.value = session.id
+  showShareDialog.value = true
+}
+
+// 处理分享（来自 SessionDetailModal）
+const handleShareFromDetail = (sessionId: number) => {
+  currentShareSessionId.value = sessionId
+  showShareDialog.value = true
+}
+
+// 处理 Toast 通知
+const handleNotify = ({ type, message }: { type: string; message: string }) => {
+  const toastMap: Record<string, 'success' | 'error' | 'info' | 'warning'> = {
+    success: 'success',
+    error: 'error',
+    info: 'info',
+    warning: 'warning'
+  }
+  const toastType = toastMap[type] || 'info'
+  showToast(message, toastType)
+}
+
+// 分享创建/删除后的处理
+const handleShareCreated = () => {
+  // 可刷新历史列表或其他操作
+}
+
+const handleShareDeleted = () => {
+  // 可刷新历史列表或其他操作
+}
+
 // 返回大厅
 const goToLobby = () => {
   router.push('/lobby')
-}
-
-// 查看历史会话
-const goToHistory = () => {
-  router.push('/history')
 }
 
 // 退出登录

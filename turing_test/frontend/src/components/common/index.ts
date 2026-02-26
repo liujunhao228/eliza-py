@@ -13,6 +13,7 @@ export { default as BaseLoading } from './BaseLoading.vue'
 export { default as BaseEmpty } from './BaseEmpty.vue'
 export { default as BaseModal } from './BaseModal.vue'
 export { default as BaseToast, type ToastOptions, type ToastType, type ToastPosition } from './BaseToast.vue'
+export { default as Toast } from './Toast.vue'
 export { default as BaseProgress } from './BaseProgress.vue'
 export { default as BaseBadge } from './BaseBadge.vue'
 export { default as ErrorBoundary } from './ErrorBoundary.vue'
@@ -31,6 +32,7 @@ import BaseModal from './BaseModal.vue'
 import BaseProgress from './BaseProgress.vue'
 import BaseBadge from './BaseBadge.vue'
 import ErrorBoundary from './ErrorBoundary.vue'
+import Toast from './Toast.vue'
 
 /**
  * 全局注册所有通用组件
@@ -48,6 +50,7 @@ export function installCommonComponents(app: App) {
   app.component('BaseProgress', BaseProgress)
   app.component('BaseBadge', BaseBadge)
   app.component('ErrorBoundary', ErrorBoundary)
+  app.component('Toast', Toast)
 }
 
 export default {

@@ -2,9 +2,18 @@
   <div class="history-item" @click="handleClick">
     <div class="history-header">
       <span class="history-date">{{ formatDate(session.started_at) }}</span>
-      <span class="history-type" :class="getTypeClass(session.opponent_type)">
-        {{ getTypeLabel(session.opponent_type) }}
-      </span>
+      <div class="header-actions">
+        <span class="history-type" :class="getTypeClass(session.opponent_type)">
+          {{ getTypeLabel(session.opponent_type) }}
+        </span>
+        <button 
+          class="share-icon-btn" 
+          @click.stop="handleShare"
+          title="分享此对话"
+        >
+          📤
+        </button>
+      </div>
     </div>
     <div class="history-info">
       <div class="history-stats">
@@ -32,6 +41,7 @@ import type { Session } from '@/types'
 
 const emit = defineEmits<{
   click: [session: Session]
+  share: [session: Session]
 }>()
 
 const props = defineProps<{
@@ -48,6 +58,10 @@ const duration = computed(() => {
 
 const handleClick = () => {
   emit('click', props.session)
+}
+
+const handleShare = () => {
+  emit('share', props.session)
 }
 </script>
 
@@ -74,6 +88,12 @@ const handleClick = () => {
   margin-bottom: 10px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .history-date {
   font-size: 14px;
   color: var(--text-secondary);
@@ -84,6 +104,23 @@ const handleClick = () => {
   border-radius: var(--rounded-sm);
   font-size: 12px;
   font-weight: 600;
+}
+
+.share-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.share-icon-btn:hover {
+  background: var(--bg-tertiary);
 }
 
 .history-type.human {

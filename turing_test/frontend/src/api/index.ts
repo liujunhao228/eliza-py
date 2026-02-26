@@ -1,7 +1,7 @@
 // API 基础配置
 import axios from 'axios'
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios'
-import { API_BASE_URL } from '@/utils/constants'
+import { API_BASE_URL, STORAGE_KEYS } from '@/utils/constants'
 import { handleAxiosError } from '@/utils/error'
 
 // 请求重试配置
@@ -93,7 +93,24 @@ api.interceptors.response.use(
 
     // 转换为 AppError，保留原始错误堆栈
     const appError = handleAxiosError(error)
-    
+
+    // 401 未授权：清除本地 token 并重定向到登录页
+    if (error.response?.status === 401) {
+      // 清除本地存储的 token 和用户信息
+      localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
+      localStorage.removeItem(STORAGE_KEYS.USER_ID)
+      localStorage.removeItem(STORAGE_KEYS.NICKNAME)
+      localStorage.removeItem(STORAGE_KEYS.INVITE_CODE)
+      localStorage.removeItem(STORAGE_KEYS.USER_SCORE)
+      localStorage.removeItem(STORAGE_KEYS.SESSION_ID)
+      localStorage.removeItem(STORAGE_KEYS.OPPONENT_TYPE)
+
+      // 如果当前不在登录页，跳转到登录页
+      if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/'
+      }
+    }
+
     // 附加原始错误用于调试（生产环境可移除）
     if (import.meta.env.DEV) {
       console.error('[API Error]', {

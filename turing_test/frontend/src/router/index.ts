@@ -9,21 +9,19 @@ const Chat = () => import('@/views/Chat/index.vue')
 const Survey = () => import('@/views/Survey.vue')
 const Result = () => import('@/views/Result.vue')
 const Profile = () => import('@/views/profile/index.vue')
-const History = () => import('@/views/History.vue')
 const SessionDetail = () => import('@/views/SessionDetail.vue')
 const SharedSession = () => import('@/views/SharedSession.vue')
 
 /**
  * 路由名称类型
  */
-export type RouteName = 
+export type RouteName =
   | 'Login'
   | 'Lobby'
   | 'Chat'
   | 'Survey'
   | 'Result'
   | 'Profile'
-  | 'History'
   | 'SessionDetail'
   | 'SharedSession'
 
@@ -87,25 +85,16 @@ const routes: RouteRecordRaw[] = [
     path: '/profile',
     name: 'Profile',
     component: Profile,
-    meta: { 
+    meta: {
       requiresAuth: true,
       title: '个人中心'
-    } satisfies AppRouteMeta
-  },
-  {
-    path: '/history',
-    name: 'History',
-    component: History,
-    meta: { 
-      requiresAuth: true,
-      title: '历史记录'
     } satisfies AppRouteMeta
   },
   {
     path: '/session/:id',
     name: 'SessionDetail',
     component: SessionDetail,
-    meta: { 
+    meta: {
       requiresAuth: true,
       title: '会话详情'
     } satisfies AppRouteMeta
