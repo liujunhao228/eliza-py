@@ -5,7 +5,8 @@ Lua 脚本引擎子包
 """
 
 from alice.scripting.lua.sandbox import LuaSandbox, SecurityError, create_safe_runtime, safe_execute
-from alice.scripting.lua.engine import LuaScriptEngine, CompiledScript
+from alice.scripting.lua.engine import LuaScriptEngine
+from alice.scripting.lua.compiled_script import CompiledScript
 
 __all__ = [
     # 引擎

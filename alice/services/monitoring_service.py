@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-统一监控系统模块
+监控服务模块
 
-提供：
-- 结构化日志
+提供统一的监控和日志服务：
 - 性能追踪
-- 指标收集
-- 错误追踪
+- 错误记录
+- 对话日志
 """
 
 import logging
@@ -33,7 +32,7 @@ class PerformanceMetrics:
 class UnifiedMonitor:
     """
     统一监控系统
-    
+
     功能:
     - 性能指标收集
     - 结构化日志记录
@@ -44,7 +43,7 @@ class UnifiedMonitor:
     def __init__(self, sample_rate: float = 1.0):
         """
         初始化监控系统
-        
+
         Args:
             sample_rate: 采样率 (0.0 - 1.0)
         """
@@ -65,7 +64,7 @@ class UnifiedMonitor:
     ) -> None:
         """
         记录交互性能数据
-        
+
         Args:
             request_time: 请求时间戳
             response_time: 响应时间戳
@@ -73,17 +72,17 @@ class UnifiedMonitor:
             metadata: 额外元数据
         """
         duration_ms = (response_time - request_time) * 1000
-        
+
         metrics = PerformanceMetrics(
             component="interaction",
             response_time_ms=duration_ms,
             success=success,
             metadata=metadata,
         )
-        
+
         self._metrics.append(metrics)
         self._update_component_stats("interaction", duration_ms, success)
-        
+
         logger.info(
             f"交互性能：{duration_ms:.2f}ms, 成功={success}",
             extra={"metrics": metrics.__dict__},
@@ -92,7 +91,7 @@ class UnifiedMonitor:
     def start_timer(self, component: str) -> None:
         """
         开始计时
-        
+
         Args:
             component: 组件名称
         """
@@ -105,28 +104,28 @@ class UnifiedMonitor:
     ) -> float:
         """
         停止计时
-        
+
         Args:
             component: 组件名称
             success: 是否成功
-            
+
         Returns:
             耗时（毫秒）
         """
         if component not in self._timers:
             logger.warning(f"计时器未启动：{component}")
             return 0.0
-        
+
         start_time = self._timers.pop(component)
         duration_ms = (time.time() - start_time) * 1000
-        
+
         self._update_component_stats(component, duration_ms, success)
-        
+
         logger.debug(
             f"{component} 性能：{duration_ms:.2f}ms",
             extra={"component": component, "duration_ms": duration_ms},
         )
-        
+
         return duration_ms
 
     def _update_component_stats(
@@ -150,7 +149,7 @@ class UnifiedMonitor:
     ) -> None:
         """
         记录错误
-        
+
         Args:
             component: 组件名称
             error: 异常对象
@@ -163,9 +162,9 @@ class UnifiedMonitor:
             "timestamp": datetime.now().isoformat(),
             "context": context or {},
         }
-        
+
         self._errors.append(error_info)
-        
+
         logger.error(
             f"{component} 错误：{type(error).__name__}: {error}",
             exc_info=True,
@@ -175,15 +174,15 @@ class UnifiedMonitor:
     def get_performance_report(self) -> Dict[str, Any]:
         """
         获取性能报告
-        
+
         Returns:
             性能报告字典
         """
         if not self._metrics:
             return {"status": "no_data"}
-        
+
         response_times = [m.response_time_ms for m in self._metrics]
-        
+
         return {
             "total_interactions": len(self._metrics),
             "avg_response_time_ms": sum(response_times) / len(response_times),
@@ -198,15 +197,15 @@ class UnifiedMonitor:
     def get_error_report(self) -> Dict[str, Any]:
         """
         获取错误报告
-        
+
         Returns:
             错误报告字典
         """
         error_by_component = defaultdict(list)
-        
+
         for error in self._errors:
             error_by_component[error["component"]].append(error)
-        
+
         return {
             "total_errors": len(self._errors),
             "errors_by_component": dict(error_by_component),
@@ -233,7 +232,7 @@ class UnifiedMonitor:
 class DialogueLogger:
     """
     结构化对话日志
-    
+
     功能:
     - 对话记录
     - 性能日志
@@ -243,14 +242,14 @@ class DialogueLogger:
     def __init__(self, log_dir: Optional[str] = None):
         """
         初始化对话日志
-        
+
         Args:
             log_dir: 日志目录
         """
         self.log_dir = log_dir
         self._dialogues: List[Dict[str, Any]] = []
         self._performance_logs: List[Dict[str, Any]] = []
-        
+
         # 配置日志
         self._setup_logging()
 
@@ -308,7 +307,7 @@ class DialogueLogger:
     ) -> None:
         """
         记录性能日志
-        
+
         Args:
             component: 组件名称
             duration_ms: 耗时
@@ -320,9 +319,9 @@ class DialogueLogger:
             "duration_ms": duration_ms,
             "success": success,
         }
-        
+
         self._performance_logs.append(perf_log)
-        
+
         logger.debug(
             f"性能：{component} = {duration_ms:.2f}ms",
             extra={"performance": perf_log},

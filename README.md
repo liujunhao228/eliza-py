@@ -81,6 +81,7 @@ Alice: 再见！很高兴和你聊天！
 | [数据结构文档](DATA_STRUCTURES.md) | 核心数据模型和数据库 Schema |
 | [Bot 池实现](AI_BOT_POOL_IMPLEMENTATION.md) | 高并发 AI 对话架构说明 |
 | [执行计划](EXECUTION_PLAN.md) | 项目进度和任务分解 |
+| [重构报告](REFACTORING_REPORT.md) | 2026-02-26 模块化重构详细说明 |
 
 ## 🎯 核心功能
 
@@ -201,15 +202,37 @@ flake8 alice/
 eliza-py/
 ├── alice/                          # Alice 聊天机器人核心
 │   ├── alice_v2.py                 # 主入口类
+│   ├── server.py                   # Web 服务器
 │   ├── core/                       # 核心对话引擎
+│   │   ├── dialogue_engine.py      # 对话主引擎
+│   │   ├── context_manager.py      # 上下文管理
+│   │   ├── intent_matcher.py       # 意图匹配器
+│   │   └── response_generator.py   # 响应生成器
+│   ├── scripting/                  # 脚本引擎（重构后）
+│   │   ├── base.py                 # 基类定义
+│   │   ├── context.py              # 脚本上下文
+│   │   ├── matcher.py              # 统一匹配器
+│   │   ├── config.py               # 配置加载
+│   │   ├── yaml/                   # YAML 脚本引擎
+│   │   │   ├── engine.py           # 引擎核心
+│   │   │   ├── parser.py           # YAML 解析器
+│   │   │   ├── condition_checker.py# 条件检查器
+│   │   │   └── template_engine.py  # 模板引擎
+│   │   └── lua/                    # Lua 脚本引擎
+│   │       ├── engine.py           # Lua 引擎
+│   │       ├── sandbox.py          # 沙箱隔离
+│   │       └── compiled_script.py  # 编译脚本
 │   ├── nlp/                        # NLP 模块
 │   │   ├── engines/                # NLP 引擎（jieba/LTP）
 │   │   └── dictionaries/           # 词典管理
 │   ├── processors/                 # 文本处理器
-│   ├── plugins/                    # 插件系统
-│   ├── scripts/                    # YAML 脚本配置
+│   ├── services/                   # 共享服务（重构后）
+│   │   ├── shared_nlp_service.py   # 共享 NLP 服务
+│   │   └── monitoring_service.py   # 监控服务
+│   ├── cache/                      # 缓存管理
 │   ├── utils/                      # 工具函数
-│   └── cache/                      # 缓存管理
+│   └── bots/                       # Bot 实现
+│       └── lightweight_alice_bot.py# 轻量级 Bot
 │
 ├── turing_test/                    # Turing Test 平台
 │   ├── backend/                    # 后端服务
@@ -231,6 +254,11 @@ eliza-py/
 │   ├── __init__.py                 # 导出 settings
 │   ├── types.py                    # 配置类型定义
 │   └── loader.py                   # 配置加载器
+│
+├── tests/                          # 测试套件
+│   ├── unit/                       # 单元测试
+│   ├── integration/                # 集成测试
+│   └── scripting/                  # 脚本引擎测试
 │
 ├── docs/                           # 项目文档
 ├── config.yaml                     # 主配置文件
@@ -270,8 +298,11 @@ Alice 基于 ELIZA 的经典"镜像反射"原理：
 **后端**:
 - Python 3.7+
 - FastAPI (Turing Test 后端)
+- Flask (Alice Web 界面)
 - SQLAlchemy (ORM)
 - jieba / LTP (NLP)
+- PyYAML (脚本配置)
+- lupa (可选，Lua 脚本支持)
 
 **前端** (开发中):
 - Vue 3 + TypeScript
@@ -284,6 +315,24 @@ Alice 基于 ELIZA 的经典"镜像反射"原理：
 - Bot 池管理（动态扩缩容）
 - WebSocket 实时通信
 - 统一配置系统
+- 模块化脚本引擎（Lua/YAML 双引擎）
+- 统一监控服务
+
+### 模块化架构（2026-02-26 重构后）
+
+**核心模块**:
+- `alice.core`: 对话引擎、上下文管理、响应生成
+- `alice.scripting`: 统一脚本引擎（Lua/YAML）
+- `alice.services`: 共享服务层（NLP、监控）
+- `alice.nlp`: NLP 引擎抽象和实现
+
+**重构成果**:
+- 删除 1500+ 行重复代码
+- 拆分超大文件（1055 行 → 417 行）
+- 100% 脚本测试通过率
+- 模块化设计提升可维护性
+
+详见：[重构报告](REFACTORING_REPORT.md)
 
 ## 📊 项目进度
 

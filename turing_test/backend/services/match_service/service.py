@@ -151,26 +151,18 @@ class MatchService:
                 if queue_size >= 2:
                     logger.info(f"延迟期间有真人加入，当前队列大小：{queue_size}")
 
-                    # 80% 概率匹配真人，20% 概率匹配 AI（实验对照）
-                    if self.algorithm.should_match_human():
-                        logger.info(f"匹配真人（80% 概率）：用户 {user_id}")
-                        opponent_id = self.algorithm.find_match(
-                            user_id,
-                            self.queue.waiting_queue,
-                            self.user_match_history
-                        )
+                    # 有真人等待时，直接匹配真人（不消耗 20% 实验对照机会）
+                    # 实验对照只在用户超时后匹配 AI 时生效
+                    opponent_id = self.algorithm.find_match(
+                        user_id,
+                        self.queue.waiting_queue,
+                        self.user_match_history
+                    )
 
-                        if opponent_id:
-                            await self._create_human_match(
-                                user_id, opponent_id, websocket_ref, start_time
-                            )
-                            return
-                    else:
-                        logger.info(f"实验对照（20% 概率）：用户 {user_id} 匹配 AI")
-                        # 从队列移除
-                        await self.remove_from_queue(user_id)
-                        # 匹配 AI
-                        await self._assign_ai_with_honeypot(user_id, websocket_ref, user_score)
+                    if opponent_id:
+                        await self._create_human_match(
+                            user_id, opponent_id, websocket_ref, start_time
+                        )
                         return
 
                 # 等待检查间隔

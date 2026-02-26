@@ -21,7 +21,7 @@ from typing import Any, Dict, Optional
 
 from alice.core.dialogue_engine import DialogueEngine
 from alice.services.shared_nlp_service import SharedNLPService
-from alice.utils.monitor import UnifiedMonitor, DialogueLogger
+from alice.services.monitoring_service import UnifiedMonitor, DialogueLogger
 from alice.cache.intelligent_cache import IntelligentCache
 from alice.exceptions import (
     InputValidationError,

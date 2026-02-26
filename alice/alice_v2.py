@@ -15,7 +15,7 @@ import time
 from typing import Any, Dict, Optional
 
 from alice.core import DialogueEngine
-from alice.utils.monitor import UnifiedMonitor, DialogueLogger
+from alice.services.monitoring_service import UnifiedMonitor, DialogueLogger
 from alice.cache import IntelligentCache
 from alice.exceptions import (
     InputValidationError,
