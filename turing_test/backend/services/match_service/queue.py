@@ -7,13 +7,14 @@
 import asyncio
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from loguru import logger
 
-from turing_test.backend.websocket.manager import manager
-
 from .statistics import MatchStatistics
+
+if TYPE_CHECKING:
+    from turing_test.backend.websocket.manager import ConnectionManager
 
 
 class MatchPriority(Enum):
@@ -199,6 +200,9 @@ class MatchQueue:
 
     async def broadcast_status(self):
         """广播队列状态给所有等待用户"""
+        # 延迟导入 manager 以避免循环导入
+        from turing_test.backend.websocket.manager import manager
+
         queue_size = self.get_size()
 
         status_message = {

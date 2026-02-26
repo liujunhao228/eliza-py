@@ -29,6 +29,9 @@ class AIBotService:
         self._initialized = False
         self._nlp_service = None
         self._bot_pool = None
+        
+        # 延迟配置
+        self._delay_config = None
 
     async def initialize(self):
         """初始化服务"""
@@ -40,6 +43,9 @@ class AIBotService:
             from alice.services.shared_nlp_service import SharedNLPService
             self._nlp_service = SharedNLPService()
 
+            # 加载延迟配置
+            self._load_delay_config()
+
             # 初始化 Bot 池
             from turing_test.backend.services.bot_pool import init_bot_pool
 
@@ -47,7 +53,7 @@ class AIBotService:
             # 注意：script_file 和 rules_file 在 settings.alice.scripting 下
             script_file = None
             rules_file = None
-            
+
             if hasattr(settings, 'alice') and settings.alice:
                 alice_cfg = settings.alice
                 # 从 scripting.yaml.script_file 获取
@@ -56,7 +62,7 @@ class AIBotService:
                     if hasattr(scripting_cfg, 'yaml') and scripting_cfg.yaml:
                         script_file = str(scripting_cfg.yaml.script_file) if scripting_cfg.yaml.script_file else None
                     rules_file = str(scripting_cfg.rules_file) if hasattr(scripting_cfg, 'rules_file') and scripting_cfg.rules_file else None
-            
+
             self._bot_pool = init_bot_pool(
                 nlp_service=self._nlp_service,
                 min_instances=getattr(settings, 'BOT_POOL_MIN_INSTANCES', 2),
@@ -72,6 +78,54 @@ class AIBotService:
         except Exception as e:
             logger.error(f"AI Bot 服务初始化失败：{e}", exc_info=True)
             raise
+
+    def _load_delay_config(self):
+        """加载延迟配置"""
+        if hasattr(settings, 'turing') and settings.turing:
+            ai_bot_cfg = settings.turing.get('ai_bot', {})
+            self._delay_config = {
+                # 回复延迟
+                'reply_delay_min': ai_bot_cfg.get('reply_delay_min', 1.0),
+                'reply_delay_max': ai_bot_cfg.get('reply_delay_max', 3.0),
+                # 开场白延迟
+                'opening_delay_min': ai_bot_cfg.get('opening_delay_min', 2.0),
+                'opening_delay_max': ai_bot_cfg.get('opening_delay_max', 5.0),
+                # 每字符延迟
+                'typing_delay_per_char': ai_bot_cfg.get('typing_delay_per_char', 0.05),
+                # 钓鱼机器人延迟
+                'honeypot': {
+                    'reply_delay_min': ai_bot_cfg.get('honeypot', {}).get('reply_delay_min', 2.0),
+                    'reply_delay_max': ai_bot_cfg.get('honeypot', {}).get('reply_delay_max', 8.0),
+                    'opening_delay_min': ai_bot_cfg.get('honeypot', {}).get('opening_delay_min', 5.0),
+                    'opening_delay_max': ai_bot_cfg.get('honeypot', {}).get('opening_delay_max', 15.0),
+                    'occasional_long_delay_probability': ai_bot_cfg.get('honeypot', {}).get('occasional_long_delay_probability', 0.1),
+                    'occasional_long_delay_min': ai_bot_cfg.get('honeypot', {}).get('occasional_long_delay_min', 15.0),
+                    'occasional_long_delay_max': ai_bot_cfg.get('honeypot', {}).get('occasional_long_delay_max', 60.0),
+                    'meta_delay_multiplier': ai_bot_cfg.get('honeypot', {}).get('meta_delay_multiplier', 1.5),
+                    'early_session_delay_multiplier': ai_bot_cfg.get('honeypot', {}).get('early_session_delay_multiplier', 1.3),
+                }
+            }
+        else:
+            # 默认配置
+            self._delay_config = {
+                'reply_delay_min': 1.0,
+                'reply_delay_max': 3.0,
+                'opening_delay_min': 2.0,
+                'opening_delay_max': 5.0,
+                'typing_delay_per_char': 0.05,
+                'honeypot': {
+                    'reply_delay_min': 2.0,
+                    'reply_delay_max': 8.0,
+                    'opening_delay_min': 5.0,
+                    'opening_delay_max': 15.0,
+                    'occasional_long_delay_probability': 0.1,
+                    'occasional_long_delay_min': 15.0,
+                    'occasional_long_delay_max': 60.0,
+                    'meta_delay_multiplier': 1.5,
+                    'early_session_delay_multiplier': 1.3,
+                }
+            }
+        logger.debug(f"延迟配置已加载：{self._delay_config}")
 
     async def shutdown(self):
         """关闭服务"""
@@ -90,6 +144,10 @@ class AIBotService:
         self,
         user_input: str,
         simulate_typing: bool = True,
+        is_opening: bool = False,
+        is_honeypot: bool = False,
+        session_turn_count: int = 0,
+        is_meta: bool = False,
     ) -> Tuple[str, float]:
         """
         获取 AI 响应
@@ -97,6 +155,10 @@ class AIBotService:
         Args:
             user_input: 用户输入
             simulate_typing: 是否模拟打字延迟
+            is_opening: 是否为开场白
+            is_honeypot: 是否为钓鱼机器人
+            session_turn_count: 会话轮数
+            is_meta: 是否为元对话
 
         Returns:
             (响应内容，打字延迟秒数)
@@ -116,7 +178,13 @@ class AIBotService:
             response = bot.respond(user_input)
 
             # 计算打字延迟
-            delay = self._calculate_typing_delay(response) if simulate_typing else 0.0
+            delay = self._calculate_typing_delay(
+                response,
+                is_opening=is_opening,
+                is_honeypot=is_honeypot,
+                session_turn_count=session_turn_count,
+                is_meta=is_meta,
+            ) if simulate_typing else 0.0
 
             # 模拟打字延迟
             if simulate_typing and delay > 0:
@@ -134,27 +202,79 @@ class AIBotService:
             # 释放 Bot 回池中
             self._bot_pool.release(bot)
 
-    def _calculate_typing_delay(self, response: str) -> float:
+    def _calculate_typing_delay(
+        self,
+        response: str,
+        is_opening: bool = False,
+        is_honeypot: bool = False,
+        session_turn_count: int = 0,
+        is_meta: bool = False,
+    ) -> float:
         """
         计算打字延迟，模拟人类打字行为
 
         考虑因素:
-        - 基础延迟
+        - 基础延迟（随机均匀分布）
         - 响应长度
-        - 随机波动
+        - 钓鱼机器人拟真行为
+        - 元对话延迟加成
+        - 会话早期延迟加成
 
         Args:
             response: AI 响应内容
+            is_opening: 是否为开场白
+            is_honeypot: 是否为钓鱼机器人
+            session_turn_count: 会话轮数
+            is_meta: 是否为元对话
 
         Returns:
             打字延迟（秒）
         """
-        # 基础延迟
-        base_delay = getattr(settings, 'TYPING_DELAY_BASE', 1.0)
+        if not self._delay_config:
+            self._load_delay_config()
 
-        # 根据响应长度计算延迟
-        chars_per_second = getattr(settings, 'TYPING_DELAY_PER_CHAR', 0.05)
-        length_delay = len(response) * chars_per_second
+        # 根据类型选择延迟范围
+        if is_honeypot:
+            honeypot_cfg = self._delay_config['honeypot']
+            if is_opening:
+                delay_min = honeypot_cfg['opening_delay_min']
+                delay_max = honeypot_cfg['opening_delay_max']
+            else:
+                delay_min = honeypot_cfg['reply_delay_min']
+                delay_max = honeypot_cfg['reply_delay_max']
+        else:
+            if is_opening:
+                delay_min = self._delay_config['opening_delay_min']
+                delay_max = self._delay_config['opening_delay_max']
+            else:
+                delay_min = self._delay_config['reply_delay_min']
+                delay_max = self._delay_config['reply_delay_max']
+
+        # 基础延迟（随机均匀分布）
+        base_delay = random.uniform(delay_min, delay_max)
+
+        # 根据响应长度增加延迟
+        length_delay = len(response) * self._delay_config['typing_delay_per_char']
+
+        # 钓鱼机器人拟真行为
+        if is_honeypot:
+            honeypot_cfg = self._delay_config['honeypot']
+
+            # 偶尔超长延迟（模拟人类分心）
+            if random.random() < honeypot_cfg['occasional_long_delay_probability']:
+                long_delay = random.uniform(
+                    honeypot_cfg['occasional_long_delay_min'],
+                    honeypot_cfg['occasional_long_delay_max']
+                )
+                base_delay += long_delay
+
+            # 元对话时延迟乘数（模拟思考）
+            if is_meta:
+                base_delay *= honeypot_cfg['meta_delay_multiplier']
+
+            # 会话早期延迟乘数（建立人设）
+            if session_turn_count < 5:
+                base_delay *= honeypot_cfg['early_session_delay_multiplier']
 
         # 总延迟
         total_delay = base_delay + length_delay
@@ -218,18 +338,31 @@ async def shutdown_ai_bot_service():
 # 便捷函数
 # =============================================================================
 
-async def get_bot_response(user_input: str) -> Tuple[str, float]:
+async def get_bot_response(
+    user_input: str,
+    is_opening: bool = False,
+    is_honeypot: bool = False,
+    session_turn_count: int = 0,
+) -> Tuple[str, float]:
     """
     获取 AI 响应（便捷函数）
 
     Args:
         user_input: 用户输入
+        is_opening: 是否为开场白
+        is_honeypot: 是否为钓鱼机器人
+        session_turn_count: 会话轮数
 
     Returns:
         (响应内容，打字延迟秒数)
     """
     service = await get_ai_bot_service()
-    return await service.get_response(user_input)
+    return await service.get_response(
+        user_input,
+        is_opening=is_opening,
+        is_honeypot=is_honeypot,
+        session_turn_count=session_turn_count,
+    )
 
 
 async def reset_bot_pool():

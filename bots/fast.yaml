@@ -12,6 +12,13 @@ description: 快速 Bot，响应更迅速
 script_file: alice/scripts/demo.yaml
 rules_file: alice/scripts/rules/mapping.yaml
 
+# ----- 开场白配置 -----
+opening:
+  script: scripts/opening.yaml
+  enabled: true
+  probability: 0.8
+  strategy: random
+
 # ----- 性能配置 -----
 cache_size: 50
 typing_delay_base: 0.5

@@ -81,6 +81,138 @@ class ScriptIntent:
     last_used: Optional[str] = None
 
 
+class OpeningMessageManager:
+    """
+    开场白管理器
+
+    管理 Bot 开场白消息，支持：
+    - 加载 YAML 格式的开场白脚本
+    - 随机获取一条开场白
+    - 热重载支持
+
+    使用示例:
+        manager = OpeningMessageManager()
+        manager.load("default", Path("scripts/opening.yaml"))
+        message = manager.get_random("default")
+    """
+
+    def __init__(self):
+        """初始化开场白管理器"""
+        self._messages: Dict[str, List[str]] = {}  # script_id -> messages
+        self._file_paths: Dict[str, Path] = {}     # script_id -> file_path
+        self._file_hashes: Dict[str, str] = {}     # script_id -> file hash
+
+    def load(self, script_id: str, file_path: Path) -> bool:
+        """
+        加载开场白脚本
+
+        Args:
+            script_id: 脚本 ID（用于标识不同的开场白）
+            file_path: YAML 文件路径
+
+        Returns:
+            是否加载成功
+        """
+        if not file_path.exists():
+            logger.warning(f"开场白脚本文件不存在：{file_path}")
+            return False
+
+        try:
+            content = file_path.read_text(encoding='utf-8')
+            file_hash = hashlib.md5(content.encode('utf-8')).hexdigest()
+
+            # 检查是否需要重新加载
+            if script_id in self._file_paths:
+                if self._file_hashes.get(script_id) == file_hash:
+                    logger.info(f"开场白脚本未变更，跳过加载：{script_id}")
+                    return True
+
+            data = yaml.safe_load(content)
+
+            if not data or not isinstance(data, dict):
+                logger.warning(f"开场白脚本格式错误：{file_path}")
+                return False
+
+            messages = data.get('opening_messages', [])
+
+            if not isinstance(messages, list) or not messages:
+                logger.warning(f"开场白脚本没有有效的消息列表：{file_path}")
+                return False
+
+            self._messages[script_id] = messages
+            self._file_paths[script_id] = file_path
+            self._file_hashes[script_id] = file_hash
+
+            logger.info(f"开场白脚本加载成功：{script_id} ({len(messages)} 条消息)")
+            return True
+
+        except yaml.YAMLError as e:
+            logger.error(f"YAML 解析错误 [{file_path}]: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"开场白脚本加载失败 [{script_id}]: {e}")
+            return False
+
+    def get_random(self, script_id: str) -> Optional[str]:
+        """
+        随机获取一条开场白
+
+        Args:
+            script_id: 脚本 ID
+
+        Returns:
+            随机开场白，不存在时返回 None
+        """
+        messages = self._messages.get(script_id)
+        if not messages:
+            logger.warning(f"开场白脚本未加载：{script_id}")
+            return None
+
+        return random.choice(messages)
+
+    def reload(self, script_id: str) -> bool:
+        """
+        热重载开场白脚本
+
+        Args:
+            script_id: 脚本 ID
+
+        Returns:
+            是否重载成功
+        """
+        file_path = self._file_paths.get(script_id)
+        if not file_path:
+            logger.warning(f"开场白脚本未加载，无法重载：{script_id}")
+            return False
+
+        # 清除旧数据
+        if script_id in self._messages:
+            del self._messages[script_id]
+        if script_id in self._file_hashes:
+            del self._file_hashes[script_id]
+
+        # 重新加载
+        return self.load(script_id, file_path)
+
+    def is_loaded(self, script_id: str) -> bool:
+        """检查脚本是否已加载"""
+        return script_id in self._messages
+
+    def get_stats(self) -> Dict[str, Any]:
+        """获取统计信息"""
+        return {
+            'loaded_scripts': len(self._messages),
+            'scripts': {
+                script_id: {
+                    'message_count': len(messages),
+                    'file_path': str(file_path),
+                }
+                for script_id, messages in self._messages.items()
+                if (file_path := self._file_paths.get(script_id))
+            }
+        }
+
+
 class YAMLScriptEngine(BaseScriptEngine):
     """
     YAML 脚本引擎
@@ -103,6 +235,7 @@ class YAMLScriptEngine(BaseScriptEngine):
         default_script_file: Optional[Path] = None,
         config_loader: Optional[ScriptConfigLoader] = None,
         reassembly_engine: Optional[Any] = None,  # 重组引擎（可选）
+        opening_message_manager: Optional[OpeningMessageManager] = None,
     ):
         """
         初始化 YAML 脚本引擎
@@ -111,6 +244,7 @@ class YAMLScriptEngine(BaseScriptEngine):
             default_script_file: 默认脚本文件路径（Path 对象）
             reassembly_engine: 句法重组引擎实例（用于代词替换）
             config_loader: 配置加载器
+            opening_message_manager: 开场白管理器实例
         """
         super().__init__(engine_type="yaml")
 
@@ -120,6 +254,7 @@ class YAMLScriptEngine(BaseScriptEngine):
         self.default_script_file = default_script_file
         self.config_loader = config_loader or ScriptConfigLoader()
         self.reassembly_engine = reassembly_engine
+        self.opening_manager = opening_message_manager or OpeningMessageManager()
 
         # 意图存储
         self._intents: Dict[str, ScriptIntent] = {}
@@ -404,9 +539,47 @@ class YAMLScriptEngine(BaseScriptEngine):
                     'last_used': intent.last_used,
                 }
                 for intent in self._intents.values()
-            ]
+            ],
+            'opening_messages': self.opening_manager.get_stats(),
         }
-    
+
+    def load_opening_script(self, script_id: str, file_path: Path) -> bool:
+        """
+        加载开场白脚本
+
+        Args:
+            script_id: 脚本 ID
+            file_path: YAML 文件路径
+
+        Returns:
+            是否加载成功
+        """
+        return self.opening_manager.load(script_id, file_path)
+
+    def get_opening_message(self, script_id: str) -> Optional[str]:
+        """
+        获取随机开场白
+
+        Args:
+            script_id: 脚本 ID
+
+        Returns:
+            随机开场白消息
+        """
+        return self.opening_manager.get_random(script_id)
+
+    def reload_opening_script(self, script_id: str) -> bool:
+        """
+        热重载开场白脚本
+
+        Args:
+            script_id: 脚本 ID
+
+        Returns:
+            是否重载成功
+        """
+        return self.opening_manager.reload(script_id)
+
     def _get_extension(self) -> str:
         """获取文件扩展名"""
         return "yaml"

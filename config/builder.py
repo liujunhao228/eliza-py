@@ -46,6 +46,7 @@ from .types import (
     ScriptingConfig,
     LuaScriptEngineConfig,
     YamlScriptEngineConfig,
+    OpeningConfig,
 )
 
 
@@ -323,7 +324,17 @@ class ConfigBuilder:
             script_file = Path(script_file_str)
             if not script_file.is_absolute():
                 script_file = paths.project_root / script_file
-            yaml_config = YamlScriptEngineConfig(script_file=script_file)
+            
+            opening_script_file = None
+            if yaml_cfg.get("opening_script_file"):
+                opening_script_file = Path(yaml_cfg["opening_script_file"])
+                if not opening_script_file.is_absolute():
+                    opening_script_file = paths.project_root / opening_script_file
+            
+            yaml_config = YamlScriptEngineConfig(
+                script_file=script_file,
+                opening_script_file=opening_script_file,
+            )
 
         # 重组规则文件
         rules_file = None

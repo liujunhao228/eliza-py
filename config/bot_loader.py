@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
+from config.types import OpeningConfig
 
 
 @dataclass
@@ -36,6 +37,7 @@ class BotConfig:
     description: str = ""
     script_file: Optional[Path] = None
     rules_file: Optional[Path] = None
+    opening: Optional[OpeningConfig] = None
     cache_size: int = 50
     typing_delay_base: float = 1.0
     typing_delay_per_char: float = 0.05
@@ -203,12 +205,42 @@ class BotConfigLoader:
                 rules_path = self.project_root / rules_path
             rules_file = rules_path
 
+        # 解析开场白配置
+        opening = None
+        opening_data = data.get('opening')
+        opening_script = data.get('opening_script')  # 向后兼容：旧格式
+        
+        if opening_data and isinstance(opening_data, dict):
+            # 新格式：opening: { script, enabled, probability, strategy }
+            script_path = None
+            if opening_data.get('script'):
+                script_path = Path(opening_data['script'])
+                if not script_path.is_absolute():
+                    script_path = self.project_root / script_path
+            
+            try:
+                opening = OpeningConfig(
+                    script=script_path,
+                    enabled=opening_data.get('enabled', True),
+                    probability=opening_data.get('probability', 1.0),
+                    strategy=opening_data.get('strategy', 'random'),
+                )
+            except ValueError as e:
+                logger.error(f"Bot {bot_id} 开场白配置无效：{e}")
+        elif opening_script:
+            # 旧格式：opening_script: scripts/opening.yaml
+            script_path = Path(opening_script)
+            if not script_path.is_absolute():
+                script_path = self.project_root / script_path
+            opening = OpeningConfig(script=script_path, enabled=True, probability=1.0)
+
         return BotConfig(
             id=bot_id,
             name=name,
             description=data.get('description', ''),
             script_file=script_file,
             rules_file=rules_file,
+            opening=opening,
             cache_size=data.get('cache_size', 50),
             typing_delay_base=data.get('typing_delay_base', 1.0),
             typing_delay_per_char=data.get('typing_delay_per_char', 0.05),

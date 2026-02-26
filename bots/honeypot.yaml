@@ -12,6 +12,13 @@ description: 钓鱼机器人，用于检测试图识别 AI 的用户
 script_file: alice/scripts/demo.yaml
 rules_file: alice/scripts/rules/mapping.yaml
 
+# ----- 开场白配置 -----
+opening:
+  script: scripts/opening_honeypot.yaml
+  enabled: true
+  probability: 0.3
+  strategy: random
+
 # ----- 性能配置 -----
 cache_size: 30
 typing_delay_base: 0.8

@@ -100,8 +100,38 @@ score:
 # -----------------------------------------------------------------------------
 ai_bot:
   name: 小图
+  
+  # === 基础延迟 (向后兼容) ===
   typing_delay_base: 1.0              # 基础延迟 (秒)
-  typing_delay_per_char: 0.05         # 每字符额外延迟 (秒)
+  
+  # === 回复延迟配置（随机范围）===
+  reply_delay_min: 1.0                # 最小延迟（秒）
+  reply_delay_max: 3.0                # 最大延迟（秒）
+  
+  # === 开场白延迟配置（随机范围）===
+  opening_delay_min: 2.0              # 最小延迟（秒）
+  opening_delay_max: 5.0              # 最大延迟（秒）
+  
+  # === 每字符延迟 ===
+  typing_delay_per_char: 0.05         # 每字符额外延迟（秒）
+  
+  # === 钓鱼机器人延迟配置 ===
+  honeypot:
+    reply_delay_min: 2.0              # 钓鱼机器人回复更慢
+    reply_delay_max: 8.0
+    opening_delay_min: 5.0            # 开场白也更慢
+    opening_delay_max: 15.0
+    
+    # 拟真行为：偶尔出现超长延迟（模拟人类分心）
+    occasional_long_delay_probability: 0.1
+    occasional_long_delay_min: 15.0
+    occasional_long_delay_max: 60.0
+    
+    # 元对话时延迟乘数（模拟思考）
+    meta_delay_multiplier: 1.5
+    
+    # 会话早期延迟乘数（建立人设）
+    early_session_delay_multiplier: 1.3
 
 # -----------------------------------------------------------------------------
 # 会话配置

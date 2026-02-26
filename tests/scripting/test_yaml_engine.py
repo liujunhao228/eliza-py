@@ -9,9 +9,83 @@ import tempfile
 import os
 from pathlib import Path
 
-from alice.scripting.yaml.engine import YAMLScriptEngine, ScriptIntent
+from alice.scripting.yaml.engine import YAMLScriptEngine, OpeningMessageManager, ScriptIntent
 from alice.scripting.context import ScriptContext
 from alice.scripting.base import ScriptConfig
+
+
+class TestOpeningMessageManager(unittest.TestCase):
+    """OpeningMessageManager 测试类"""
+
+    def setUp(self):
+        """测试前准备"""
+        self.manager = OpeningMessageManager()
+        
+        # 创建临时开场白脚本
+        self.test_opening_content = """
+opening_messages:
+  - "你好呀！"
+  - "在吗？"
+  - "哈喽～"
+"""
+        self.temp_file = tempfile.NamedTemporaryFile(
+            mode='w',
+            suffix='.yaml',
+            delete=False,
+            encoding='utf-8'
+        )
+        self.temp_file.write(self.test_opening_content)
+        self.temp_file.close()
+        self.script_path = Path(self.temp_file.name)
+
+    def tearDown(self):
+        """测试后清理"""
+        try:
+            os.unlink(self.temp_file.name)
+        except:
+            pass
+
+    def test_load(self):
+        """测试加载开场白"""
+        success = self.manager.load("test", self.script_path)
+        self.assertTrue(success)
+        self.assertTrue(self.manager.is_loaded("test"))
+
+    def test_get_random(self):
+        """测试随机获取开场白"""
+        self.manager.load("test", self.script_path)
+        
+        # 获取多次验证随机性
+        messages = set()
+        for _ in range(10):
+            msg = self.manager.get_random("test")
+            self.assertIsNotNone(msg)
+            self.assertIn(msg, ["你好呀！", "在吗？", "哈喽～"])
+            messages.add(msg)
+        
+        # 验证至少获取到不同的消息
+        self.assertGreater(len(messages), 1)
+
+    def test_get_random_not_loaded(self):
+        """测试未加载时返回 None"""
+        msg = self.manager.get_random("nonexistent")
+        self.assertIsNone(msg)
+
+    def test_reload(self):
+        """测试热重载"""
+        self.manager.load("test", self.script_path)
+        success = self.manager.reload("test")
+        self.assertTrue(success)
+        self.assertTrue(self.manager.is_loaded("test"))
+
+    def test_get_stats(self):
+        """测试统计信息"""
+        self.manager.load("test", self.script_path)
+        stats = self.manager.get_stats()
+        
+        self.assertEqual(stats['loaded_scripts'], 1)
+        self.assertIn('test', stats['scripts'])
+        self.assertEqual(stats['scripts']['test']['message_count'], 3)
 
 
 class TestYAMLScriptEngine(unittest.TestCase):
@@ -305,18 +379,74 @@ class TestYAMLScriptEngine(unittest.TestCase):
                 script_path=Path(temp_file.name),
             )
             self.engine.load_script(config)
-            
+
             context = ScriptContext(
                 text="随便，紧急",
                 tokens=["随便", "，", "紧急"],
             )
-            
+
             match = self.engine.match(context)
-            
+
             # 应该匹配高优先级意图
             self.assertIsNotNone(match)
             self.assertEqual(match.priority, 95)
-            
+
+        finally:
+            os.unlink(temp_file.name)
+
+    def test_opening_message_integration(self):
+        """测试开场白消息集成"""
+        # 创建临时开场白脚本
+        opening_content = """
+opening_messages:
+  - "测试开场白 1"
+  - "测试开场白 2"
+"""
+        temp_file = tempfile.NamedTemporaryFile(
+            mode='w',
+            suffix='.yaml',
+            delete=False,
+            encoding='utf-8'
+        )
+        temp_file.write(opening_content)
+        temp_file.close()
+
+        try:
+            # 加载开场白脚本
+            success = self.engine.load_opening_script("test_opening", Path(temp_file.name))
+            self.assertTrue(success)
+
+            # 获取开场白
+            msg = self.engine.get_opening_message("test_opening")
+            self.assertIsNotNone(msg)
+            self.assertIn(msg, ["测试开场白 1", "测试开场白 2"])
+
+        finally:
+            os.unlink(temp_file.name)
+
+    def test_get_stats_includes_opening_messages(self):
+        """测试统计信息包含开场白"""
+        opening_content = """
+opening_messages:
+  - "测试 1"
+  - "测试 2"
+"""
+        temp_file = tempfile.NamedTemporaryFile(
+            mode='w',
+            suffix='.yaml',
+            delete=False,
+            encoding='utf-8'
+        )
+        temp_file.write(opening_content)
+        temp_file.close()
+
+        try:
+            self.engine.load_opening_script("test", Path(temp_file.name))
+            stats = self.engine.get_stats()
+
+            self.assertIn('opening_messages', stats)
+            self.assertEqual(stats['opening_messages']['loaded_scripts'], 1)
+
         finally:
             os.unlink(temp_file.name)
 

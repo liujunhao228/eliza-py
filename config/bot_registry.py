@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
+from config.types import OpeningConfig
 
 
 @dataclass
@@ -41,6 +42,12 @@ class BotTemplate:
     rules_file: Optional[Path] = None
     """规则文件路径"""
 
+    opening: Optional[OpeningConfig] = None
+    """开场白配置（新格式）"""
+
+    opening_script: Optional[Path] = None
+    """开场白脚本文件路径（旧格式，向后兼容）"""
+
     cache_size: int = 50
     """缓存大小"""
 
@@ -63,7 +70,7 @@ class BotTemplate:
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
-        return {
+        result = {
             'id': self.id,
             'name': self.name,
             'description': self.description,
@@ -74,6 +81,14 @@ class BotTemplate:
             'typing_delay_per_char': self.typing_delay_per_char,
             'meta': self.meta,
         }
+        if self.opening:
+            result['opening'] = {
+                'script': str(self.opening.script) if self.opening.script else None,
+                'enabled': self.opening.enabled,
+                'probability': self.opening.probability,
+                'strategy': self.opening.strategy,
+            }
+        return result
 
 
 class BotTemplateRegistry:

@@ -140,6 +140,7 @@ class DialogueEngine:
         """
         if scripting_config:
             self.yaml_script_file = str(scripting_config.yaml.script_file) if scripting_config.yaml else None
+            self.opening_script_file = str(scripting_config.yaml.opening_script_file) if scripting_config.yaml else None
             self.lua_script_dir = str(scripting_config.lua.script_dir) if scripting_config.lua else None
             self.lua_metadata_file = str(scripting_config.lua.metadata_file) if scripting_config.lua else None
             self.rules_file = str(scripting_config.rules_file) if scripting_config.rules_file else None
@@ -150,6 +151,7 @@ class DialogueEngine:
         else:
             # 默认配置
             self.yaml_script_file = None
+            self.opening_script_file = None
             self.lua_script_dir = None
             self.lua_metadata_file = None
             self.rules_file = None
@@ -278,6 +280,15 @@ class DialogueEngine:
                 for config in configs:
                     if config.script_type == 'yaml':
                         self.yaml_engine.load_script(config)
+
+            # 加载开场白脚本
+            if self.opening_script_file:
+                opening_path = Path(self.opening_script_file)
+                if opening_path.exists():
+                    self.yaml_engine.load_opening_script("default", opening_path)
+                    logger.info(f"开场白脚本已加载：{self.opening_script_file}")
+                else:
+                    logger.warning(f"开场白脚本文件不存在：{opening_path}")
 
             logger.info(f"YAML 脚本引擎已加载：{self.yaml_script_file}")
 
@@ -635,6 +646,22 @@ class DialogueEngine:
     # =========================================================================
     # 脚本管理方法
     # =========================================================================
+
+    def get_opening_message(self, script_id: str = "default") -> Optional[str]:
+        """
+        获取开场白消息
+
+        Args:
+            script_id: 脚本 ID，默认为 "default"
+
+        Returns:
+            开场白消息，未加载时返回 None
+        """
+        if not self.yaml_engine:
+            logger.warning("YAML 脚本引擎未初始化")
+            return None
+
+        return self.yaml_engine.get_opening_message(script_id)
 
     def reload_yaml_script(self) -> bool:
         """

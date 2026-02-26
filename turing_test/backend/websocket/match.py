@@ -10,7 +10,6 @@ import json
 from datetime import datetime, timezone
 
 from turing_test.backend.websocket.manager import manager
-from turing_test.backend.services.match_service import get_match_service
 from config import settings
 
 router = APIRouter()
@@ -145,6 +144,8 @@ async def match_websocket(
         logger.error(f"匹配 WebSocket 错误：{e}", exc_info=True)
     finally:
         # 清理资源（确保总是执行）
+        from turing_test.backend.services.match_service import get_match_service
+
         match_service = get_match_service()
         # 从匹配队列移除（如果用户在队列中）
         try:
@@ -168,7 +169,8 @@ async def handle_join_queue(user_id: int, websocket: WebSocket):
     from turing_test.backend.database import async_session_maker
     from turing_test.backend.models import User
     from sqlalchemy import select
-    
+    from turing_test.backend.services.match_service import get_match_service
+
     match_service = get_match_service()
 
     # 检查用户是否已在队列中
@@ -234,6 +236,8 @@ async def handle_cancel_match(user_id: int, websocket: WebSocket):
     """
     处理取消匹配请求
     """
+    from turing_test.backend.services.match_service import get_match_service
+
     match_service = get_match_service()
 
     if await match_service.remove_from_queue(user_id):
@@ -258,6 +262,8 @@ async def handle_status_query(user_id: int, websocket: WebSocket):
     """
     处理状态查询请求
     """
+    from turing_test.backend.services.match_service import get_match_service
+
     match_service = get_match_service()
 
     position = await match_service.get_queue_position(user_id)

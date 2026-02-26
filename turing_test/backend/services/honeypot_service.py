@@ -5,7 +5,7 @@
 """
 
 import random
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 from datetime import datetime, timezone
 from loguru import logger
 
@@ -346,21 +346,23 @@ class HoneypotService:
             return random.choice(responses["casual_responses"])
     
     def get_response_with_delay(
-        self, 
-        base_response: str, 
+        self,
+        base_response: str,
         session_id: int,
         is_meta: bool = False,
-        user_message: str = ""
-    ) -> tuple[str, float]:
+        user_message: str = "",
+        session_turn_count: int = 0,
+    ) -> Tuple[str, float]:
         """
         生成带延迟的拟人响应
-        
+
         Args:
             base_response: 基础响应（来自 AI Bot）
             session_id: 会话 ID
             is_meta: 是否为元对话
             user_message: 用户消息
-            
+            session_turn_count: 会话轮数
+
         Returns:
             (响应内容，延迟时间)
         """
@@ -369,14 +371,141 @@ class HoneypotService:
             meta_response = self.generate_meta_response(session_id, user_message)
             if meta_response:
                 base_response = meta_response
-        
+
         # 添加人类特征
         humanized_response = self.add_human_like_variations(base_response, session_id)
-        
-        # 计算打字延迟
-        delay = self.simulate_typing_delay(len(humanized_response), session_id)
-        
+
+        # 计算打字延迟（使用增强的延迟计算）
+        delay = self._calculate_delay_with_config(
+            response_length=len(humanized_response),
+            session_id=session_id,
+            is_meta=is_meta,
+            session_turn_count=session_turn_count,
+        )
+
         return humanized_response, delay
+
+    def _calculate_delay_with_config(
+        self,
+        response_length: int,
+        session_id: int,
+        is_meta: bool = False,
+        session_turn_count: int = 0,
+    ) -> float:
+        """
+        根据配置计算延迟，模拟人类打字行为
+
+        Args:
+            response_length: 响应长度
+            session_id: 会话 ID
+            is_meta: 是否为元对话
+            session_turn_count: 会话轮数
+
+        Returns:
+            延迟时间（秒）
+        """
+        # 获取延迟配置
+        delay_config = self._get_delay_config()
+
+        # 获取会话行为模式
+        profile = self.get_behavior_profile(session_id)
+
+        # 基础延迟范围
+        delay_min = delay_config.get('reply_delay_min', 2.0)
+        delay_max = delay_config.get('reply_delay_max', 8.0)
+
+        # 基础延迟（随机均匀分布）
+        base_delay = random.uniform(delay_min, delay_max)
+
+        # 根据响应长度增加延迟
+        typing_delay_per_char = delay_config.get('typing_delay_per_char', 0.05)
+        length_delay = response_length * typing_delay_per_char
+
+        # 偶尔超长延迟（模拟人类分心）
+        long_delay_prob = delay_config.get('occasional_long_delay_probability', 0.1)
+        if random.random() < long_delay_prob:
+            long_delay_min = delay_config.get('occasional_long_delay_min', 15.0)
+            long_delay_max = delay_config.get('occasional_long_delay_max', 60.0)
+            long_delay = random.uniform(long_delay_min, long_delay_max)
+            base_delay += long_delay
+            logger.debug(f"钓鱼机器人 [{session_id}] 触发超长延迟：{long_delay:.2f}秒")
+
+        # 元对话时延迟乘数（模拟思考）
+        meta_multiplier = delay_config.get('meta_delay_multiplier', 1.5)
+        if is_meta:
+            base_delay *= meta_multiplier
+            logger.debug(f"钓鱼机器人 [{session_id}] 元对话延迟乘数：{meta_multiplier}")
+
+        # 会话早期延迟乘数（建立人设）
+        early_multiplier = delay_config.get('early_session_delay_multiplier', 1.3)
+        if session_turn_count < 5:
+            base_delay *= early_multiplier
+            logger.debug(f"钓鱼机器人 [{session_id}] 会话早期延迟乘数：{early_multiplier}")
+
+        # 根据行为模式调整
+        profile_delay_multiplier = self._get_profile_delay_multiplier(profile)
+        base_delay *= profile_delay_multiplier
+
+        # 总延迟
+        total_delay = base_delay + length_delay
+
+        # 添加随机波动（±20%）
+        jitter = random.uniform(-0.2, 0.2) * total_delay
+        total_delay += jitter
+
+        # 确保最小延迟
+        return max(1.0, total_delay)
+
+    def _get_delay_config(self) -> Dict:
+        """获取延迟配置"""
+        if hasattr(settings, 'turing') and settings.turing:
+            ai_bot_cfg = settings.turing.get('ai_bot', {})
+            honeypot_cfg = ai_bot_cfg.get('honeypot', {})
+            return {
+                'reply_delay_min': honeypot_cfg.get('reply_delay_min', 2.0),
+                'reply_delay_max': honeypot_cfg.get('reply_delay_max', 8.0),
+                'opening_delay_min': honeypot_cfg.get('opening_delay_min', 5.0),
+                'opening_delay_max': honeypot_cfg.get('opening_delay_max', 15.0),
+                'typing_delay_per_char': ai_bot_cfg.get('typing_delay_per_char', 0.05),
+                'occasional_long_delay_probability': honeypot_cfg.get('occasional_long_delay_probability', 0.1),
+                'occasional_long_delay_min': honeypot_cfg.get('occasional_long_delay_min', 15.0),
+                'occasional_long_delay_max': honeypot_cfg.get('occasional_long_delay_max', 60.0),
+                'meta_delay_multiplier': honeypot_cfg.get('meta_delay_multiplier', 1.5),
+                'early_session_delay_multiplier': honeypot_cfg.get('early_session_delay_multiplier', 1.3),
+            }
+        # 默认配置
+        return {
+            'reply_delay_min': 2.0,
+            'reply_delay_max': 8.0,
+            'opening_delay_min': 5.0,
+            'opening_delay_max': 15.0,
+            'typing_delay_per_char': 0.05,
+            'occasional_long_delay_probability': 0.1,
+            'occasional_long_delay_min': 15.0,
+            'occasional_long_delay_max': 60.0,
+            'meta_delay_multiplier': 1.5,
+            'early_session_delay_multiplier': 1.3,
+        }
+
+    def _get_profile_delay_multiplier(self, profile: Dict) -> float:
+        """
+        根据行为模式获取延迟乘数
+
+        Args:
+            profile: 行为模式配置
+
+        Returns:
+            延迟乘数
+        """
+        # 不同行为模式有不同的打字速度
+        typing_speed_avg = profile.get('typing_speed_avg', 5.0)
+
+        # 打字速度越慢，延迟乘数越大
+        # 基准速度为 5 字符/秒，乘数为 1.0
+        multiplier = 5.0 / typing_speed_avg
+
+        # 限制乘数范围
+        return max(0.5, min(2.0, multiplier))
     
     def record_meta_response(self, session_id: int):
         """

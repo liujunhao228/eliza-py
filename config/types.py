@@ -113,16 +113,45 @@ class LuaScriptEngineConfig:
 class YamlScriptEngineConfig:
     """
     YAML 脚本引擎配置
-    
+
     Attributes:
         script_file: YAML 脚本文件路径
+        opening_script_file: 开场白脚本文件路径
     """
     script_file: Path = None  # type: ignore
-    
+    opening_script_file: Optional[Path] = None
+
     def __post_init__(self):
         """后处理：设置默认值"""
         if self.script_file is None:
             self.script_file = Path("alice/scripts/demo.yaml")
+
+
+@dataclass
+class OpeningConfig:
+    """
+    Bot 开场白配置
+
+    用于配置 Bot 实例的开场白行为，支持概率和策略控制。
+
+    Attributes:
+        script: 开场白脚本文件路径
+        enabled: 是否启用开场白
+        probability: 发送概率 (0.0 - 1.0)
+        strategy: 策略类型 ("random" | "first_only" | "always" | "never")
+    """
+    script: Optional[Path] = None
+    enabled: bool = True
+    probability: float = 1.0
+    strategy: str = "random"
+
+    def __post_init__(self):
+        """后处理：验证配置"""
+        if not 0.0 <= self.probability <= 1.0:
+            raise ValueError("probability 必须在 0.0-1.0 之间")
+        valid_strategies = ["random", "first_only", "always", "never"]
+        if self.strategy not in valid_strategies:
+            raise ValueError(f"无效的策略：{self.strategy}，有效值为 {valid_strategies}")
 
 
 @dataclass

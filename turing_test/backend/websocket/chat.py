@@ -461,7 +461,7 @@ async def handle_ai_response(
     # 获取会话中的用户 ID
     session_users = manager.session_users.get(session_id, set())
     user_ids = list(session_users)
-    
+
     logger.debug(f"handle_ai_response: session_id={session_id}, session_users={session_users}, user_ids={user_ids}")
     logger.debug(f"handle_ai_response: 用户连接状态={[(uid, manager.is_user_connected(uid)) for uid in user_ids]}")
 
@@ -469,6 +469,15 @@ async def handle_ai_response(
     if not user_ids or not any(manager.is_user_connected(uid) for uid in user_ids):
         logger.warning(f"会话 {session_id} 中没有在线用户，跳过 AI 响应")
         return
+
+    # 获取会话信息（用于检测是否为开场白）
+    result = await db.execute(
+        select(Session).where(Session.id == session_id)
+    )
+    session = result.scalar_one()
+
+    # 检测是否为开场白（会话的第一条消息）
+    is_opening = session.turn_count == 0
 
     # 发送打字提示
     typing_sent = await manager.send_to_session(session_id, {
@@ -478,7 +487,7 @@ async def handle_ai_response(
             "is_typing": True,
         }
     })
-    
+
     logger.debug(f"handle_ai_response: 打字提示发送结果={typing_sent}")
 
     if typing_sent == 0:
@@ -492,17 +501,17 @@ async def handle_ai_response(
     try:
         # 调用 AI Bot 服务生成响应
         from turing_test.backend.services.ai_bot_service import get_bot_response
-        base_response, base_delay = await get_bot_response(user_message)
+        base_response, base_delay = await get_bot_response(
+            user_message,
+            is_opening=is_opening,
+            is_honeypot=session.is_honeypot,
+            session_turn_count=session.turn_count,
+        )
 
         # 检测是否为元对话
         is_meta, _ = is_meta_conversation(user_message)
 
         # 如果是钓鱼机器人，使用钓鱼机器人服务增强拟真度
-        result = await db.execute(
-            select(Session).where(Session.id == session_id)
-        )
-        session = result.scalar_one()
-
         if session.is_honeypot:
             from turing_test.backend.services.honeypot_service import get_honeypot_service
             honeypot_service = get_honeypot_service()
@@ -513,6 +522,7 @@ async def handle_ai_response(
                 session_id=session_id,
                 is_meta=is_meta,
                 user_message=user_message,
+                session_turn_count=session.turn_count,
             )
 
             # 记录元对话响应
@@ -527,6 +537,10 @@ async def handle_ai_response(
 
     except Exception as e:
         logger.error(f"生成 AI 响应失败：{e}", exc_info=True)
+
+    # 等待延迟（模拟打字）
+    if ai_delay > 0:
+        await asyncio.sleep(ai_delay)
 
     # 发送停止打字提示（无论 AI 响应是否成功都发送）
     stop_typing_result = await manager.send_to_session(session_id, {
