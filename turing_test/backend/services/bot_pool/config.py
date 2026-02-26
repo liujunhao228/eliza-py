@@ -23,7 +23,6 @@ class BotTemplateConfig:
         name: str,
         script_file: Optional[Path] = None,
         rules_file: Optional[Path] = None,
-        enable_plugins: bool = True,
         cache_size: int = 100,
     ):
         """注册一个 Bot 模板"""
@@ -32,7 +31,6 @@ class BotTemplateConfig:
             name=name,
             script_file=script_file,
             rules_file=rules_file,
-            enable_plugins=enable_plugins,
             cache_size=cache_size,
         )
 
@@ -64,7 +62,6 @@ class BotTemplateConfig:
 def create_default_templates(
     script_file: Optional[str] = None,
     rules_file: Optional[str] = None,
-    enable_plugins: bool = True,
 ) -> Dict[str, BotTemplate]:
     """
     创建默认 Bot 模板
@@ -72,7 +69,6 @@ def create_default_templates(
     Args:
         script_file: 脚本文件路径
         rules_file: 规则文件路径
-        enable_plugins: 是否启用插件
 
     Returns:
         Bot 模板字典
@@ -83,7 +79,6 @@ def create_default_templates(
             name="Default",
             script_file=Path(script_file) if script_file else None,
             rules_file=Path(rules_file) if rules_file else None,
-            enable_plugins=enable_plugins,
         )
     }
     return templates

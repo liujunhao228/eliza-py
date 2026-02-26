@@ -64,7 +64,6 @@ class AIBotService:
                 idle_timeout=getattr(settings, 'BOT_POOL_IDLE_TIMEOUT', 300),
                 script_file=script_file,
                 rules_file=rules_file,
-                enable_plugins=True,
             )
 
             self._initialized = True

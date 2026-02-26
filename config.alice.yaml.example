@@ -29,13 +29,8 @@ scripting:
   
   yaml:
     script_file: alice/scripts/demo.yaml  # YAML 脚本文件
-  
-  rules_file: alice/scripts/rules/mapping.yaml  # 重组规则文件
 
-# -----------------------------------------------------------------------------
-# 语义标签文件
-# -----------------------------------------------------------------------------
-semantic_tags_file: alice/scripts/semantic_tags.yaml
+  rules_file: alice/scripts/rules/mapping.yaml  # 重组规则文件
 
 # -----------------------------------------------------------------------------
 # 对话上下文配置

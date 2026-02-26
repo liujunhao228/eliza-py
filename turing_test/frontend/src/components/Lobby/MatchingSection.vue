@@ -59,11 +59,12 @@ const waitTime = ref(0)
 const progress = ref(0)
 let timer: number | null = null
 
-// 状态信息（根据等待时间变化）
+// 状态信息（根据等待时间变化，与实际时间分布保持一致）
+// 时间分布：50% 0-3 秒，30% 3-8 秒，15% 8-15 秒，5% 15-30 秒
 const statusMessage = computed(() => {
-  if (waitTime.value < 5) return '正在寻找对手...'
-  if (waitTime.value < 10) return '稍等片刻，马上就好...'
-  if (waitTime.value < 20) return '正在为您匹配最佳对手...'
+  if (waitTime.value < 3) return '正在寻找对手...'
+  if (waitTime.value < 8) return '稍等片刻，马上就好...'
+  if (waitTime.value < 15) return '正在为您匹配最佳对手...'
   return '正在为您匹配对手...'
 })
 

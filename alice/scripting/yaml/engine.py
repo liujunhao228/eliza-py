@@ -102,7 +102,6 @@ class YAMLScriptEngine(BaseScriptEngine):
         self,
         default_script_file: Optional[Path] = None,
         config_loader: Optional[ScriptConfigLoader] = None,
-        script_file: Optional[str] = None,  # 向后兼容参数
         reassembly_engine: Optional[Any] = None,  # 重组引擎（可选）
     ):
         """
@@ -110,7 +109,6 @@ class YAMLScriptEngine(BaseScriptEngine):
 
         Args:
             default_script_file: 默认脚本文件路径（Path 对象）
-            script_file: 默认脚本文件路径（字符串路径，向后兼容）
             reassembly_engine: 句法重组引擎实例（用于代词替换）
             config_loader: 配置加载器
         """
@@ -119,11 +117,7 @@ class YAMLScriptEngine(BaseScriptEngine):
         if not YAML_AVAILABLE:
             raise ImportError("PyYAML 未安装，请运行：pip install pyyaml")
 
-        # 支持两种参数形式：default_script_file (Path) 或 script_file (str)
         self.default_script_file = default_script_file
-        if script_file and not default_script_file:
-            self.default_script_file = Path(script_file)
-
         self.config_loader = config_loader or ScriptConfigLoader()
         self.reassembly_engine = reassembly_engine
 

@@ -22,7 +22,9 @@ auth:
   invite_code_length: 6
   access_token_expire_minutes: 10080        # 7 天 (60 * 24 * 7)
   algorithm: HS256
-  secret_key: "your-secret-key-change-in-production"  # ⚠️ 生产环境必须修改!
+  # ⚠️ 生产环境请使用环境变量：AUTH_SECRET_KEY
+  # 在 .env 文件中设置：AUTH_SECRET_KEY=your-secret-key-here
+  secret_key: "${AUTH_SECRET_KEY}"
   initial_score: 100
 
 # -----------------------------------------------------------------------------

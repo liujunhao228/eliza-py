@@ -39,7 +39,7 @@ def test_config_loading(engine):
     print("\n" + "=" * 60)
     print("测试 2: 配置加载")
     print("=" * 60)
-    
+
     # 打印配置信息
     print(f"YAML 脚本文件：{engine.yaml_script_file}")
     print(f"Lua 脚本目录：{engine.lua_script_dir}")
@@ -49,15 +49,13 @@ def test_config_loading(engine):
     print(f"Enable NER: {engine.enable_ner}")
     print(f"Enable Lua: {engine.enable_lua}")
     print(f"Enable YAML: {engine.enable_yaml}")
-    print(f"Enable Plugins: {engine.enable_plugins}")
     print(f"Lua 沙箱模式：{engine.lua_sandbox_mode}")
     print(f"Lua 最大执行时间：{engine.lua_max_execution_time}s")
-    
+
     # 验证配置已加载
     assert hasattr(engine, 'yaml_script_file'), "缺少 yaml_script_file 属性"
     assert hasattr(engine, 'lua_script_dir'), "缺少 lua_script_dir 属性"
-    assert hasattr(engine, 'enable_plugins'), "缺少 enable_plugins 属性"
-    
+
     print(f"{CHECK} 配置加载成功")
 
 
@@ -114,13 +112,12 @@ def test_stats(engine):
     print("=" * 60)
     
     stats = engine.get_stats()
-    
+
     print(f"已初始化：{stats.get('initialized')}")
     print(f"引擎统计：{stats.get('engines')}")
     print(f"上下文统计：{stats.get('context')}")
     print(f"NLP 配置：{stats.get('nlp')}")
-    print(f"插件启用：{stats.get('plugins_enabled')}")
-    
+
     assert 'initialized' in stats, "缺少 initialized 字段"
     assert 'engines' in stats, "缺少 engines 字段"
     assert 'context' in stats, "缺少 context 字段"

@@ -106,10 +106,34 @@ class ConfigLoader:
         return self._settings
 
 
-# 全局单例
+# 全局单例 (延迟加载，避免循环导入)
 _project_root = Path(__file__).parent.parent
 _loader = ConfigLoader(_project_root)
-settings = _loader.load()
+_settings: Optional[Settings] = None
+
+
+def get_settings() -> Settings:
+    """
+    获取类型化配置对象 (延迟加载)
+    
+    Returns:
+        Settings 实例
+    """
+    global _settings
+    if _settings is None:
+        _settings = _loader.load()
+    return _settings
+
+
+# 向后兼容：提供 settings 属性访问
+class _SettingsProxy:
+    """配置代理类，用于延迟加载"""
+    
+    def __getattr__(self, name: str) -> Any:
+        return getattr(get_settings(), name)
+
+
+settings = _SettingsProxy()
 
 
 __all__ = [

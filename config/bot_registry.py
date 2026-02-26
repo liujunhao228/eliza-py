@@ -41,9 +41,6 @@ class BotTemplate:
     rules_file: Optional[Path] = None
     """规则文件路径"""
 
-    enable_plugins: bool = True
-    """是否启用插件"""
-
     cache_size: int = 50
     """缓存大小"""
 
@@ -72,7 +69,6 @@ class BotTemplate:
             'description': self.description,
             'script_file': str(self.script_file) if self.script_file else None,
             'rules_file': str(self.rules_file) if self.rules_file else None,
-            'enable_plugins': self.enable_plugins,
             'cache_size': self.cache_size,
             'typing_delay_base': self.typing_delay_base,
             'typing_delay_per_char': self.typing_delay_per_char,
@@ -282,7 +278,6 @@ class BotTemplateRegistry:
                 description=cfg.get('description', ''),
                 script_file=script_file,
                 rules_file=rules_file,
-                enable_plugins=cfg.get('enable_plugins', True),
                 cache_size=cfg.get('cache_size', 50),
                 typing_delay_base=cfg.get('typing_delay_base', 1.0),
                 typing_delay_per_char=cfg.get('typing_delay_per_char', 0.05),

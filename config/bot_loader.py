@@ -36,7 +36,6 @@ class BotConfig:
     description: str = ""
     script_file: Optional[Path] = None
     rules_file: Optional[Path] = None
-    enable_plugins: bool = True
     cache_size: int = 50
     typing_delay_base: float = 1.0
     typing_delay_per_char: float = 0.05
@@ -50,7 +49,6 @@ class BotConfig:
             'description': self.description,
             'script_file': str(self.script_file) if self.script_file else None,
             'rules_file': str(self.rules_file) if self.rules_file else None,
-            'enable_plugins': self.enable_plugins,
             'cache_size': self.cache_size,
             'typing_delay_base': self.typing_delay_base,
             'typing_delay_per_char': self.typing_delay_per_char,
@@ -160,13 +158,34 @@ class BotConfigLoader:
         Returns:
             BotConfig 对象
         """
-        # 必填字段
-        bot_id = data.get('id')
-        if not bot_id:
-            logger.error("Bot 配置缺少必填字段：id")
-            return None
+        # 必填字段验证
+        required_fields = ['id', 'name']
+        for field in required_fields:
+            if field not in data:
+                logger.error(f"Bot 配置缺少必填字段：{field}")
+                return None
 
+        bot_id = data.get('id')
         name = data.get('name', bot_id)
+
+        # 数值字段验证
+        if 'cache_size' in data:
+            cache_size = data['cache_size']
+            if not isinstance(cache_size, int) or cache_size <= 0:
+                logger.error("Bot 配置 cache_size 必须是正整数")
+                return None
+
+        if 'typing_delay_base' in data:
+            delay = data['typing_delay_base']
+            if not isinstance(delay, (int, float)) or delay < 0:
+                logger.error("Bot 配置 typing_delay_base 必须是非负数")
+                return None
+
+        if 'typing_delay_per_char' in data:
+            delay = data['typing_delay_per_char']
+            if not isinstance(delay, (int, float)) or delay < 0:
+                logger.error("Bot 配置 typing_delay_per_char 必须是非负数")
+                return None
 
         # 解析路径
         script_file = None
@@ -190,7 +209,6 @@ class BotConfigLoader:
             description=data.get('description', ''),
             script_file=script_file,
             rules_file=rules_file,
-            enable_plugins=data.get('enable_plugins', True),
             cache_size=data.get('cache_size', 50),
             typing_delay_base=data.get('typing_delay_base', 1.0),
             typing_delay_per_char=data.get('typing_delay_per_char', 0.05),

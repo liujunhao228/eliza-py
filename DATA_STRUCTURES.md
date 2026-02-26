@@ -679,7 +679,6 @@ alice:
   # 文件路径
   script_file: str
   rules_file: str
-  semantic_tags_file: str
 
   # 对话上下文
   context_max_items: int

@@ -53,7 +53,6 @@ class AliceBotPool:
         idle_timeout: int = 300,
         script_file: Optional[str] = None,
         rules_file: Optional[str] = None,
-        enable_plugins: bool = True,
     ):
         """
         初始化 Bot 池
@@ -67,7 +66,6 @@ class AliceBotPool:
             idle_timeout: 空闲超时时间（秒）
             script_file: 脚本文件路径 (向后兼容，不使用模板时有效)
             rules_file: 规则文件路径 (向后兼容，不使用模板时有效)
-            enable_plugins: 是否启用插件 (向后兼容，不使用模板时有效)
         """
         self.nlp_service = nlp_service
         self.templates = templates or {}
@@ -78,7 +76,7 @@ class AliceBotPool:
 
         # 向后兼容：如果没有模板，使用默认配置创建
         if not self.templates:
-            self.templates = create_default_templates(script_file, rules_file, enable_plugins)
+            self.templates = create_default_templates(script_file, rules_file)
 
         # 实例池
         self._instances: Dict[int, BotInstanceInfo] = {}
@@ -140,7 +138,6 @@ class AliceBotPool:
                 script_file=str(template.script_file) if template.script_file else None,
                 rules_file=str(template.rules_file) if template.rules_file else None,
                 enable_logging=False,  # 减少日志开销
-                enable_plugins=template.enable_plugins,
                 cache_size=template.cache_size,
                 use_ltp=False,  # 禁用 LTP 以避免重复加载
             )
@@ -298,12 +295,19 @@ class AliceBotPool:
         维护池：定期清理空闲实例和补充最小实例数
 
         优化：
-        - 每 30 秒检查一次（原 60 秒），更及时响应
+        - 动态检查间隔：根据实例数量调整 (60-120 秒)
         - 智能清理：根据负载动态调整清理策略
         - 自动补充：当实例数低于最小值时自动补充
         """
         while self._maintenance_active:
-            time.sleep(30)  # 每 30 秒检查一次
+            # 动态检查间隔：实例越多，检查间隔越长
+            with self._lock:
+                instance_count = len(self._instances)
+            
+            # 基础间隔 60 秒，每多一个实例增加 10 秒，最大 120 秒
+            check_interval = min(120, max(60, 60 + instance_count * 10))
+            time.sleep(check_interval)
+            
             self._cleanup_idle_instances()
             self._replenish_min_instances()
 

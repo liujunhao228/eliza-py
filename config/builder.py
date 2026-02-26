@@ -13,6 +13,9 @@
     settings = builder.build(config_dict)
 """
 
+import logging
+import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -46,6 +49,57 @@ from .types import (
 )
 
 
+def resolve_env_variables(value: str) -> str:
+    """
+    解析字符串中的环境变量
+
+    支持格式：${ENV_VAR} 或 $ENV_VAR
+
+    Args:
+        value: 包含环境变量的字符串
+
+    Returns:
+        解析后的字符串
+    """
+    if not isinstance(value, str):
+        return value
+
+    # 处理 ${VAR} 格式
+    pattern = r'\$\{([^}]+)\}'
+
+    def replace_env(match):
+        env_var = match.group(1)
+        return os.environ.get(env_var, match.group(0))
+
+    return re.sub(pattern, replace_env, value)
+
+
+def resolve_config_env_values(config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    递归解析配置字典中的环境变量
+
+    Args:
+        config: 配置字典
+
+    Returns:
+        解析后的配置字典
+    """
+    resolved = {}
+    for key, value in config.items():
+        if isinstance(value, str):
+            resolved[key] = resolve_env_variables(value)
+        elif isinstance(value, dict):
+            resolved[key] = resolve_config_env_values(value)
+        elif isinstance(value, list):
+            resolved[key] = [
+                resolve_env_variables(item) if isinstance(item, str) else item
+                for item in value
+            ]
+        else:
+            resolved[key] = value
+    return resolved
+
+
 class ConfigBuilder:
     """
     配置构建器
@@ -71,42 +125,64 @@ class ConfigBuilder:
 
         Returns:
             Settings 实例
+
+        Raises:
+            KeyError: 缺少必填配置项时
+            TypeError: 配置类型错误时
+            ValueError: 配置值无效时
         """
-        # 构建路径配置
-        paths_cfg = config.get("paths", {})
-        paths = self._build_paths_config(paths_cfg)
+        try:
+            # 解析环境变量
+            config = resolve_config_env_values(config)
 
-        # 构建模块引用配置
-        modules = self._build_modules_config(config)
+            # 构建路径配置
+            paths_cfg = config.get("paths", {})
+            paths = self._build_paths_config(paths_cfg)
 
-        # 构建 LTP 配置
-        alice_cfg = config.get("alice", {})
-        ltp_cfg = alice_cfg.get("ltp", {})
-        ltp = self._build_ltp_config(ltp_cfg)
+            # 构建模块引用配置
+            modules = self._build_modules_config(config)
 
-        # 构建 Alice 配置
-        alice = self._build_alice_config(alice_cfg, paths, ltp)
+            # 构建 LTP 配置
+            alice_cfg = config.get("alice", {})
+            ltp_cfg = alice_cfg.get("ltp", {})
+            ltp = self._build_ltp_config(ltp_cfg)
 
-        # 构建 Turing 配置
-        turing_cfg = config.get("turing", {})
-        turing = self._build_turing_config(turing_cfg, paths)
+            # 构建 Alice 配置
+            alice = self._build_alice_config(alice_cfg, paths, ltp)
 
-        # 获取 Sentry 配置（从环境变量优先读取）
-        sentry_dsn = config.get("sentry_dsn", None)
-        sentry_enabled = config.get("sentry_enabled", False)
-        environment = config.get("environment", "production")
+            # 构建 Turing 配置
+            turing_cfg = config.get("turing", {})
+            turing = self._build_turing_config(turing_cfg, paths)
 
-        return Settings(
-            debug=self._get_optional(config, "debug", bool, False),
-            log_level=self._get_optional(config, "log_level", str, "INFO"),
-            paths=paths,
-            modules=modules,
-            alice=alice,
-            turing=turing,
-            sentry_dsn=sentry_dsn,
-            sentry_enabled=sentry_enabled,
-            environment=environment,
-        )
+            # 获取 Sentry 配置（从环境变量优先读取）
+            sentry_dsn = config.get("sentry_dsn", None)
+            sentry_enabled = config.get("sentry_enabled", False)
+            environment = config.get("environment", "production")
+
+            return Settings(
+                debug=self._get_optional(config, "debug", bool, False),
+                log_level=self._get_optional(config, "log_level", str, "INFO"),
+                paths=paths,
+                modules=modules,
+                alice=alice,
+                turing=turing,
+                sentry_dsn=sentry_dsn,
+                sentry_enabled=sentry_enabled,
+                environment=environment,
+            )
+
+        except KeyError as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"配置构建失败：缺少配置项 {e}")
+            raise
+        except TypeError as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"配置构建失败：类型错误 {e}")
+            raise
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"配置构建失败：{e}", exc_info=True)
+            raise
 
     def _build_paths_config(self, cfg: Dict[str, Any]) -> PathsConfig:
         """构建路径配置"""
@@ -184,10 +260,6 @@ class ConfigBuilder:
             enable_log=self._get_required(cfg, "enable_log", bool, "alice"),
             ner_use_ltp=self._get_required(cfg, "ner_use_ltp", bool, "alice"),
             scripting=scripting,
-            semantic_tags_file=self._get_optional(
-                cfg, "semantic_tags_file", Path,
-                paths.project_root / "alice" / "scripts" / "semantic_tags.yaml", "alice"
-            ),
             context_max_items=self._get_required(cfg, "context_max_items", int, "alice"),
             conversation_history_max_turns=self._get_required(
                 cfg, "conversation_history_max_turns", int, "alice"
@@ -353,7 +425,6 @@ class ConfigBuilder:
             ),
             bot_pool=bot_pool,
             alice_bot=AliceBotConfig(
-                enable_plugins=self._get_required(alice_bot_cfg, "enable_plugins", bool, "turing.alice_bot"),
                 cache_size=self._get_required(alice_bot_cfg, "cache_size", int, "turing.alice_bot"),
                 context_max_turns=self._get_required(alice_bot_cfg, "context_max_turns", int, "turing.alice_bot"),
                 script_file=self._get_required(alice_bot_cfg, "script_file", Path, "turing.alice_bot"),

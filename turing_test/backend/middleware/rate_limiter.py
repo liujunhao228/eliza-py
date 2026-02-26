@@ -2,9 +2,18 @@
 API 限流中间件
 
 使用 slowapi 实现基于 IP 的速率限制，防止 API 滥用。
+
+配置说明:
+    - 开发环境：使用内存存储
+    - 生产环境：使用 Redis 存储（通过环境变量 CONFIG_RATE_LIMIT_STORAGE 配置）
+
+环境变量:
+    CONFIG_RATE_LIMIT_STORAGE: Redis 连接 URL，如 "redis://localhost:6379"
 """
 
+import os
 from typing import Optional, Dict, Any
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -14,6 +23,9 @@ from slowapi.middleware import SlowAPIMiddleware
 from loguru import logger
 
 from config import settings
+
+# 指定 UTF-8 编码加载 .env 文件，解决 Windows 上 GBK 编码问题
+load_dotenv('.env', encoding='utf-8')
 
 
 # =============================================================================
@@ -71,7 +83,7 @@ class RateLimiterConfig:
 def get_client_ip(request: Request) -> str:
     """
     获取客户端真实 IP
-    
+
     支持通过代理头获取真实 IP（在部署到云环境时很有用）
     """
     # 首先尝试从请求头获取
@@ -82,16 +94,53 @@ def get_client_ip(request: Request) -> str:
             if ip:
                 # X-Forwarded-For 可能包含多个 IP，取第一个
                 return ip.split(",")[0].strip()
-    
+
     # 回退到默认方法
     return get_remote_address(request)
+
+
+# =============================================================================
+# 限流器存储配置
+# =============================================================================
+
+def get_storage_uri() -> str:
+    """
+    获取限流器存储 URI
+
+    优先级:
+    1. 环境变量 CONFIG_RATE_LIMIT_STORAGE
+    2. 配置文件 settings.turing.rate_limit.storage
+    3. 默认使用内存存储
+
+    Returns:
+        存储 URI 字符串
+    """
+    # 环境变量优先级最高
+    env_storage = os.getenv("CONFIG_RATE_LIMIT_STORAGE")
+    if env_storage:
+        logger.info(f"使用环境变量配置的限流存储：{env_storage}")
+        return env_storage
+
+    # 尝试从配置文件读取
+    try:
+        config_storage = getattr(settings.turing, 'rate_limit', {}).get('storage')
+        if config_storage:
+            logger.info(f"使用配置文件配置的限流存储：{config_storage}")
+            return config_storage
+    except (AttributeError, TypeError):
+        pass
+
+    # 默认使用内存存储（开发环境）
+    logger.warning("⚠️  限流存储使用内存模式，多实例部署请配置 Redis: "
+                   "CONFIG_RATE_LIMIT_STORAGE=redis://localhost:6379")
+    return "memory://"
 
 
 # 创建限流器实例
 limiter = Limiter(
     key_func=get_client_ip,
     default_limits=[RateLimiterConfig.DEFAULT_LIMIT],
-    storage_uri="memory://",  # 使用内存存储（生产环境建议使用 Redis）
+    storage_uri=get_storage_uri(),  # 动态获取存储配置
 )
 
 

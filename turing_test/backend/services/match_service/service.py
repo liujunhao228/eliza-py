@@ -105,7 +105,14 @@ class MatchService:
         """
         匹配循环
 
-        定期尝试匹配用户，处理超时
+        实现文档：前端文档/03-技术架构/匹配机制设计.md
+
+        流程：
+        1. 生成匹配延迟（统一分布）
+        2. 等待延迟，期间检查是否有真人加入
+        3. 延迟结束后：
+           - 有真人 → 80% 概率匹配真人 - 真人，20% 概率匹配 AI（实验对照）
+           - 无真人 → 继续等待或超时后匹配 AI
 
         Args:
             user_id: 用户 ID
@@ -117,123 +124,93 @@ class MatchService:
         start_time = datetime.now(timezone.utc)
         user_score = self.queue.get_user_info(user_id, {}).get("user_score", 100)
 
+        # 生成匹配延迟（真人/AI 使用相同分布，消除时间线索）
+        match_delay = self.algorithm.generate_match_delay()
+        logger.info(f"用户 {user_id} 开始匹配，生成延迟：{match_delay:.2f}秒")
+
         try:
-            while True:
-                # 检查用户是否仍在队列中（如果已断开连接则退出）
+            # 等待匹配延迟，期间定期检查是否有真人加入
+            elapsed = 0.0
+            check_interval = 0.5  # 每 0.5 秒检查一次
+
+            while elapsed < match_delay:
+                # 检查用户是否仍在队列中
                 if not self.queue.is_user_waiting(user_id):
                     logger.info(f"用户 {user_id} 已离开队列，退出匹配任务")
                     return
 
-                # 检查用户是否已断开连接（双重检查）
+                # 检查用户是否已断开连接
                 if not manager.is_user_connected(user_id):
                     logger.info(f"用户 {user_id} 已断开连接，退出匹配任务")
-                    # 从队列移除，避免资源泄漏
                     await self.remove_from_queue(user_id)
                     return
 
-                # 检查是否超时
-                elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
-                if elapsed >= self.match_timeout:
-                    logger.info(f"用户 {user_id} 匹配超时 ({self.match_timeout}秒)")
-
-                    # 记录超时统计
-                    self.statistics.timeout_matches += 1
-
-                    # 超时后匹配 AI（可能是钓鱼机器人）
-                    # 先检查用户是否仍在线
-                    if manager.is_user_connected(user_id):
-                        await self._assign_ai_with_honeypot(user_id, websocket_ref, user_score)
-                    else:
-                        logger.info(f"用户 {user_id} 已断开，跳过 AI 匹配")
-
-                    # 从队列移除
-                    await self.remove_from_queue(user_id)
-                    return
-
-                # 尝试寻找匹配
-                opponent_id = self.algorithm.find_match(
-                    user_id,
-                    self.queue.waiting_queue,
-                    self.user_match_history
-                )
-
-                if opponent_id:
-                    logger.info(f"✅ 匹配成功：用户 {user_id} <-> 用户 {opponent_id}")
-
-                    # 计算等待时间
-                    user_info = self.queue.get_user_info(user_id)
-                    wait_time = datetime.now(timezone.utc).timestamp() - user_info["timestamp"]
-
-                    # 从队列中移除两个用户
-                    await self.remove_from_queue(user_id)
-                    await self.remove_from_queue(opponent_id)
-
-                    # 创建会话
-                    session_id = await self._create_session(user_id, opponent_id, "human")
-
-                    # 记录匹配历史
-                    self._record_match(user_id, opponent_id, "human", wait_time)
-                    self._record_match(opponent_id, user_id, "human", wait_time)
-
-                    # 发送匹配成功消息给两个用户
-                    for uid in [user_id, opponent_id]:
-                        # 检查用户是否仍在线
-                        if not manager.is_user_connected(uid):
-                            logger.warning(f"用户 {uid} 已断开连接，跳过发送匹配成功消息")
-                            continue
-                        success = await manager.send_personal_message(uid, {
-                            "type": "match_found",
-                            "data": {
-                                "session_id": session_id,
-                                "opponent_type": "human",
-                                "is_honeypot": False,
-                                "matched_at": datetime.now(timezone.utc).isoformat(),
-                                "wait_time": wait_time,
-                            }
-                        })
-                        if not success:
-                            logger.warning(f"发送匹配成功消息给用户 {uid} 失败")
-
-                    return
-
-                # 定期更新状态
-                position = await self.queue.get_position(user_id)
+                # 检查是否有真人加入（队列中超过 1 人）
                 queue_size = self.queue.get_size()
+                if queue_size >= 2:
+                    logger.info(f"延迟期间有真人加入，当前队列大小：{queue_size}")
 
-                # 再次检查用户是否仍在线（避免在长时间等待后用户已断开）
-                if not manager.is_user_connected(user_id):
-                    logger.info(f"用户 {user_id} 已断开，退出匹配任务")
-                    await self.remove_from_queue(user_id)
-                    return
+                    # 80% 概率匹配真人，20% 概率匹配 AI（实验对照）
+                    if self.algorithm.should_match_human():
+                        logger.info(f"匹配真人（80% 概率）：用户 {user_id}")
+                        opponent_id = self.algorithm.find_match(
+                            user_id,
+                            self.queue.waiting_queue,
+                            self.user_match_history
+                        )
 
+                        if opponent_id:
+                            await self._create_human_match(
+                                user_id, opponent_id, websocket_ref, start_time
+                            )
+                            return
+                    else:
+                        logger.info(f"实验对照（20% 概率）：用户 {user_id} 匹配 AI")
+                        # 从队列移除
+                        await self.remove_from_queue(user_id)
+                        # 匹配 AI
+                        await self._assign_ai_with_honeypot(user_id, websocket_ref, user_score)
+                        return
+
+                # 等待检查间隔
+                await asyncio.sleep(check_interval)
+                elapsed += check_interval
+
+                # 更新状态
+                position = await self.queue.get_position(user_id)
+                estimated_wait = max(0, int(self.match_timeout - (datetime.now(timezone.utc) - start_time).total_seconds()))
                 await manager.send_personal_message(user_id, {
                     "type": "status",
                     "data": {
                         "in_queue": True,
-                        "queue_size": queue_size,
+                        "queue_size": self.queue.get_size(),
                         "queue_position": position,
-                        "estimated_wait_time": max(0, int(self.match_timeout - elapsed)),
+                        "estimated_wait_time": estimated_wait,
                     }
                 })
 
-                # 等待一段时间再重试（使用较短的等待时间以便更快检测断开）
-                # 将 2 秒分成 4 个 0.5 秒的检查间隔
-                for _ in range(4):
-                    if not manager.is_user_connected(user_id):
-                        logger.info(f"用户 {user_id} 已断开连接，退出匹配任务")
-                        await self.remove_from_queue(user_id)
-                        return
-                    await asyncio.sleep(0.5)
+            # 延迟结束后，检查是否超时
+            total_elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
+            if total_elapsed >= self.match_timeout:
+                logger.info(f"用户 {user_id} 匹配超时 ({self.match_timeout}秒)")
+                self.statistics.timeout_matches += 1
+
+                if manager.is_user_connected(user_id):
+                    await self._assign_ai_with_honeypot(user_id, websocket_ref, user_score)
+                await self.remove_from_queue(user_id)
+                return
+
+            # 延迟结束，仍无真人，匹配 AI
+            logger.info(f"用户 {user_id} 延迟结束，仍无真人，匹配 AI")
+            await self.remove_from_queue(user_id)
+            await self._assign_ai_with_honeypot(user_id, websocket_ref, user_score)
 
         except asyncio.CancelledError:
             logger.info(f"用户 {user_id} 的匹配任务已取消")
-            # 确保从队列移除
             await self.remove_from_queue(user_id)
-            # 优雅地处理取消，不重新抛出
             return
         except Exception as e:
             logger.error(f"匹配用户 {user_id} 时出错：{e}", exc_info=True)
-            # 确保从队列移除
             await self.remove_from_queue(user_id)
             if manager.is_user_connected(user_id):
                 await manager.send_personal_message(user_id, {
@@ -243,6 +220,59 @@ class MatchService:
                         "message": "匹配过程中出错",
                     }
                 })
+
+    async def _create_human_match(
+        self,
+        user_id: int,
+        opponent_id: int,
+        websocket_ref: int,
+        start_time: datetime
+    ):
+        """
+        创建真人匹配
+
+        Args:
+            user_id: 用户 ID
+            opponent_id: 对手用户 ID
+            websocket_ref: WebSocket 引用 ID
+            start_time: 开始时间
+        """
+        from turing_test.backend.websocket.manager import manager
+
+        # 计算等待时间
+        user_info = self.queue.get_user_info(user_id)
+        wait_time = datetime.now(timezone.utc).timestamp() - user_info["timestamp"]
+
+        # 从队列中移除两个用户
+        await self.remove_from_queue(user_id)
+        await self.remove_from_queue(opponent_id)
+
+        # 创建会话
+        session_id = await self._create_session(user_id, opponent_id, "human")
+
+        # 记录匹配历史
+        self._record_match(user_id, opponent_id, "human", wait_time)
+        self._record_match(opponent_id, user_id, "human", wait_time)
+
+        # 发送匹配成功消息给两个用户
+        for uid in [user_id, opponent_id]:
+            if not manager.is_user_connected(uid):
+                logger.warning(f"用户 {uid} 已断开连接，跳过发送匹配成功消息")
+                continue
+            success = await manager.send_personal_message(uid, {
+                "type": "match_found",
+                "data": {
+                    "session_id": session_id,
+                    "opponent_type": "human",
+                    "is_honeypot": False,
+                    "matched_at": datetime.now(timezone.utc).isoformat(),
+                    "wait_time": wait_time,
+                }
+            })
+            if not success:
+                logger.warning(f"发送匹配成功消息给用户 {uid} 失败")
+
+        logger.info(f"✅ 真人匹配成功：用户 {user_id} <-> 用户 {opponent_id}, 等待时间：{wait_time:.2f}秒")
 
     async def _assign_ai_with_honeypot(
         self,

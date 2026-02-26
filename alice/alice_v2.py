@@ -35,7 +35,6 @@ class AliceBot:
 
     新架构特性:
     - 模块化设计：各组件职责清晰
-    - 插件化架构：支持动态扩展
     - 统一监控：性能和错误追踪
     - 智能缓存：减少重复计算
     - 轻量化处理：不依赖重型模型
@@ -46,7 +45,6 @@ class AliceBot:
         script_file: Optional[str] = None,
         rules_file: Optional[str] = None,
         enable_logging: Optional[bool] = None,
-        enable_plugins: bool = True,
         cache_size: int = 100,
         use_ltp: Optional[bool] = None,
     ):
@@ -57,7 +55,6 @@ class AliceBot:
             script_file: 脚本文件路径
             rules_file: 反射规则文件路径
             enable_logging: 是否启用日志（默认使用 config.ENABLE_LOGGING_BY_DEFAULT）
-            enable_plugins: 是否启用插件系统
             cache_size: 缓存大小
             use_ltp: 是否使用 LTP 增强（默认使用 config.ENABLE_LTP_BY_DEFAULT）
         """
@@ -74,7 +71,6 @@ class AliceBot:
         self.dialogue_engine = DialogueEngine(
             script_file=script_file,
             rules_file=rules_file,
-            enable_plugins=enable_plugins,
             use_ltp=use_ltp,
         )
 

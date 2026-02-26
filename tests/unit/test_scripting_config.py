@@ -151,23 +151,23 @@ def test_dialogue_engine_import():
     print("\n" + "=" * 60)
     print("测试 5: 对话引擎导入")
     print("=" * 60)
-    
+
     try:
-        from alice.core.dialogue_engine_unified import DialogueEngine
+        from alice.core.dialogue_engine import DialogueEngine
         from config import get_config_manager
-        
+
         print("[PASS] DialogueEngine 导入成功")
-        
+
         # 测试使用配置管理器初始化
         config_mgr = get_config_manager()
         engine = DialogueEngine(config_manager=config_mgr)
-        
+
         print(f"[PASS] DialogueEngine 使用配置管理器初始化成功")
         print(f"  - yaml_script_file: {engine.yaml_script_file}")
         print(f"  - lua_script_dir: {engine.lua_script_dir}")
         print(f"  - enable_lua: {engine.enable_lua}")
         print(f"  - enable_yaml: {engine.enable_yaml}")
-        
+
         return True
     except Exception as e:
         print(f"[FAIL] 测试失败：{e}")

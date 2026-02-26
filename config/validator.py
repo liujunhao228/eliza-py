@@ -235,6 +235,19 @@ def build_default_validator() -> ConfigValidator:
         lambda v: isinstance(v, str) and len(v) > 0,
         message="turing.database.url 必须是有效的数据库连接字符串"
     )
+    # 数据库连接池配置验证（可选）
+    validator.add_rule(
+        'turing.database.pool.size',
+        lambda v: v is None or (isinstance(v, int) and v > 0),
+        required=False,
+        message="turing.database.pool.size 必须是正整数"
+    )
+    validator.add_rule(
+        'turing.database.pool.max_overflow',
+        lambda v: v is None or (isinstance(v, int) and v >= 0),
+        required=False,
+        message="turing.database.pool.max_overflow 必须是非负整数"
+    )
     validator.add_rule(
         'turing.server.host',
         lambda v: isinstance(v, str) and len(v) > 0,
@@ -252,8 +265,8 @@ def build_default_validator() -> ConfigValidator:
     )
     validator.add_rule(
         'turing.auth.secret_key',
-        lambda v: isinstance(v, str) and len(v) >= 16,
-        message="turing.auth.secret_key 长度必须至少 16 字符 (生产环境请修改)"
+        lambda v: isinstance(v, str) and len(v) >= 16 and v not in ['your-secret-key-change-in-production', 'CHANGE_ME_IN_PRODUCTION'],
+        message="turing.auth.secret_key 长度必须至少 16 字符且不能使用默认值 (生产环境请通过环境变量 CONFIG_TURING_AUTH_SECRET_KEY 设置)"
     )
 
     # ----- 匹配配置验证 -----
@@ -344,18 +357,18 @@ def build_default_validator() -> ConfigValidator:
 def validate_scripting_paths(config: Dict[str, Any], project_root: Path) -> List[ValidationError]:
     """
     验证脚本配置路径存在性
-    
+
     Args:
         config: 配置字典
         project_root: 项目根目录
-    
+
     Returns:
         验证错误列表
     """
     errors = []
     alice_cfg = config.get('alice', {})
     scripting_cfg = alice_cfg.get('scripting', {})
-    
+
     # 验证 Lua 脚本目录
     if scripting_cfg.get('enable_lua', True):
         lua_cfg = scripting_cfg.get('lua', {})
@@ -371,7 +384,7 @@ def validate_scripting_paths(config: Dict[str, Any], project_root: Path) -> List
                         message=f'Lua 脚本目录不存在：{script_dir}',
                         severity='error'
                     ))
-            
+
             metadata_file_str = lua_cfg.get('metadata_file')
             if metadata_file_str:
                 metadata_file = Path(metadata_file_str)
@@ -383,7 +396,7 @@ def validate_scripting_paths(config: Dict[str, Any], project_root: Path) -> List
                         message=f'Lua 元数据文件不存在：{metadata_file}',
                         severity='warning'  # 元数据文件可选
                     ))
-    
+
     # 验证 YAML 脚本文件
     if scripting_cfg.get('enable_yaml', True):
         yaml_cfg = scripting_cfg.get('yaml', {})
@@ -399,7 +412,7 @@ def validate_scripting_paths(config: Dict[str, Any], project_root: Path) -> List
                         message=f'YAML 脚本文件不存在：{script_file}',
                         severity='error'
                     ))
-    
+
     # 验证重组规则文件
     rules_file_str = scripting_cfg.get('rules_file')
     if rules_file_str:
@@ -412,7 +425,39 @@ def validate_scripting_paths(config: Dict[str, Any], project_root: Path) -> List
                 message=f'重组规则文件不存在：{rules_file}',
                 severity='error'
             ))
-    
+
+    return errors
+
+
+def validate_paths_config(config: Dict[str, Any], project_root: Path) -> List[ValidationError]:
+    """
+    验证路径配置存在性
+
+    验证 paths 配置中的各个路径是否存在，支持自动创建目录。
+
+    Args:
+        config: 配置字典
+        project_root: 项目根目录
+
+    Returns:
+        验证错误列表
+    """
+    errors = []
+    paths_cfg = config.get('paths', {})
+
+    for path_key in ['alice_dir', 'turing_dir', 'log_dir', 'data_dir', 'bots_dir']:
+        if path_key in paths_cfg:
+            path_str = paths_cfg[path_key]
+            path = Path(path_str)
+            if not path.is_absolute():
+                path = project_root / path
+            if not path.exists():
+                errors.append(ValidationError(
+                    path=f'paths.{path_key}',
+                    message=f'路径不存在：{path}',
+                    severity='warning'  # 目录可自动创建
+                ))
+
     return errors
 
 
@@ -539,4 +584,5 @@ __all__ = [
     "build_strict_validator",
     "validate_bot_configs",
     "validate_scripting_paths",
+    "validate_paths_config",
 ]

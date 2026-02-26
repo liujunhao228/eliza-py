@@ -109,20 +109,66 @@ app = FastAPI(
 # 配置 CORS
 # =============================================================================
 
-# 允许的前端域名（可在 config.yaml 中配置）
-CORS_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+# CORS 配置说明:
+# - 生产环境必须通过环境变量 CONFIG_TURING_CORS_ORIGINS 显式配置允许的域名
+# - 开发环境下允许 localhost 相关端口
+# - 环境变量格式：逗号分隔的 URL 列表，如 "https://example.com,https://api.example.com"
+
+import os as _os
+import logging as _logging
+
+logger = _logging.getLogger(__name__)
+
+_cors_env = _os.getenv("CONFIG_TURING_CORS_ORIGINS", "")
+
+if _cors_env:
+    # 生产环境：使用环境变量配置的域名
+    CORS_ORIGINS = [origin.strip() for origin in _cors_env.split(",") if origin.strip()]
+    _logger = _logging.getLogger("uvicorn")
+    _logger.info(f"生产环境 CORS 配置：允许 {len(CORS_ORIGINS)} 个域名")
+else:
+    # 开发环境：仅允许 localhost
+    if settings.debug:
+        CORS_ORIGINS = [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:8080",
+            "http://127.0.0.1:8080",
+        ]
+        # 从配置文件中读取额外配置
+        try:
+            extra_origins = settings.turing.cors.origins if hasattr(settings.turing, 'cors') else []
+            CORS_ORIGINS.extend(extra_origins)
+        except Exception:
+            pass
+        _logger = _logging.getLogger("uvicorn")
+        _logger.warning("⚠️  开发环境 CORS 配置：允许 localhost 相关端口，生产环境必须设置 CONFIG_TURING_CORS_ORIGINS")
+    else:
+        # 生产环境未配置 CORS - 严格模式：拒绝所有来源
+        CORS_ORIGINS = []
+        _logger = _logging.getLogger("uvicorn")
+        _logger.error(
+            "❌ 生产环境 CORS 未配置！请在启动前设置环境变量:\n"
+            "   export CONFIG_TURING_CORS_ORIGINS=\"https://your-domain.com,https://api.your-domain.com\"\n"
+            "   当前将拒绝所有跨域请求"
+        )
+
+del _os, _logger
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # 限制允许的 HTTP 方法，避免过度开放
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    # 限制允许的请求头
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "Accept"],
+    # 暴露给客户端的响应头
+    expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining"],
+    # 预检请求缓存时间（秒）
+    max_age=600,
 )
 
 # =============================================================================

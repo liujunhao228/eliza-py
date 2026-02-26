@@ -11,7 +11,6 @@ description: 钓鱼机器人，用于检测试图识别 AI 的用户
 # ----- 脚本配置 -----
 script_file: alice/scripts/demo.yaml
 rules_file: alice/scripts/rules/mapping.yaml
-enable_plugins: false
 
 # ----- 性能配置 -----
 cache_size: 30

@@ -9,6 +9,12 @@
 # -----------------------------------------------------------------------------
 database:
   url: sqlite:///data/turing.db
+  # 连接池配置（仅适用于 PostgreSQL/MySQL，SQLite 使用特殊处理）
+  pool:
+    size: 20              # 连接池大小
+    max_overflow: 40      # 最大溢出连接数
+    recycle: 3600         # 连接回收时间（秒）
+    timeout: 30           # 获取连接超时时间（秒）
 
 # -----------------------------------------------------------------------------
 # 认证配置
@@ -17,7 +23,11 @@ auth:
   invite_code_length: 6
   access_token_expire_minutes: 10080        # 7 天 (60 * 24 * 7)
   algorithm: HS256
-  secret_key: "your-secret-key-change-in-production"
+  # ⚠️ 安全提示：生产环境必须通过环境变量 CONFIG_TURING_AUTH_SECRET_KEY 设置密钥
+  # 可使用以下命令生成随机密钥：
+  #   - Linux/Mac: openssl rand -base64 32
+  #   - Python: import secrets; print(secrets.token_urlsafe(32))
+  secret_key: "${TURING_AUTH_SECRET_KEY:CHANGE_ME_IN_PRODUCTION}"
   initial_score: 100
 
 # -----------------------------------------------------------------------------
@@ -39,25 +49,16 @@ match:
 # 元对话关键词配置（统一用于元对话检测和场中判断触发）
 # -----------------------------------------------------------------------------
 meta_keywords:
-  # 身份相关
   - '真人'
   - '机器'
   - 'AI'
   - '机器人'
   - '人工智能'
-  - '程序'
-  - '算法'
+  - '人机'
   - '人类'
   - '人'
   - '电脑'
   - '计算'
-  # 身份判断相关
-  - '你是'
-  - '我是'
-  - '身份'
-  - '真假'
-  - '还是'
-  - '到底'
 
 # -----------------------------------------------------------------------------
 # 场中判断配置
@@ -138,7 +139,6 @@ bot_pool:
 # AliceBot 配置 (供 Turing 使用)
 # -----------------------------------------------------------------------------
 alice_bot:
-  enable_plugins: true
   cache_size: 50
   context_max_turns: 20
   script_file: alice/scripts/demo.yaml

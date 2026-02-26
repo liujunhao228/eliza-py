@@ -39,8 +39,9 @@ def test_unified_settings():
     print(f"  [OK] enable_ltp: {settings.alice.enable_ltp}")
     print(f"  [OK] enable_ner: {settings.alice.enable_ner}")
     print(f"  [OK] enable_log: {settings.alice.enable_log}")
-    print(f"  [OK] script_file: {settings.alice.script_file}")
-    print(f"  [OK] rules_file: {settings.alice.rules_file}")
+    # 脚本配置在 scripting 子配置中
+    print(f"  [OK] yaml.script_file: {settings.alice.scripting.yaml.script_file}")
+    print(f"  [OK] rules_file: {settings.alice.scripting.rules_file}")
 
     # LTP 配置 (共享)
     print("\n[LTP 配置 (共享)]")

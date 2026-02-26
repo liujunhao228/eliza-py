@@ -18,23 +18,18 @@ ner_use_ltp: true                     # NER 使用 LTP 增强
 scripting:
   enable_lua: true
   enable_yaml: true
-  
+
   lua:
     script_dir: scripts/lua
     metadata_file: scripts/lua/metadata.yaml
     sandbox_mode: true
     max_execution_time: 1.0
     cache_size: 100
-  
-  yaml:
-    script_file: alice/scripts/demo.yaml
-  
-  rules_file: alice/scripts/rules/mapping.yaml
 
-# -----------------------------------------------------------------------------
-# 语义标签文件
-# -----------------------------------------------------------------------------
-semantic_tags_file: alice/scripts/semantic_tags.yaml
+  yaml:
+    script_file: scripts/yaml/demo.yaml   # 默认配置
+
+  rules_file: alice/scripts/rules/mapping.yaml
 
 # -----------------------------------------------------------------------------
 # 对话上下文配置

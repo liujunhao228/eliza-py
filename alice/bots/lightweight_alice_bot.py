@@ -48,7 +48,6 @@ class LightweightAliceBot:
         script_file: Optional[str] = None,
         rules_file: Optional[str] = None,
         enable_logging: bool = True,
-        enable_plugins: bool = True,
         cache_size: int = 50,
         use_ltp: bool = False,
     ):
@@ -60,7 +59,6 @@ class LightweightAliceBot:
             script_file: 脚本文件路径
             rules_file: 规则文件路径
             enable_logging: 是否启用日志
-            enable_plugins: 是否启用插件
             cache_size: 缓存大小
             use_ltp: 是否使用 LTP（应设为 False 以避免重复加载）
         """
@@ -71,9 +69,8 @@ class LightweightAliceBot:
         # 这里先创建实例，然后在 initialize 中配置脚本文件
         self._script_file = script_file
         self._rules_file = rules_file
-        self._enable_plugins = enable_plugins
         self._use_ltp = use_ltp
-        
+
         self.dialogue_engine = DialogueEngine()
 
         # 监控器
@@ -112,7 +109,6 @@ class LightweightAliceBot:
             script_file=str(template.script_file) if template.script_file else None,
             rules_file=str(template.rules_file) if template.rules_file else None,
             enable_logging=enable_logging,
-            enable_plugins=template.enable_plugins,
             cache_size=template.cache_size,
             use_ltp=use_ltp,
         )
@@ -125,11 +121,9 @@ class LightweightAliceBot:
                 self.dialogue_engine.yaml_script_file = self._script_file
             if self._rules_file:
                 self.dialogue_engine.rules_file = self._rules_file
-            if hasattr(self.dialogue_engine, 'enable_plugins'):
-                self.dialogue_engine.enable_plugins = self._enable_plugins
             if hasattr(self.dialogue_engine, 'use_ltp'):
                 self.dialogue_engine.use_ltp = self._use_ltp
-            
+
             success = self.dialogue_engine.initialize()
             if not success:
                 logger.error("对话引擎初始化失败")

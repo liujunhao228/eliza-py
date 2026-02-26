@@ -20,7 +20,10 @@ Alice 项目自定义异常类模块
     )
 """
 
+import logging
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class AliceException(Exception):
@@ -58,6 +61,28 @@ class AliceException(Exception):
         if self.suggestion:
             parts.append(f"建议：{self.suggestion}")
         return " | ".join(parts)
+
+    def to_dict(self, include_details: bool = False) -> Dict[str, Any]:
+        """
+        将异常转换为字典格式，用于 API 响应
+
+        Args:
+            include_details: 是否包含详细信息（生产环境应设为 False）
+
+        Returns:
+            异常信息字典
+        """
+        result = {
+            "error": self.__class__.__name__,
+            "message": self.message,
+        }
+
+        if include_details:
+            result["context"] = self.context
+            if self.suggestion:
+                result["suggestion"] = self.suggestion
+
+        return result
 
 
 # =============================================================================
@@ -164,3 +189,67 @@ class DegradationError(AliceException):
 class UnacceptableDegradationError(DegradationError):
     """不可接受的降级（核心功能不能降级）"""
     pass
+
+
+# =============================================================================
+# 统一异常处理器
+# =============================================================================
+
+def handle_exception(
+    exc: Exception,
+    include_details: bool = False,
+    fallback_message: str = "系统出现未知错误，请稍后再试"
+) -> Dict[str, Any]:
+    """
+    统一异常处理函数
+
+    将任意异常转换为标准化的响应格式
+
+    Args:
+        exc: 异常实例
+        include_details: 是否包含详细信息（生产环境应设为 False）
+        fallback_message: 非 AliceException 时的默认消息
+
+    Returns:
+        标准化错误响应字典
+    """
+    if isinstance(exc, AliceException):
+        return exc.to_dict(include_details=include_details)
+
+    # 非 AliceException 的异常，记录日志并返回通用错误
+    logger.error(f"未预期的异常：{exc}", exc_info=True)
+
+    return {
+        "error": exc.__class__.__name__,
+        "message": fallback_message if not include_details else str(exc),
+    }
+
+
+__all__ = [
+    # 基类
+    "AliceException",
+    # 系统级异常
+    "ConfigurationError",
+    "InvalidConfigurationError",
+    "MissingConfigurationError",
+    "InitializationError",
+    "DependencyError",
+    "ResourceError",
+    # 业务级异常
+    "DialogueError",
+    "InputValidationError",
+    "ScriptMatchingError",
+    "ResponseGenerationError",
+    "DataProcessingError",
+    "TextProcessingError",
+    "FormatError",
+    # 外部依赖异常
+    "ExternalLibraryError",
+    "LTPError",
+    "JiebaError",
+    # 降级相关异常
+    "DegradationError",
+    "UnacceptableDegradationError",
+    # 工具函数
+    "handle_exception",
+]

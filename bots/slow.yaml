@@ -11,7 +11,6 @@ description: 慢速 Bot，模拟思考时间更长
 # ----- 脚本配置 -----
 script_file: alice/scripts/demo.yaml
 rules_file: alice/scripts/rules/mapping.yaml
-enable_plugins: true
 
 # ----- 性能配置 -----
 cache_size: 50

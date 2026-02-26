@@ -291,10 +291,9 @@ class DialogueLogger:
         rule_str = ""
         if rule_info:
             source = rule_info.get("source", "unknown")
-            if source == "plugin":
-                rule_str = f" [规则：plugin/{rule_info.get('script_id', '')}]"
-            elif source == "response_generator":
-                rule_str = f" [规则：response_generator/{rule_info.get('intent', '')}]"
+            script_id = rule_info.get("script_id", "")
+            if script_id:
+                rule_str = f" [规则：{source}/{script_id}]"
 
         logger.info(
             f"对话：{user_input[:50]}... -> {bot_response[:50]}...{rule_str}",

@@ -3,7 +3,12 @@
 """
 智能缓存模块
 
-提供 LRU 缓存策略，减少重复计算。
+提供 LRU + LFU 混合缓存策略，减少重复计算。
+
+缓存策略:
+- LRU (最近最少使用): 基于访问时间
+- LFU (最少使用频率): 基于访问次数
+- 混合策略：当缓存使用率 > 80% 时，优先淘汰访问频率低的项
 """
 
 import logging
@@ -17,13 +22,18 @@ logger = logging.getLogger(__name__)
 class IntelligentCache:
     """
     智能缓存
-    
+
     功能:
-    - LRU 缓存策略
+    - LRU 缓存策略（默认）
+    - LFU 频率追踪（辅助淘汰）
     - TTL 过期机制
     - 缓存统计
     - 自动清理
-    
+
+    淘汰策略:
+    - 缓存使用率 < 80%: 纯 LRU
+    - 缓存使用率 >= 80%: 优先淘汰访问频率 < 平均频率的项
+
     使用场景:
     - 语义分析结果缓存
     - 响应结果缓存
@@ -33,17 +43,20 @@ class IntelligentCache:
     def __init__(self, max_size: int = 100, default_ttl: int = 3600):
         """
         初始化缓存
-        
+
         Args:
             max_size: 最大缓存条目数
             default_ttl: 默认 TTL（秒）
         """
         self.max_size = max_size
         self.default_ttl = default_ttl  # 默认 1 小时过期
-        
+
         # 使用 OrderedDict 实现 LRU
         self._cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
-        
+
+        # 访问频率追踪 (用于 LFU 辅助淘汰)
+        self._access_count: Dict[str, int] = {}
+
         # 统计信息
         self._hits = 0
         self._misses = 0
@@ -52,29 +65,31 @@ class IntelligentCache:
     def get(self, key: str) -> Optional[Any]:
         """
         获取缓存项
-        
+
         Args:
             key: 缓存键
-            
+
         Returns:
             缓存值，不存在或已过期返回 None
         """
         if key not in self._cache:
             self._misses += 1
             return None
-        
+
         item = self._cache[key]
-        
+
         # 检查是否过期
         if self._is_expired(item):
             self._remove(key)
             self._misses += 1
             return None
-        
+
         # 移动到末尾（最近使用）
         self._cache.move_to_end(key)
+        # 增加访问频率
+        self._access_count[key] = self._access_count.get(key, 0) + 1
         self._hits += 1
-        
+
         return item["value"]
 
     def set(
@@ -85,7 +100,7 @@ class IntelligentCache:
     ) -> None:
         """
         设置缓存项
-        
+
         Args:
             key: 缓存键
             value: 缓存值
@@ -94,17 +109,19 @@ class IntelligentCache:
         # 如果已存在，先删除
         if key in self._cache:
             self._remove(key)
-        
+
         # 如果缓存已满，删除最旧的
         if len(self._cache) >= self.max_size:
             self._evict_oldest()
-        
+
         # 添加新项
         self._cache[key] = {
             "value": value,
             "created_at": datetime.now(),
             "ttl": ttl if ttl is not None else self.default_ttl,
         }
+        # 初始化访问频率
+        self._access_count[key] = 0
 
     def _is_expired(self, item: Dict[str, Any]) -> bool:
         """
@@ -126,20 +143,45 @@ class IntelligentCache:
     def _remove(self, key: str) -> None:
         """
         删除缓存项
-        
+
         Args:
             key: 缓存键
         """
         if key in self._cache:
             del self._cache[key]
+            # 同时清理访问频率记录
+            if key in self._access_count:
+                del self._access_count[key]
 
     def _evict_oldest(self) -> None:
-        """删除最旧的缓存项"""
-        if self._cache:
-            oldest_key = next(iter(self._cache))
-            self._remove(oldest_key)
-            self._evictions += 1
-            logger.debug(f"缓存已满，删除最旧项：{oldest_key}")
+        """
+        淘汰缓存项
+        
+        策略:
+        - 使用率 < 80%: 纯 LRU (删除最久未访问)
+        - 使用率 >= 80%: 优先淘汰访问频率低于平均值的项
+        """
+        if not self._cache:
+            return
+        
+        # 计算平均访问频率
+        avg_access = sum(self._access_count.values()) / len(self._access_count) if self._access_count else 0
+        
+        # 如果使用率高且存在低频项，优先淘汰低频项
+        if len(self._cache) / self.max_size >= 0.8:
+            # 查找访问频率低于平均值的项
+            for key in list(self._cache.keys()):
+                if self._access_count.get(key, 0) < avg_access:
+                    self._remove(key)
+                    self._evictions += 1
+                    logger.debug(f"缓存淘汰 (LFU): {key} (访问次数={self._access_count.get(key, 0)}, 平均={avg_access:.1f})")
+                    return
+        
+        # 默认 LRU：删除最久未访问的项
+        oldest_key = next(iter(self._cache))
+        self._remove(oldest_key)
+        self._evictions += 1
+        logger.debug(f"缓存淘汰 (LRU): {oldest_key}")
 
     def contains(self, key: str) -> bool:
         """

@@ -81,6 +81,10 @@ class ConfigManager:
         self._settings: Optional[Settings] = None
         self._builder = ConfigBuilder(project_root)
 
+        # 配置变更审计日志
+        self._audit_log: List[Dict[str, Any]] = []
+        self._audit_log_max_size = 1000  # 最多保留 1000 条审计记录
+
     def add_source(self, name: str, source: ConfigSource, priority: int = 0) -> 'ConfigManager':
         """
         添加配置源
@@ -265,7 +269,8 @@ class ConfigManager:
         key: str,
         value: Any,
         persist: bool = False,
-        notify: bool = True
+        notify: bool = True,
+        source: str = "runtime"
     ) -> bool:
         """
         设置配置值 (运行时覆盖)
@@ -275,11 +280,15 @@ class ConfigManager:
             value: 配置值
             persist: 是否持久化到 YAML 文件
             notify: 是否通知监听器
+            source: 配置变更来源 (如 "runtime", "api", "admin")
 
         Returns:
             是否设置成功
         """
         with self._lock:
+            # 获取旧值用于审计
+            old_value = self._get_nested(self._config, key, None)
+
             # 更新内存源
             self._memory_source.update(key, value)
 
@@ -287,6 +296,9 @@ class ConfigManager:
             override_dict = {}
             self._set_nested(override_dict, key, value)
             self._config = self._deep_merge(self._config, override_dict)
+
+            # 记录审计日志
+            self._log_config_change(key, old_value, value, source)
 
             logger.debug(f"配置已更新 (运行时): {key} = {value}")
 
@@ -304,6 +316,42 @@ class ConfigManager:
                     logger.warning(f"重新构建配置失败：{e}")
 
             return True
+
+    def _log_config_change(
+        self,
+        key: str,
+        old_value: Any,
+        new_value: Any,
+        source: str = "runtime"
+    ):
+        """
+        记录配置变更审计日志
+
+        Args:
+            key: 配置键
+            old_value: 旧值
+            new_value: 新值
+            source: 变更来源
+        """
+        import time
+        from alice.utils.sanitizer import sanitize_value
+
+        audit_entry = {
+            "timestamp": time.time(),
+            "action": "config_change",
+            "key": key,
+            "old_value": sanitize_value(old_value) if old_value is not None else None,
+            "new_value": sanitize_value(new_value),
+            "source": source,
+        }
+
+        self._audit_log.append(audit_entry)
+
+        # 限制审计日志大小
+        if len(self._audit_log) > self._audit_log_max_size:
+            self._audit_log = self._audit_log[-self._audit_log_max_size:]
+
+        logger.info(f"配置变更审计：{key} = {sanitize_value(new_value)} (来源：{source})")
 
     def _persist_to_yaml(self, key: str, value: Any) -> bool:
         """持久化配置到 YAML 文件"""
@@ -551,6 +599,75 @@ class ConfigManager:
         with self._lock:
             self._listeners.clear()
 
+    # =========================================================================
+    # 审计日志方法
+    # =========================================================================
+
+    def get_audit_log(
+        self,
+        limit: int = 100,
+        key_filter: Optional[str] = None,
+        source_filter: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        获取配置变更审计日志
+
+        Args:
+            limit: 最多返回的记录数
+            key_filter: 按配置键过滤
+            source_filter: 按变更来源过滤
+
+        Returns:
+            审计日志列表
+        """
+        with self._lock:
+            logs = self._audit_log.copy()
+
+        # 过滤
+        if key_filter:
+            logs = [log for log in logs if log.get('key') == key_filter]
+        if source_filter:
+            logs = [log for log in logs if log.get('source') == source_filter]
+
+        # 按时间倒序排列，返回最新的
+        logs.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+        return logs[-limit:]
+
+    def clear_audit_log(self):
+        """清空审计日志"""
+        with self._lock:
+            self._audit_log.clear()
+        logger.debug("审计日志已清空")
+
+    def export_audit_log(self, format: str = "json") -> str:
+        """
+        导出审计日志
+
+        Args:
+            format: 导出格式 (json, csv)
+
+        Returns:
+            格式化后的日志字符串
+        """
+        import json
+        import csv
+        import io
+
+        with self._lock:
+            logs = self._audit_log.copy()
+
+        if format.lower() == "json":
+            return json.dumps(logs, indent=2, ensure_ascii=False)
+        elif format.lower() == "csv":
+            output = io.StringIO()
+            if logs:
+                writer = csv.DictWriter(output, fieldnames=logs[0].keys())
+                writer.writeheader()
+                writer.writerows(logs)
+            return output.getvalue()
+        else:
+            raise ValueError(f"不支持的导出格式：{format}")
+
     def _notify_listeners(self, config: Dict[str, Any]):
         """通知所有监听器"""
         for listener in self._listeners:
@@ -680,8 +797,15 @@ def reset_config_manager():
         _config_manager = None
 
 
-# 便捷访问 (与现有代码兼容)
-settings = get_config_manager()
+# 延迟加载 settings，避免循环导入
+class _SettingsProxy:
+    """配置代理类，用于延迟加载"""
+    
+    def __getattr__(self, name: str) -> Any:
+        return getattr(get_config_manager().settings, name)
+
+
+settings = _SettingsProxy()
 
 
 __all__ = [

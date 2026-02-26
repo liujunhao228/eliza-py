@@ -170,9 +170,6 @@ class AliceConfig:
     
     # 脚本引擎配置
     scripting: ScriptingConfig = None  # type: ignore
-    
-    # 语义标签文件
-    semantic_tags_file: Optional[Path] = None
 
     # 对话上下文配置
     context_max_items: int = 10
@@ -210,9 +207,19 @@ class AliceConfig:
 # =============================================================================
 
 @dataclass
+class DatabasePoolConfig:
+    """数据库连接池配置"""
+    size: int = 20
+    max_overflow: int = 40
+    recycle: int = 3600
+    timeout: int = 30
+
+
+@dataclass
 class DatabaseConfig:
     """数据库配置"""
     url: str
+    pool: Optional[DatabasePoolConfig] = None
 
 
 @dataclass
@@ -304,7 +311,6 @@ class BotPoolConfig:
 @dataclass
 class AliceBotConfig:
     """AliceBot 配置（供 Turing 使用）"""
-    enable_plugins: bool
     cache_size: int
     context_max_turns: int
     script_file: Path

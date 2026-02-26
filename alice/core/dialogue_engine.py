@@ -9,7 +9,6 @@
 - 统一 Lua 和 YAML 脚本引擎接口
 - 基于 ScriptMatcher 的统一优先级调度
 - 完整的上下文管理（ScriptContext）
-- 插件系统支持
 - 配置管理器集成
 
 对话流程:
@@ -17,9 +16,8 @@
 2. NLP 分析（分词、实体、句法）
 3. 构建 ScriptContext
 4. ScriptMatcher 统一匹配
-5. 插件处理
-6. 响应生成
-7. 上下文更新
+5. 响应生成
+6. 上下文更新
 """
 
 import logging
@@ -28,7 +26,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from alice.plugins import PluginManager, CuriosityPlugin, PluginResult
 from alice.processors import TextPreprocessor
 from alice.core.context_manager import ContextManager
 from alice.scripting import (
@@ -49,6 +46,10 @@ from config import Settings, ConfigManager, get_config_manager
 logger = logging.getLogger(__name__)
 
 
+# NLP 流水线单例缓存
+_nlp_pipeline_cache: Dict[str, NlpPipeline] = {}
+
+
 class DialogueEngine:
     """
     对话主引擎 - 重构版本
@@ -57,7 +58,6 @@ class DialogueEngine:
     - 对话流程控制
     - 统一脚本引擎管理（Lua + YAML）
     - NLP 引擎调用
-    - 插件管理
     - 上下文管理
 
     使用示例:
@@ -124,9 +124,6 @@ class DialogueEngine:
         # 重组引擎
         self.reassembly_engine: Optional[SyntaxReassembly] = None
 
-        # 插件管理器
-        self.plugin_manager = PluginManager()
-
         # 状态
         self._initialized = False
         self._last_match_result: Optional[ScriptMatchResult] = None
@@ -161,9 +158,6 @@ class DialogueEngine:
             self.lua_sandbox_mode = True
             self.lua_max_execution_time = 1.0
 
-        # 插件配置（从 Alice 配置加载，默认启用）
-        self.enable_plugins = True
-
     def _load_nlp_config(self, alice_config: Optional[Any]) -> None:
         """
         加载 NLP 配置
@@ -182,28 +176,48 @@ class DialogueEngine:
             self.ner_use_ltp = True
 
     def _init_nlp(self) -> None:
-        """初始化 NLP 组件"""
-        nlp_config = {'use_ltp': self.use_ltp}
-        self.nlp_factory = NlpFactory(config=nlp_config)
+        """
+        初始化 NLP 流水线（单例模式）
+
+        组件优先级：LTP > NER > Jieba
+        使用缓存避免重复创建 NLP 流水线
+        """
+        # 生成缓存键
+        cache_key = f"ltp={self.use_ltp}:ner={self.enable_ner}:ner_use_ltp={self.ner_use_ltp}"
         
+        # 检查缓存
+        if cache_key in _nlp_pipeline_cache:
+            self.nlp_pipeline = _nlp_pipeline_cache[cache_key]
+            self.nlp_factory = None  # 使用缓存时不需要工厂
+            logger.info(f"NLP 流水线从缓存加载：{cache_key}")
+            return
+        
+        # 确定组件优先级：LTP > NER > Jieba
         components = []
-        use_advanced = self.use_ltp or (self.enable_ner and self.ner_use_ltp)
-        
-        if use_advanced:
-            if self.use_ltp:
-                components.append('ltp')
-            elif self.enable_ner:
-                components.append('ner')
+
+        if self.use_ltp:
+            components.append('ltp')
+        elif self.enable_ner and self.ner_use_ltp:
+            components.append('ner')
         else:
             components.append('jieba')
             if self.enable_ner:
                 components.append('ner')
-        
+
+        # 创建 NLP 工厂和流水线
+        nlp_config = {'use_ltp': self.use_ltp}
+        self.nlp_factory = NlpFactory(config=nlp_config)
+
+        # LTP 组件额外参数
         ltp_kwargs = {}
         if 'ltp' in components:
             ltp_kwargs = {'enable_srl': True, 'enable_sdp': True}
-        
+
         self.nlp_pipeline = self.nlp_factory.create_pipeline(components, **ltp_kwargs)
+        
+        # 存入缓存
+        _nlp_pipeline_cache[cache_key] = self.nlp_pipeline
+
         logger.info(f"NLP 流水线已初始化：{components}")
     
     def initialize(self) -> bool:
@@ -230,11 +244,6 @@ class DialogueEngine:
             # 4. 初始化重组引擎
             if self.rules_file:
                 self._init_reassembly_engine()
-
-            # 5. 初始化插件
-            if self.enable_plugins:
-                self._initialize_plugins()
-                self.plugin_manager.initialize_all()
 
             self._initialized = True
             logger.info(
@@ -325,25 +334,6 @@ class DialogueEngine:
             logger.error(f"重组引擎初始化失败：{e}")
             self.reassembly_engine = None
 
-    def _initialize_plugins(self) -> None:
-        """初始化插件系统"""
-        curiosity_config = {
-            "script_file": self.yaml_script_file,
-            "rules_file": self.rules_file,
-            "priority": 50,
-        }
-
-        success = self.plugin_manager.register_plugin(
-            name="curiosity",
-            plugin_class=CuriosityPlugin,
-            config=curiosity_config,
-        )
-
-        if success:
-            logger.info("好奇心插件已注册")
-        else:
-            logger.warning("好奇心插件注册失败")
-
     def respond(self, user_input: str) -> str:
         """
         生成响应
@@ -353,10 +343,8 @@ class DialogueEngine:
         2. NLP 分析
         3. 构建 ScriptContext
         4. 脚本匹配
-        5. 插件处理（高优先级）
-        6. 响应生成
-        7. 回退响应
-        8. 上下文更新
+        5. 响应生成
+        6. 上下文更新
 
         Args:
             user_input: 用户输入
@@ -370,33 +358,38 @@ class DialogueEngine:
 
         start_time = time.time()
 
-        # 1. 文本预处理
-        standardized_text = self._preprocess(user_input)
+        try:
+            # 1. 文本预处理
+            standardized_text = self._preprocess(user_input)
 
-        # 2. NLP 分析
-        nlp_result = self._analyze_nlp(standardized_text)
+            # 2. NLP 分析
+            nlp_result = self._analyze_nlp(standardized_text)
 
-        # 3. 构建 ScriptContext
-        context = self._build_context(user_input, standardized_text, nlp_result)
+            # 3. 构建 ScriptContext
+            context = self._build_context(user_input, standardized_text, nlp_result)
 
-        # 4. 脚本匹配
-        match_result = self.script_matcher.match(context)
-        self._last_match_result = match_result
+            # 4. 脚本匹配
+            match_result = self.script_matcher.match(context)
+            self._last_match_result = match_result
 
-        # 5. 响应生成（优先级：插件 > 脚本 > 回退）
-        response, rule_info = self._generate_response_with_priority(
-            standardized_text, context, match_result
-        )
+            # 5. 响应生成（优先级：脚本 > 回退）
+            response, rule_info = self._generate_response_with_priority(
+                standardized_text, context, match_result
+            )
 
-        # 6. 更新上下文
-        self._update_context(user_input, response, context)
+            # 6. 更新上下文
+            self._update_context(user_input, response, context)
 
-        # 记录耗时
-        duration = time.time() - start_time
-        logger.debug(f"响应生成耗时：{duration*1000:.2f}ms")
+            # 记录耗时
+            duration = time.time() - start_time
+            logger.debug(f"响应生成耗时：{duration*1000:.2f}ms")
 
-        self._last_rule_info = rule_info
-        return response
+            self._last_rule_info = rule_info
+            return response
+
+        except Exception as e:
+            logger.error(f"对话处理失败：{e}", exc_info=True)
+            return "抱歉，我遇到了一些问题，请稍后再试"
 
     def _generate_response_with_priority(
         self,
@@ -408,9 +401,8 @@ class DialogueEngine:
         根据优先级生成响应
 
         优先级顺序:
-        1. 插件响应（如果启用）
-        2. 脚本匹配响应
-        3. 回退响应
+        1. 脚本匹配响应
+        2. 回退响应
 
         Args:
             text: 标准化文本
@@ -420,15 +412,6 @@ class DialogueEngine:
         Returns:
             (响应文本，规则信息)
         """
-        # 尝试插件响应
-        if self.enable_plugins:
-            plugin_response = self._process_plugins(text, context)
-            if plugin_response and plugin_response.success and plugin_response.response:
-                return (
-                    plugin_response.response,
-                    {"source": "plugin", "plugin_name": "curiosity"}
-                )
-
         # 尝试脚本匹配响应
         if match_result:
             script_response = self._generate_script_response(match_result, context)
@@ -587,35 +570,6 @@ class DialogueEngine:
             for turn in turns
         ]
 
-    def _process_plugins(
-        self,
-        text: str,
-        context: ScriptContext,
-    ) -> Optional[PluginResult]:
-        """
-        插件处理
-
-        Args:
-            text: 文本
-            context: 上下文
-
-        Returns:
-            插件结果，无匹配返回 None
-        """
-        plugin_context = {
-            "semantic_info": context.to_dict(),
-            "recent_turns": context.recent_turns,
-            "match_result": self._last_match_result,
-        }
-
-        results = self.plugin_manager.process_input(text, plugin_context)
-
-        for result in results:
-            if result.success and result.response:
-                return result
-
-        return None
-
     def _fallback_response(self) -> str:
         """回退响应"""
         return random.choice(self.FALLBACK_RESPONSES)
@@ -661,7 +615,6 @@ class DialogueEngine:
                 "use_ltp": self.use_ltp,
                 "enable_ner": self.enable_ner,
             },
-            "plugins_enabled": self.enable_plugins,
         }
 
     def reset(self) -> None:
@@ -670,18 +623,10 @@ class DialogueEngine:
         self._last_match_result = None
         self._last_rule_info = {}
 
-        if self.enable_plugins:
-            plugin = self.plugin_manager.get_plugin("curiosity")
-            if plugin and hasattr(plugin, "reset"):
-                plugin.reset()
-
         logger.info("对话引擎已重置")
 
     def cleanup(self) -> None:
         """清理资源"""
-        if self.enable_plugins:
-            self.plugin_manager.cleanup_all()
-
         self.script_matcher.cleanup()
         self._initialized = False
 

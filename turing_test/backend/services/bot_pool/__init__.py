@@ -40,7 +40,6 @@ def init_bot_pool(
     idle_timeout: int = 300,
     script_file: Optional[str] = None,
     rules_file: Optional[str] = None,
-    enable_plugins: bool = True,
 ) -> AliceBotPool:
     """
     初始化全局 Bot 池
@@ -54,7 +53,6 @@ def init_bot_pool(
         idle_timeout: 空闲超时时间（秒）
         script_file: 脚本文件路径 (向后兼容)
         rules_file: 规则文件路径 (向后兼容)
-        enable_plugins: 是否启用插件 (向后兼容)
 
     Returns:
         AliceBotPool 实例
@@ -72,7 +70,6 @@ def init_bot_pool(
                 idle_timeout=idle_timeout,
                 script_file=script_file,
                 rules_file=rules_file,
-                enable_plugins=enable_plugins,
             )
             logger.info(f"✅ 全局 Bot 池已初始化 (模板数：{len(templates) if templates else 1})")
         else:

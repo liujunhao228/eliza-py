@@ -19,15 +19,20 @@ class MatchAlgorithm:
     实现：
     1. 寻找匹配对手（优先级 + FIFO 算法）
     2. 防作弊检查（重复匹配检测）
-    3. AI 响应延迟计算
-    4. 钓鱼机器人概率判断
+    3. 匹配延迟生成（统一时间分布，消除时间线索）
+    4. AI 响应延迟计算
+    5. 钓鱼机器人概率判断
     """
 
     def __init__(self):
-        # AI 响应时间分布配置
+        # 匹配时间分布配置（真人/AI 使用相同分布，消除时间线索）
+        self.match_time_distribution = settings.turing.match.time_distribution
+        # AI 响应时间分布配置（用于打字延迟）
         self.ai_time_distribution = settings.turing.match.time_distribution
         self.honeypot_probability = settings.turing.match.honeypot_probability
         self.honeypot_high_meta_probability = settings.turing.match.honeypot_high_meta_probability
+        # 真人优先概率（80% 真人，20% 实验对照）
+        self.human_first_probability = 0.8
 
     def find_match(
         self,
@@ -182,6 +187,48 @@ class MatchAlgorithm:
 
         # 普通概率
         return random.random() < base_probability
+
+    def generate_match_delay(self) -> float:
+        """
+        生成匹配延迟（真人/AI 使用相同分布，消除时间线索）
+
+        时间分布：
+        - 50%: 0-3 秒（快速匹配）
+        - 30%: 3-8 秒（正常匹配）
+        - 15%: 8-15 秒（稍慢）
+        - 5%: 15-30 秒（较慢）
+
+        Returns:
+            延迟时间（秒）
+        """
+        rand = random.random()
+
+        cumulative = 0.0
+        for period_name, period_config in self.match_time_distribution.items():
+            cumulative += period_config["probability"]
+            if rand <= cumulative:
+                # 在此时间段内随机选择
+                delay = random.uniform(
+                    period_config["min"],
+                    period_config["max"]
+                )
+                logger.debug(f"生成匹配延迟：{delay:.2f}秒 ({period_name})")
+                return delay
+
+        # 默认返回正常时间段
+        normal_config = self.match_time_distribution.get("normal", {"min": 3, "max": 8})
+        delay = random.uniform(normal_config["min"], normal_config["max"])
+        logger.debug(f"生成默认匹配延迟：{delay:.2f}秒 (normal)")
+        return delay
+
+    def should_match_human(self) -> bool:
+        """
+        判断是否应该匹配真人（80% 概率）
+
+        Returns:
+            是否匹配真人
+        """
+        return random.random() < self.human_first_probability
 
     def calculate_typing_delay(self) -> float:
         """
