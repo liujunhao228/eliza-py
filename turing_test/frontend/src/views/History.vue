@@ -144,9 +144,6 @@
       @share-deleted="handleShareDeleted"
       @notify="showNotify"
     />
-
-    <!-- Toast 通知 -->
-    <Toast ref="toastRef" />
   </div>
 </template>
 
@@ -155,13 +152,13 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useHistoryStore } from '@/stores/history'
 import { useUserStore } from '@/stores/user'
+import { useToast } from '@/composables/useToast'
 import ShareDialog from '@/components/History/ShareDialog.vue'
-import Toast from '@/components/common/Toast.vue'
 
 const router = useRouter()
 const historyStore = useHistoryStore()
 const userStore = useUserStore()
-const toastRef = ref<InstanceType<typeof Toast> | null>(null)
+const { success, error: showError } = useToast()
 
 // 状态
 const loading = computed(() => historyStore.loading)
@@ -269,7 +266,7 @@ function handleShareCreated() {
   // 刷新列表
   historyStore.fetchSessions(userStore.userId!)
   closeShareDialog()
-  toastRef.value?.success('分享链接创建成功')
+  success('分享链接创建成功')
 }
 
 // 分享删除成功
@@ -277,14 +274,12 @@ function handleShareDeleted() {
   // 刷新列表
   historyStore.fetchSessions(userStore.userId!)
   closeShareDialog()
-  toastRef.value?.success('分享链接已删除')
+  success('分享链接已删除')
 }
 
 // 显示通知
-function showNotify({ type, message }: { type: string; message: string }) {
-  if (toastRef.value) {
-    toastRef.value.showToast(message, type as any)
-  }
+function showNotify({ message }: { type: string; message: string }) {
+  showError(message)
 }
 
 // 初始化

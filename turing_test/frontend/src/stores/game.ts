@@ -11,7 +11,7 @@ export const useGameStore = defineStore('game', () => {
   const turn = ref<number>(0)
   const metaConversationCount = ref<number>(0)
   const messages = ref<MessageDisplay[]>([])
-  const triggeredMidGame = ref<boolean>(false)
+  const triggeredMidGame = ref<boolean>(localStorage.getItem(STORAGE_KEYS.TRIGGERED_MID_GAME) === 'true')
   const midGameGuess = ref<'human' | 'ai' | null>(null)  // 场中判断时的选择
   const midGameIsCorrect = ref<boolean | null>(null)     // 场中判断是否正确
   const isHoneypot = ref<boolean>(false)
@@ -48,7 +48,7 @@ export const useGameStore = defineStore('game', () => {
     // 使用服务器返回的状态（如果有）
     const serverTurnCount = (session as any).turn_count ?? 0
     const serverIsUserTurn = (session as any).is_user_turn ?? true
-    
+
     turn.value = serverTurnCount
     isUserTurn.value = serverIsUserTurn
     isOpponentTyping.value = false
@@ -59,6 +59,10 @@ export const useGameStore = defineStore('game', () => {
 
     localStorage.setItem(STORAGE_KEYS.SESSION_ID, session.id.toString())
     localStorage.setItem(STORAGE_KEYS.OPPONENT_TYPE, session.opponent_type)
+    // 同步场中判断状态到 localStorage
+    if (session.triggered_mid_game) {
+      localStorage.setItem(STORAGE_KEYS.TRIGGERED_MID_GAME, 'true')
+    }
   }
 
   /**
@@ -144,12 +148,16 @@ export const useGameStore = defineStore('game', () => {
 
   function setTriggeredMidGame(value: boolean) {
     triggeredMidGame.value = value
+    if (value) {
+      localStorage.setItem(STORAGE_KEYS.TRIGGERED_MID_GAME, 'true')
+    }
   }
 
   function setMidGameResult(guess: 'human' | 'ai', isCorrect: boolean) {
     triggeredMidGame.value = true
     midGameGuess.value = guess
     midGameIsCorrect.value = isCorrect
+    localStorage.setItem(STORAGE_KEYS.TRIGGERED_MID_GAME, 'true')
   }
 
   function setUserTurn(turn: boolean) {
@@ -176,6 +184,7 @@ export const useGameStore = defineStore('game', () => {
 
     localStorage.removeItem(STORAGE_KEYS.SESSION_ID)
     localStorage.removeItem(STORAGE_KEYS.OPPONENT_TYPE)
+    localStorage.removeItem(STORAGE_KEYS.TRIGGERED_MID_GAME)
   }
 
   return {

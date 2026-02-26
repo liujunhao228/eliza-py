@@ -16,19 +16,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { toastState, removeToast } from '../../composables/useToast'
+import type { ToastType } from '../../composables/useToast'
 
-type ToastType = 'success' | 'error' | 'info' | 'warning'
-
-interface Toast {
-  id: number
-  type: ToastType
-  message: string
-  duration: number
-}
-
-const toasts = ref<Toast[]>([])
-const toastId = ref(0)
+const toasts = toastState.toasts
 
 function getIcon(type: ToastType): string {
   const icons: Record<ToastType, string> = {
@@ -39,77 +30,6 @@ function getIcon(type: ToastType): string {
   }
   return icons[type]
 }
-
-/**
- * 显示 Toast
- */
-function showToast(
-  message: string,
-  type: ToastType = 'info',
-  duration: number = 3000
-) {
-  const id = ++toastId.value
-  const toast: Toast = { id, type, message, duration }
-
-  toasts.value.push(toast)
-
-  // 自动关闭
-  if (duration > 0) {
-    setTimeout(() => {
-      removeToast(id)
-    }, duration)
-  }
-
-  return id
-}
-
-/**
- * 移除 Toast
- */
-function removeToast(id: number) {
-  const index = toasts.value.findIndex(t => t.id === id)
-  if (index !== -1) {
-    toasts.value.splice(index, 1)
-  }
-}
-
-/**
- * 清空所有 Toast
- */
-function clearToasts() {
-  toasts.value = []
-}
-
-// 成功提示
-function success(message: string, duration?: number) {
-  return showToast(message, 'success', duration)
-}
-
-// 错误提示
-function error(message: string, duration?: number) {
-  return showToast(message, 'error', duration)
-}
-
-// 信息提示
-function info(message: string, duration?: number) {
-  return showToast(message, 'info', duration)
-}
-
-// 警告提示
-function warning(message: string, duration?: number) {
-  return showToast(message, 'warning', duration)
-}
-
-// 暴露方法给外部调用
-defineExpose({
-  success,
-  error,
-  info,
-  warning,
-  showToast,
-  removeToast,
-  clearToasts
-})
 </script>
 
 <style scoped>

@@ -4,6 +4,7 @@
     <ChatHeader
       :isConnected="isConnected"
       :connectionStatus="connectionState"
+      :isOpponentTyping="gameStore.isOpponentTyping"
       @reconnect="reconnect"
       @end-chat="handleEndChat"
       @mid-game="showMidGameModal = true"
@@ -25,16 +26,6 @@
 
           <!-- 消息列表（包括空状态） -->
           <MessageList v-else :messages="gameState.messages" />
-
-          <!-- 正在输入提示 -->
-          <div v-if="gameStore.isOpponentTyping" class="typing-indicator">
-            <div class="typing-dots">
-              <span class="typing-dot"></span>
-              <span class="typing-dot"></span>
-              <span class="typing-dot"></span>
-            </div>
-            <span class="typing-text">对方正在输入...</span>
-          </div>
 
           <!-- 滚动到底部按钮 -->
           <div
@@ -289,68 +280,6 @@ onUnmounted(() => {
 
 .message-list-container::-webkit-scrollbar-thumb:hover {
   background: var(--color-gray-500);
-}
-
-/* 正在输入提示 */
-.typing-indicator {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  margin-top: 12px;
-  background: var(--bg-secondary);
-  border-radius: 20px;
-  width: fit-content;
-  animation: fadeIn 0.3s ease-out;
-}
-
-.typing-dots {
-  display: flex;
-  gap: 4px;
-}
-
-.typing-dot {
-  width: 8px;
-  height: 8px;
-  background: var(--color-primary);
-  border-radius: 50%;
-  animation: typingBounce 1.4s ease-in-out infinite;
-}
-
-.typing-dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.typing-dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes typingBounce {
-  0%, 60%, 100% {
-    transform: translateY(0);
-    opacity: 0.4;
-  }
-  30% {
-    transform: translateY(-10px);
-    opacity: 1;
-  }
-}
-
-.typing-text {
-  font-size: 14px;
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(5px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* 底部输入区域 */

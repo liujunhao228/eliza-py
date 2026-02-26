@@ -1,6 +1,6 @@
 <template>
   <el-dialog
-    v-model="modelValue"
+    v-model="dialogVisible"
     title="场中判断"
     width="600px"
     :close-on-click-modal="false"
@@ -65,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Trophy } from '@element-plus/icons-vue'
 
 interface Props {
@@ -81,8 +81,11 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-// 使用计算属性同步 v-model
-const modelValue = props.modelValue
+// 计算属性同步 v-model
+const dialogVisible = computed({
+  get: () => props.modelValue,
+  set: (value) => emit('update:modelValue', value)
+})
 
 // 提交状态
 const isSubmitting = ref(false)

@@ -341,14 +341,20 @@ async def handle_mid_game_judgment(
         f"correct={breakdown.is_correct}, score={final_score}"
     )
 
-    # 发送结果
+    # 发送结果（注意：opponent_type 需要 normalize，向用户隐藏 honeypot）
+    def _normalize_opponent_type(opponent_type: str) -> str:
+        """将 honeypot 隐藏为 ai"""
+        if opponent_type == "honeypot":
+            return "ai"
+        return opponent_type
+
     await manager.send_personal_message(user_id, {
         "type": "mid_game_result",
         "data": {
             "session_id": session.id,
             "user_guess": user_guess,
             "is_correct": breakdown.is_correct,
-            "opponent_type": session.opponent_type,
+            "opponent_type": _normalize_opponent_type(session.opponent_type),
             "final_score": int(final_score),
             "score_breakdown": get_score_breakdown_dict(breakdown),
         }

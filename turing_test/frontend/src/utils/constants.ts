@@ -98,7 +98,8 @@ export const STORAGE_KEYS = {
   INVITE_CODE: 'inviteCode',
   SESSION_ID: 'sessionId',
   OPPONENT_TYPE: 'opponentType',
-  USER_SCORE: 'userScore'
+  USER_SCORE: 'userScore',
+  TRIGGERED_MID_GAME: 'triggeredMidGame'
 } as const
 
 // =============================================================================

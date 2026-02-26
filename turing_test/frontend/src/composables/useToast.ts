@@ -1,6 +1,6 @@
 /**
  * Toast 通知组合式函数
- * 
+ *
  * 用法:
  * ```ts
  * const toast = useToast()
@@ -9,7 +9,7 @@
  * ```
  */
 
-import { ref, type Ref } from 'vue'
+import { reactive } from 'vue'
 
 type ToastType = 'success' | 'error' | 'info' | 'warning'
 
@@ -20,8 +20,11 @@ interface Toast {
   duration: number
 }
 
-const toasts: Ref<Toast[]> = ref([])
+const toastState = reactive<{ toasts: Toast[] }>({ toasts: [] })
 let toastId = 0
+
+// 导出 toasts 供 Toast 组件使用
+export { toastState }
 
 /**
  * 显示 Toast
@@ -34,7 +37,7 @@ function showToast(
   const id = ++toastId
   const toast: Toast = { id, type, message, duration }
 
-  toasts.value.push(toast)
+  toastState.toasts.push(toast)
 
   // 自动关闭
   if (duration > 0) {
@@ -49,10 +52,10 @@ function showToast(
 /**
  * 移除 Toast
  */
-function removeToast(id: number) {
-  const index = toasts.value.findIndex(t => t.id === id)
+export function removeToast(id: number) {
+  const index = toastState.toasts.findIndex(t => t.id === id)
   if (index !== -1) {
-    toasts.value.splice(index, 1)
+    toastState.toasts.splice(index, 1)
   }
 }
 
@@ -60,7 +63,7 @@ function removeToast(id: number) {
  * 清空所有 Toast
  */
 function clearToasts() {
-  toasts.value = []
+  toastState.toasts = []
 }
 
 // 快捷方法
@@ -85,7 +88,7 @@ export function warning(message: string, duration?: number) {
  */
 export function useToast() {
   return {
-    toasts,
+    toasts: toastState.toasts,
     showToast,
     removeToast,
     clearToasts,

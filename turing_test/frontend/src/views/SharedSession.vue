@@ -80,9 +80,6 @@
       </div>
     </template>
 
-    <!-- Toast 通知 -->
-    <Toast ref="toastRef" />
-
     <!-- 密码输入对话框 -->
     <div v-if="showPasswordModal" class="modal-overlay" @click.self="showPasswordModal = false">
       <div class="modal">
@@ -115,11 +112,11 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useHistoryStore } from '@/stores/history'
-import Toast from '@/components/common/Toast.vue'
+import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
 const historyStore = useHistoryStore()
-const toastRef = ref<InstanceType<typeof Toast> | null>(null)
+const { success, error: showError } = useToast()
 
 const shareToken = ref<string>(route.params.token as string)
 
@@ -216,7 +213,7 @@ async function fetchShareInfo() {
       await fetchMessages()
     } else {
       shareError.value = '此分享已过期'
-      toastRef.value?.error('此分享已过期')
+      showError('此分享已过期')
     }
   } catch (e: any) {
     const msg = e.message || '加载失败'
@@ -225,10 +222,10 @@ async function fetchShareInfo() {
       showPasswordModal.value = true
     } else if (msg.includes('过期')) {
       shareError.value = '此分享已过期'
-      toastRef.value?.error('此分享已过期')
+      showError('此分享已过期')
     } else {
       shareError.value = msg
-      toastRef.value?.error(msg)
+      showError(msg)
     }
   } finally {
     loadingShare.value = false
@@ -248,7 +245,7 @@ async function verifyPassword() {
   // 限制重试次数
   if (verifyAttempt.value >= 5) {
     passwordError.value = '重试次数过多，请稍后再试'
-    toastRef.value?.error('重试次数过多，请稍后再试')
+    showError('重试次数过多，请稍后再试')
     return
   }
 
@@ -259,12 +256,12 @@ async function verifyPassword() {
     const result = await historyStore.verifySharePassword(shareToken.value, password.value)
     if (result.success) {
       showPasswordModal.value = false
-      toastRef.value?.success('密码验证成功')
+      success('密码验证成功')
       await fetchMessages()
     }
   } catch (e: any) {
     passwordError.value = e.message || '密码错误'
-    toastRef.value?.error(e.message || '密码错误')
+    showError(e.message || '密码错误')
     // 限制重试次数
     if (verifyAttempt.value >= 5) {
       passwordError.value = '重试次数过多，请稍后再试'
@@ -282,7 +279,7 @@ async function fetchMessages() {
   } catch (e: any) {
     const msg = e.message || '加载消息失败'
     shareError.value = msg
-    toastRef.value?.error(msg)
+    showError(msg)
   } finally {
     loadingMessages.value = false
   }
