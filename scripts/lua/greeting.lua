@@ -104,23 +104,6 @@ function generate_response(context, intent_data)
         responses = evening_responses
     end
 
-    -- 如果检测到人名，添加个性化响应
-    local personalized = false
-    if context.entities then
-        for _, entity in ipairs(context.entities) do
-            if entity.type == "PERSON" then
-                table.insert(responses, string.format("很高兴见到您，%s！", entity.text))
-                personalized = true
-                break
-            end
-        end
-    end
-
-    -- 如果是老用户，添加特殊响应
-    if (context.turn_count or 0) > 10 and not personalized then
-        table.insert(responses, "我们又见面了！很高兴再次和您聊天。")
-    end
-
     -- 返回随机响应
     return responses[math.random(#responses)]
 end

@@ -78,14 +78,6 @@
             <p>- 每次触发关键词会增加奖惩倍数</p>
           </div>
         </el-collapse-item>
-
-        <el-collapse-item title="6. 场中判断机制" name="6">
-          <div class="rule-content">
-            <p>- 对话过程中可以随时进行一次场中判断</p>
-            <p>- 场中判断结果无法更改</p>
-            <p>- 场中判断的结果将代替问卷中的相应结果</p>
-          </div>
-        </el-collapse-item>
       </el-collapse>
     </div>
 
@@ -122,7 +114,7 @@ const emit = defineEmits<{
 const activeNames = ref(['1', '2', '3'])
 
 // 所有条目名称
-const allNames = ['1', '2', '3', '4', '5', '6']
+const allNames = ['1', '2', '3', '4', '5']
 
 // 是否全部展开
 const isAllExpanded = computed(() => activeNames.value.length === allNames.length)
