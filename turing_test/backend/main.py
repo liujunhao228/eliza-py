@@ -174,8 +174,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     # 限制允许的请求头
     allow_headers=["Authorization", "Content-Type", "X-Request-ID", "Accept"],
-    # 暴露给客户端的响应头
-    expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining"],
+    # 暴露给客户端的响应头（包含 Set-Cookie 以支持 httpOnly Cookie 认证）
+    expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining", "Set-Cookie"],
     # 预检请求缓存时间（秒）
     max_age=600,
 )

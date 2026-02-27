@@ -6,7 +6,7 @@ Pydantic Schemas
 
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 # =============================================================================
@@ -26,14 +26,36 @@ class BaseSchema(BaseModel):
 class UserLogin(BaseModel):
     """用户登录请求"""
     nickname: str = Field(..., min_length=2, max_length=50, description="昵称")
-    password: str = Field(..., min_length=6, max_length=128, description="密码")
+    password: str = Field(..., min_length=8, max_length=128, description="密码")
 
 
 class UserRegister(BaseModel):
     """用户注册请求"""
     invite_code: str = Field(..., min_length=4, max_length=20, description="邀请码")
     nickname: str = Field(..., min_length=2, max_length=50, description="昵称")
-    password: str = Field(..., min_length=6, max_length=128, description="密码")
+    password: str = Field(..., min_length=8, max_length=128, description="密码")
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        """
+        验证密码强度
+
+        要求:
+        - 长度 >= 8
+        - 包含大写字母
+        - 包含小写字母
+        - 包含数字
+        """
+        if len(v) < 8:
+            raise ValueError("密码长度至少 8 位")
+        if not any(c.isupper() for c in v):
+            raise ValueError("密码必须包含大写字母")
+        if not any(c.islower() for c in v):
+            raise ValueError("密码必须包含小写字母")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("密码必须包含数字")
+        return v
 
 
 class UserResponse(BaseSchema):

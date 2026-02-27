@@ -20,7 +20,8 @@ export const useUserStore = defineStore('user', () => {
   const nickname = ref<string>(localStorage.getItem(STORAGE_KEYS.NICKNAME) || '')
   const inviteCode = ref<string>(localStorage.getItem(STORAGE_KEYS.INVITE_CODE) || '')
   const score = ref<number>(parseInt(localStorage.getItem(STORAGE_KEYS.USER_SCORE) || '100', 10))
-  const accessToken = ref<string>(localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) || '')
+  // 注意：accessToken 不再存储，通过 httpOnly Cookie 自动携带
+  const accessToken = ref<string>('')
   const stats = ref<UserStats | null>(null)
   const scoreHistory = ref<any[]>([])
 
@@ -72,14 +73,14 @@ export const useUserStore = defineStore('user', () => {
     nickname.value = response.nickname || response.username || ''
     inviteCode.value = response.invite_code
     score.value = response.score || 100
-    accessToken.value = response.access_token
+    // 注意：token 现在通过 httpOnly Cookie 存储，无需保存到 localStorage
+    accessToken.value = '' // 保持空值，仅用于兼容
 
-    // 持久化到 localStorage
+    // 持久化到 localStorage（仅用户信息，不存储 token）
     localStorage.setItem(STORAGE_KEYS.USER_ID, response.id.toString())
     localStorage.setItem(STORAGE_KEYS.NICKNAME, nickname.value)
     localStorage.setItem(STORAGE_KEYS.INVITE_CODE, response.invite_code)
     localStorage.setItem(STORAGE_KEYS.USER_SCORE, (response.score || 100).toString())
-    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, response.access_token)
   }
 
   function updateScore(newScore: number) {
@@ -104,13 +105,12 @@ export const useUserStore = defineStore('user', () => {
     stats.value = null
     scoreHistory.value = []
 
-    // 清除 localStorage
+    // 清除 localStorage（仅清除用户信息，token 通过 Cookie 自动过期）
     localStorage.removeItem(STORAGE_KEYS.USER_ID)
     localStorage.removeItem(STORAGE_KEYS.NICKNAME)
     localStorage.removeItem(STORAGE_KEYS.INVITE_CODE)
     localStorage.removeItem(STORAGE_KEYS.SESSION_ID)
     localStorage.removeItem(STORAGE_KEYS.OPPONENT_TYPE)
-    localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
     localStorage.removeItem(STORAGE_KEYS.USER_SCORE)
     localStorage.removeItem(STORAGE_KEYS.TRIGGERED_MID_GAME)
   }

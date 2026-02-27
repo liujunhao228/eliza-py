@@ -14,17 +14,15 @@ const api = axios.create({
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  withCredentials: true  // 关键：允许携带 Cookie（httpOnly token）
 })
 
 // 请求拦截器
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // 添加认证 token
-    const token = localStorage.getItem('accessToken')
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
+    // Token 现在通过 httpOnly Cookie 自动携带，无需手动添加 Authorization header
+    // 后端会优先从 Cookie 读取 access_token
     return config
   },
   (error) => {
@@ -98,10 +96,10 @@ api.interceptors.response.use(
     // 401 未授权处理
     if (error.response?.status === 401) {
       const isSilent = config.silent ?? false
-      
+
       if (!isSilent) {
-        // 非静默模式：清除本地 token 并重定向到登录页
-        localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
+        // 非静默模式：清除本地用户信息并重定向到登录页
+        // 注意：token 通过 httpOnly Cookie 存储，无需手动清除，后端会处理过期
         localStorage.removeItem(STORAGE_KEYS.USER_ID)
         localStorage.removeItem(STORAGE_KEYS.NICKNAME)
         localStorage.removeItem(STORAGE_KEYS.INVITE_CODE)
@@ -114,7 +112,7 @@ api.interceptors.response.use(
           window.location.href = '/'
         }
       } else {
-        // 静默模式：仅记录错误，不清除 token，不跳转
+        // 静默模式：仅记录错误，不清除用户信息，不跳转
         // 让调用方自行决定如何处理
         console.warn('[API] 静默请求认证失败，保持当前状态:', error.config?.url)
       }

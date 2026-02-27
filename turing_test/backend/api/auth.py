@@ -6,7 +6,8 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Cookie
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from passlib.context import CryptContext
@@ -21,6 +22,7 @@ from turing_test.backend.schemas import (
     SuccessResponse,
 )
 from turing_test.backend.services.invite_code_service import get_invite_code_service, InviteCodeService
+from turing_test.backend.services.login_attempt_service import get_login_attempt_service, LoginAttemptService
 from config import settings
 
 router = APIRouter()
@@ -71,7 +73,7 @@ try:
     validate_secret_key(settings.turing.auth.secret_key)
 except ValueError as e:
     import warnings
-    warnings.warn(f"⚠️  {e}，当前密钥：{settings.turing.auth.secret_key[:8]}...")
+    warnings.warn(f"⚠️  {e}，请检查 SECRET_KEY 配置")
 
 
 # =============================================================================
@@ -96,6 +98,31 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
+async def get_current_user_id(
+    access_token: Optional[str] = Cookie(None, alias="access_token")
+) -> Optional[int]:
+    """
+    从 httpOnly Cookie 获取当前用户 ID
+    
+    若未登录或 Token 无效，返回 None
+    """
+    if not access_token:
+        return None
+    
+    try:
+        payload = jwt.decode(
+            access_token,
+            settings.turing.auth.secret_key,
+            algorithms=[settings.turing.auth.algorithm]
+        )
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+        return int(user_id)
+    except JWTError:
+        return None
+
+
 # =============================================================================
 # 路由
 # =============================================================================
@@ -110,13 +137,23 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 async def login(
     user_data: UserLogin,
     db: AsyncSession = Depends(get_db),
+    login_service: LoginAttemptService = Depends(get_login_attempt_service),
+    response: Response = None
 ):
     """
     用户登录
 
-    使用昵称和密码验证用户身份，返回用户信息和 JWT token
+    使用昵称和密码验证用户身份，返回用户信息和 JWT token（通过 httpOnly Cookie 存储）
     """
     from turing_test.backend.models import User
+
+    # 检查账户是否被锁定
+    is_locked, remaining_seconds = await login_service.check_lockout(user_data.nickname)
+    if is_locked:
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail=f"账户已锁定，请 {remaining_seconds // 60} 分钟后再试"
+        )
 
     # 根据昵称查找用户
     result = await db.execute(
@@ -125,6 +162,8 @@ async def login(
     user = result.scalar_one_or_none()
 
     if user is None:
+        # 记录失败尝试
+        await login_service.record_failed_login(user_data.nickname)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="昵称或密码错误"
@@ -132,10 +171,15 @@ async def login(
 
     # 验证密码
     if not pwd_context.verify(user_data.password, user.password_hash):
+        # 记录失败尝试
+        await login_service.record_failed_login(user_data.nickname)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="昵称或密码错误"
         )
+
+    # 登录成功，重置尝试计数
+    await login_service.record_successful_login(user_data.nickname)
 
     # 更新最后登录时间
     user.last_login_at = datetime.now(timezone.utc)
@@ -147,12 +191,23 @@ async def login(
         expires_delta=timedelta(minutes=settings.turing.auth.access_token_expire_minutes)
     )
 
+    # 通过 httpOnly Cookie 返回 token（安全存储，防止 XSS 攻击）
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,        # 禁止 JavaScript 访问，防止 XSS 窃取
+        secure=settings.debug is False,  # 生产环境仅 HTTPS 传输
+        samesite="lax",       # 防止 CSRF 攻击
+        max_age=settings.turing.auth.access_token_expire_minutes * 60,  # 过期时间（秒）
+        path="/api"           # 限制 Cookie 作用路径
+    )
+
     return UserLoginResponse(
         id=user.id,
         nickname=user.nickname,
         score=user.score,
         invite_code=user.invite_code,
-        access_token=access_token,
+        access_token=access_token,  # 保留在响应体中用于兼容，前端应忽略
         token_type="bearer"
     )
 
@@ -167,7 +222,8 @@ async def login(
 async def register(
     user_data: UserRegister,
     db: AsyncSession = Depends(get_db),
-    invite_code_service: InviteCodeService = Depends(get_invite_code_service)
+    invite_code_service: InviteCodeService = Depends(get_invite_code_service),
+    response: Response = None
 ):
     """用户注册"""
     from turing_test.backend.models import User, UserStats
@@ -236,12 +292,23 @@ async def register(
         expires_delta=timedelta(minutes=settings.turing.auth.access_token_expire_minutes)
     )
 
+    # 通过 httpOnly Cookie 返回 token（安全存储，防止 XSS 攻击）
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,        # 禁止 JavaScript 访问，防止 XSS 窃取
+        secure=settings.debug is False,  # 生产环境仅 HTTPS 传输
+        samesite="lax",       # 防止 CSRF 攻击
+        max_age=settings.turing.auth.access_token_expire_minutes * 60,  # 过期时间（秒）
+        path="/api"           # 限制 Cookie 作用路径
+    )
+
     return UserLoginResponse(
         id=user.id,
         nickname=user.nickname,
         score=user.score,
         invite_code=user.invite_code,
-        access_token=access_token,
+        access_token=access_token,  # 保留在响应体中用于兼容，前端应忽略
         token_type="bearer"
     )
 

@@ -46,6 +46,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useUserStore } from '@/stores/user'
 import * as historyApi from '@/api/history'
 import type { ShareInfo as ShareInfoType } from '@/api/history'
 import ShareForm from '../Share/ShareForm.vue'
@@ -176,12 +177,13 @@ async function fetchExistingShares() {
     console.error('获取分享列表失败:', e)
     // 如果是 401，区分未登录和登录过期
     if (e.code === 'UNAUTHORIZED' || e.response?.status === 401) {
-      // 检查本地是否有 token，判断是未登录还是登录过期
-      const hasToken = localStorage.getItem('accessToken')
-      if (!hasToken) {
+      // 检查用户是否已登录（通过 userId 判断，token 现在通过 httpOnly Cookie 存储）
+      const userStore = useUserStore()
+      if (!userStore.isLoggedIn) {
         error.value = '请先注册或登录后再试'
         emit('notify', { type: 'info', message: '请先注册或登录' })
       } else {
+        // 已登录但 401，说明 Cookie 中的 token 无效或过期
         error.value = '登录已过期，请重新登录后再试'
         emit('notify', { type: 'warning', message: '登录已过期，请重新登录' })
       }

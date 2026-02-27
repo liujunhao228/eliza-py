@@ -181,7 +181,6 @@ export async function getSessionShares(
   options?: { silent?: boolean }
 ): Promise<ShareInfo[]> {
   return api.get(`/session/${sessionId}/shares`, {
-    skipRetry: options?.silent,  // 静默模式下跳过重试
-    silent: options?.silent      // 传递静默标志给响应拦截器
-  })
+    silent: options?.silent  // 传递静默标志给响应拦截器（类型断言见 api/index.ts）
+  } as any)
 }

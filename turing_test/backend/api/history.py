@@ -7,7 +7,7 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Cookie
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
@@ -51,26 +51,31 @@ def now_utc() -> datetime:
 
 async def get_current_user_id(
     authorization: Optional[str] = Header(None, alias="Authorization"),
+    access_token: Optional[str] = Cookie(None, alias="access_token"),
 ) -> int:
     """
-    从 Authorization header 获取当前用户 ID
+    从 Cookie 或 Authorization header 获取当前用户 ID（优先从 Cookie 读取）
 
     若未登录或 Token 无效，抛出 401
     """
-    if not authorization:
+    # 优先从 Cookie 获取 token
+    token = access_token
+    
+    # 如果 Cookie 中没有，尝试从 Authorization header 获取（兼容旧方式）
+    if not token and authorization:
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="认证格式错误，应为 Bearer {token}",
+            )
+
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="未提供认证信息",
         )
-    
-    # 提取 token
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="认证格式错误，应为 Bearer {token}",
-        )
-    
+
     try:
         payload = jwt.decode(
             token,
