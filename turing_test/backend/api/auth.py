@@ -105,64 +105,37 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     response_model=UserLoginResponse,
     status_code=status.HTTP_200_OK,
     summary="用户登录",
-    description="使用邀请码登录或注册用户",
+    description="使用昵称与密码登录账号",
 )
 async def login(
     user_data: UserLogin,
     db: AsyncSession = Depends(get_db),
-    invite_code_service: InviteCodeService = Depends(get_invite_code_service)
 ):
     """
-    用户登录/注册
+    用户登录
 
-    如果邀请码不存在，则创建新用户并返回
-    如果邀请码已存在，则返回已有用户信息
+    使用昵称和密码验证用户身份，返回用户信息和 JWT token
     """
-    from turing_test.backend.models import User, UserStats
+    from turing_test.backend.models import User
 
-    # 验证邀请码
-    verification = await invite_code_service.verify(user_data.invite_code)
-    if not verification["valid"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=verification["message"]
-        )
-
-    # 查找用户
+    # 根据昵称查找用户
     result = await db.execute(
-        select(User).where(User.invite_code == user_data.invite_code)
+        select(User).where(User.nickname == user_data.nickname)
     )
     user = result.scalar_one_or_none()
 
-    # 用户不存在，创建新用户
     if user is None:
-        # 生成用户名
-        username = f"用户{user_data.invite_code[:4]}"
-
-        user = User(
-            invite_code=user_data.invite_code,
-            username=username,
-            score=settings.turing.auth.initial_score,
-            highest_score=settings.turing.auth.initial_score,
-            lowest_score=settings.turing.auth.initial_score,
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="昵称或密码错误"
         )
-        db.add(user)
-        await db.flush()  # 获取 user.id
 
-        # 创建用户统计记录
-        user_stats = UserStats(user_id=user.id)
-        db.add(user_stats)
-
-        # 使用邀请码
-        invite_code = verification["invite_code"]
-        invite_code.current_uses += 1
-        invite_code.used_by_user_id = user.id
-        invite_code.used_at = datetime.now(timezone.utc)
-        if invite_code.max_uses != -1 and invite_code.current_uses >= invite_code.max_uses:
-            invite_code.is_used = True
-
-        await db.commit()
-        await db.refresh(user)
+    # 验证密码
+    if not pwd_context.verify(user_data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="昵称或密码错误"
+        )
 
     # 更新最后登录时间
     user.last_login_at = datetime.now(timezone.utc)
@@ -176,8 +149,7 @@ async def login(
 
     return UserLoginResponse(
         id=user.id,
-        username=user.username,
-        nickname=user.username,
+        nickname=user.nickname,
         score=user.score,
         invite_code=user.invite_code,
         access_token=access_token,
@@ -187,10 +159,10 @@ async def login(
 
 @router.post(
     "/register",
-    response_model=UserResponse,
+    response_model=UserLoginResponse,
     status_code=status.HTTP_201_CREATED,
     summary="用户注册",
-    description="使用邀请码和用户名注册新用户",
+    description="使用邀请码、昵称和密码注册新用户",
 )
 async def register(
     user_data: UserRegister,
@@ -216,22 +188,26 @@ async def register(
             detail="邀请码已被使用"
         )
 
-    # 检查用户名是否已被占用
+    # 检查昵称是否已被占用
     result = await db.execute(
-        select(User).where(User.username == user_data.username)
+        select(User).where(User.nickname == user_data.nickname)
     )
-    existing_username = result.scalar_one_or_none()
+    existing_nickname = result.scalar_one_or_none()
 
-    if existing_username:
+    if existing_nickname:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="用户名已被占用"
+            detail="昵称已被占用"
         )
+
+    # 密码哈希加密
+    password_hash = pwd_context.hash(user_data.password)
 
     # 创建新用户
     user = User(
+        nickname=user_data.nickname,
+        password_hash=password_hash,
         invite_code=user_data.invite_code,
-        username=user_data.username,
         score=settings.turing.auth.initial_score,
         highest_score=settings.turing.auth.initial_score,
         lowest_score=settings.turing.auth.initial_score,
@@ -254,7 +230,20 @@ async def register(
     await db.commit()
     await db.refresh(user)
 
-    return UserResponse.model_validate(user)
+    # 创建访问 token
+    access_token = create_access_token(
+        data={"sub": str(user.id)},
+        expires_delta=timedelta(minutes=settings.turing.auth.access_token_expire_minutes)
+    )
+
+    return UserLoginResponse(
+        id=user.id,
+        nickname=user.nickname,
+        score=user.score,
+        invite_code=user.invite_code,
+        access_token=access_token,
+        token_type="bearer"
+    )
 
 
 @router.get(

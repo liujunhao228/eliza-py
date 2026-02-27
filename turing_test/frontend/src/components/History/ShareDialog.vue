@@ -166,13 +166,32 @@ async function deleteShare() {
 // 获取现有分享列表
 async function fetchExistingShares() {
   try {
-    existingShares.value = await historyApi.getSessionShares(props.sessionId)
+    // 使用静默模式，避免 401 时自动跳转登录页
+    existingShares.value = await historyApi.getSessionShares(props.sessionId, { silent: true })
     // 如果有分享，设置第一个为当前显示
     if (existingShares.value.length > 0 && !shareInfo.value) {
       shareInfo.value = existingShares.value[0] || null
     }
   } catch (e: any) {
     console.error('获取分享列表失败:', e)
+    // 如果是 401，区分未登录和登录过期
+    if (e.code === 'UNAUTHORIZED' || e.response?.status === 401) {
+      // 检查本地是否有 token，判断是未登录还是登录过期
+      const hasToken = localStorage.getItem('accessToken')
+      if (!hasToken) {
+        error.value = '请先注册或登录后再试'
+        emit('notify', { type: 'info', message: '请先注册或登录' })
+      } else {
+        error.value = '登录已过期，请重新登录后再试'
+        emit('notify', { type: 'warning', message: '登录已过期，请重新登录' })
+      }
+    } else if (e.code === 'FORBIDDEN' || e.response?.status === 403) {
+      error.value = '无权访问此会话'
+      emit('notify', { type: 'warning', message: '无权访问此会话' })
+    } else {
+      error.value = '获取分享信息失败'
+      emit('notify', { type: 'error', message: '获取分享信息失败' })
+    }
   }
 }
 

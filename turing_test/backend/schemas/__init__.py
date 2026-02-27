@@ -25,19 +25,21 @@ class BaseSchema(BaseModel):
 
 class UserLogin(BaseModel):
     """用户登录请求"""
-    invite_code: str = Field(..., min_length=4, max_length=20)
+    nickname: str = Field(..., min_length=2, max_length=50, description="昵称")
+    password: str = Field(..., min_length=6, max_length=128, description="密码")
 
 
 class UserRegister(BaseModel):
     """用户注册请求"""
-    invite_code: str = Field(..., min_length=4, max_length=20)
-    username: str = Field(..., min_length=2, max_length=50)
+    invite_code: str = Field(..., min_length=4, max_length=20, description="邀请码")
+    nickname: str = Field(..., min_length=2, max_length=50, description="昵称")
+    password: str = Field(..., min_length=6, max_length=128, description="密码")
 
 
 class UserResponse(BaseSchema):
     """用户响应"""
     id: int
-    username: str
+    nickname: str
     score: int
     total_score_earned: int
     total_score_lost: int
@@ -51,7 +53,6 @@ class UserResponse(BaseSchema):
 class UserLoginResponse(BaseSchema):
     """用户登录响应（包含 token）"""
     id: int
-    username: str
     nickname: str
     score: int
     invite_code: str

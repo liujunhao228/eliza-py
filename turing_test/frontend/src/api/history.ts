@@ -172,7 +172,16 @@ export async function deleteShare(shareId: number): Promise<{ success: boolean; 
 
 /**
  * 获取会话的分享列表
+ * @param sessionId - 会话 ID
+ * @param options - 可选配置
+ * @param options.silent - 静默模式，不自动弹出错误提示（用于可选认证场景）
  */
-export async function getSessionShares(sessionId: number): Promise<ShareInfo[]> {
-  return api.get(`/session/${sessionId}/shares`)
+export async function getSessionShares(
+  sessionId: number,
+  options?: { silent?: boolean }
+): Promise<ShareInfo[]> {
+  return api.get(`/session/${sessionId}/shares`, {
+    skipRetry: options?.silent,  // 静默模式下跳过重试
+    silent: options?.silent      // 传递静默标志给响应拦截器
+  })
 }

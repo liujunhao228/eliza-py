@@ -32,7 +32,8 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    nickname: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     invite_code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
 
     # 积分字段
@@ -86,7 +87,7 @@ class User(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<User(id={self.id}, username='{self.username}', score={self.score})>"
+        return f"<User(id={self.id}, nickname='{self.nickname}', score={self.score})>"
 
 
 # =============================================================================

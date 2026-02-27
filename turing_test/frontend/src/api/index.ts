@@ -65,6 +65,7 @@ api.interceptors.response.use(
     const config = error.config as InternalAxiosRequestConfig & {
       retryCount?: number
       skipRetry?: boolean
+      silent?: boolean  // 静默模式标志
     }
 
     // 检查是否已跳过重试或达到最大重试次数
@@ -94,20 +95,28 @@ api.interceptors.response.use(
     // 转换为 AppError，保留原始错误堆栈
     const appError = handleAxiosError(error)
 
-    // 401 未授权：清除本地 token 并重定向到登录页
+    // 401 未授权处理
     if (error.response?.status === 401) {
-      // 清除本地存储的 token 和用户信息
-      localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
-      localStorage.removeItem(STORAGE_KEYS.USER_ID)
-      localStorage.removeItem(STORAGE_KEYS.NICKNAME)
-      localStorage.removeItem(STORAGE_KEYS.INVITE_CODE)
-      localStorage.removeItem(STORAGE_KEYS.USER_SCORE)
-      localStorage.removeItem(STORAGE_KEYS.SESSION_ID)
-      localStorage.removeItem(STORAGE_KEYS.OPPONENT_TYPE)
+      const isSilent = config.silent ?? false
+      
+      if (!isSilent) {
+        // 非静默模式：清除本地 token 并重定向到登录页
+        localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
+        localStorage.removeItem(STORAGE_KEYS.USER_ID)
+        localStorage.removeItem(STORAGE_KEYS.NICKNAME)
+        localStorage.removeItem(STORAGE_KEYS.INVITE_CODE)
+        localStorage.removeItem(STORAGE_KEYS.USER_SCORE)
+        localStorage.removeItem(STORAGE_KEYS.SESSION_ID)
+        localStorage.removeItem(STORAGE_KEYS.OPPONENT_TYPE)
 
-      // 如果当前不在登录页，跳转到登录页
-      if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/login')) {
-        window.location.href = '/'
+        // 如果当前不在登录页，跳转到登录页
+        if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/login')) {
+          window.location.href = '/'
+        }
+      } else {
+        // 静默模式：仅记录错误，不清除 token，不跳转
+        // 让调用方自行决定如何处理
+        console.warn('[API] 静默请求认证失败，保持当前状态:', error.config?.url)
       }
     }
 

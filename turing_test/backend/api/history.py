@@ -50,11 +50,11 @@ def now_utc() -> datetime:
 
 
 async def get_current_user_id(
-    authorization: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None, alias="Authorization"),
 ) -> int:
     """
     从 Authorization header 获取当前用户 ID
-    
+
     若未登录或 Token 无效，抛出 401
     """
     if not authorization:
@@ -101,7 +101,7 @@ async def is_admin_user(user_id: int, db: AsyncSession) -> bool:
     if not user:
         return False
     # 这里可以根据实际需求修改管理员判断逻辑
-    return user.username == "admin"
+    return user.nickname == "admin"
 
 
 # =============================================================================

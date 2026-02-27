@@ -45,7 +45,12 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-async def get_current_user_id(authorization: Optional[str] = Header(None)) -> int:
+async def get_current_user_id(authorization: Optional[str] = Header(None, alias="Authorization")) -> int:
+    """
+    从 Authorization header 获取当前用户 ID
+
+    若未登录或 Token 无效，抛出 401
+    """
     if not authorization:
         raise HTTPException(status_code=401, detail="未提供认证信息")
     scheme, _, token = authorization.partition(" ")
@@ -59,6 +64,24 @@ async def get_current_user_id(authorization: Optional[str] = Header(None)) -> in
         return user_id
     except JWTError:
         raise HTTPException(status_code=401, detail="Token 已过期或无效")
+
+
+async def is_admin_user(user_id: int, db: AsyncSession) -> bool:
+    """
+    检查用户是否为管理员
+
+    Args:
+        user_id: 用户 ID
+        db: 数据库会话
+
+    Returns:
+        是否为管理员
+    """
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        return False
+    return user.nickname == "admin"
 
 
 def generate_share_token() -> str:
