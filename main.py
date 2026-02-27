@@ -245,6 +245,49 @@ def cmd_init(args):
     print("3. 运行 'python main.py alice' 或 'python main.py turing' 启动服务")
 
 
+def cmd_init_db(args):
+    """初始化数据库并生成邀请码"""
+    print("初始化数据库并生成邀请码...")
+    print()
+
+    # 导入并运行初始化脚本
+    import asyncio
+    from turing_test.backend.scripts.init_db import main as init_db_main
+
+    # 构建命令行参数
+    sys.argv = [
+        'init_db',
+        '--count', str(args.count),
+        '--max-uses', str(args.max_uses),
+    ]
+
+    if args.length:
+        sys.argv.extend(['--length', str(args.length)])
+    if args.prefix:
+        sys.argv.extend(['--prefix', args.prefix])
+    if args.suffix:
+        sys.argv.extend(['--suffix', args.suffix])
+    if args.expire_days:
+        sys.argv.extend(['--expire-days', str(args.expire_days)])
+    if args.output:
+        sys.argv.extend(['--output', args.output])
+    if args.no_invite_codes:
+        sys.argv.append('--no-invite-codes')
+    if args.reset:
+        sys.argv.append('--reset')
+    if args.skip_check:
+        sys.argv.append('--skip-check')
+
+    try:
+        asyncio.run(init_db_main())
+    except KeyboardInterrupt:
+        print("\n操作已取消")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\n[FAIL] 数据库初始化失败：{e}")
+        sys.exit(1)
+
+
 def main():
     """主入口函数"""
     parser = argparse.ArgumentParser(
@@ -258,6 +301,8 @@ def main():
   python main.py test               运行测试
   python main.py check-config       检查配置
   python main.py init               初始化项目
+  python main.py init-db            初始化数据库并生成 100 个邀请码
+  python main.py init-db --count 500 --expire-days 30  生成 500 个邀请码，30 天过期
         """,
     )
 
@@ -291,6 +336,67 @@ def main():
     # Init 命令
     init_parser = subparsers.add_parser("init", help="初始化项目配置")
     init_parser.set_defaults(func=cmd_init)
+
+    # Init-db 命令
+    init_db_parser = subparsers.add_parser("init-db", help="初始化数据库并生成邀请码")
+    init_db_parser.add_argument(
+        "--count",
+        type=int,
+        default=100,
+        help="生成邀请码数量（默认：100）"
+    )
+    init_db_parser.add_argument(
+        "--length",
+        type=int,
+        default=None,
+        help="邀请码长度（默认：使用配置文件中的值）"
+    )
+    init_db_parser.add_argument(
+        "--prefix",
+        type=str,
+        default="",
+        help="邀请码前缀（默认：无）"
+    )
+    init_db_parser.add_argument(
+        "--suffix",
+        type=str,
+        default="",
+        help="邀请码后缀（默认：无）"
+    )
+    init_db_parser.add_argument(
+        "--max-uses",
+        type=int,
+        default=1,
+        help="最大使用次数，-1 表示无限（默认：1）"
+    )
+    init_db_parser.add_argument(
+        "--expire-days",
+        type=int,
+        default=None,
+        help="过期天数（默认：永不过期）"
+    )
+    init_db_parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="邀请码导出文件路径（默认：自动生成）"
+    )
+    init_db_parser.add_argument(
+        "--no-invite-codes",
+        action="store_true",
+        help="不生成邀请码，仅创建表结构"
+    )
+    init_db_parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="重置数据库（删除所有数据后重新初始化）⚠️  危险操作"
+    )
+    init_db_parser.add_argument(
+        "--skip-check",
+        action="store_true",
+        help="跳过已有数据检查"
+    )
+    init_db_parser.set_defaults(func=cmd_init_db)
 
     args = parser.parse_args()
 
