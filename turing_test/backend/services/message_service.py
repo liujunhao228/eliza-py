@@ -85,7 +85,10 @@ class MessageService:
             
             # 检测元对话
             is_meta, keyword = _detect_meta_conversation(content)
-            
+
+            # 取消待处理的开场白任务（用户先发言）
+            session_state_manager.cancel_opening_task(session_id)
+
             # 保存消息（数据库）
             message = Message(
                 session_id=session_id,

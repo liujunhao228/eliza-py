@@ -305,7 +305,7 @@ async def handle_mid_game_judgment(
     session.final_score = int(final_score)
     session.score_breakdown = get_score_breakdown_dict(breakdown)
     session.ended_at = datetime.now(timezone.utc)
-    session.end_reason = "mid_game_judgment"  # 场中判断结束
+    # 注意：场中判断不结束会话，仅记录积分，end_reason 由用户后续点击"结束对话"时设置
 
     # 更新用户积分
     score_before = user.score
@@ -378,9 +378,9 @@ async def handle_end_session(
         session: 会话对象
         db: 数据库会话
         end_reason: 结束原因
-            - "normal_end": 正常结束（用户已完成判断）
+            - "user_normal_end": 用户已完成判断后正常结束
             - "user_gave_up": 用户放弃（未判断主动结束）
-            - "timeout": 超时结束
+            - "sys_timeout": 系统超时
     """
     from turing_test.backend.models import User
 

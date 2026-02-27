@@ -4,6 +4,7 @@
     <RulesSection
       v-if="!isMatching"
       @start-match="handleStartMatch"
+      @logout="handleLogout"
     />
 
     <!-- 匹配界面（匹配时显示） -->
@@ -130,6 +131,16 @@ function handleCancel() {
   if (matchingSectionRef.value) {
     matchingSectionRef.value.resetMatching()
   }
+}
+
+// 退出登录
+function handleLogout() {
+  // 调用 store 的 logout 方法
+  userStore.logout()
+  gameStore.reset()
+  
+  // 跳转到登录页
+  router.push('/login')
 }
 </script>
 

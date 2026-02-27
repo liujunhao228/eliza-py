@@ -24,9 +24,11 @@ class BaseSchema(BaseModel):
 # =============================================================================
 
 class UserLogin(BaseModel):
-    """用户登录请求"""
-    nickname: str = Field(..., min_length=2, max_length=50, description="昵称")
+    """用户登录/注册请求"""
+    nickname: Optional[str] = Field(None, min_length=2, max_length=50, description="昵称（注册模式需要）")
+    username: Optional[str] = Field(None, min_length=2, max_length=50, description="用户名（登录模式需要）")
     password: str = Field(..., min_length=8, max_length=128, description="密码")
+    invite_code: Optional[str] = Field(None, min_length=4, max_length=20, description="邀请码（新用户注册时必需）")
 
 
 class UserRegister(BaseModel):
@@ -184,11 +186,6 @@ class ScoreBreakdownResponse(BaseModel):
     """积分明细响应 - 简化版，不暴露计算细节"""
     final_score: int
     is_correct: bool
-
-
-class MidGameJudgmentRequest(BaseModel):
-    """场中判断请求"""
-    user_guess: str = Field(..., pattern="^(human|ai)$")
 
 
 class GameResultResponse(BaseSchema):

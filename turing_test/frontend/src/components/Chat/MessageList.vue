@@ -60,8 +60,8 @@ watch(
   min-height: 100%;
   padding: 20px;
   background: var(--bg-surface);
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--shadow-md);
   backdrop-filter: blur(10px);
   border: 1px solid var(--border-primary);
 }
@@ -71,6 +71,11 @@ watch(
   overflow-y: auto;
   padding-right: 8px;
   scroll-behavior: smooth;
+}
+
+/* 消息最小高度 - 防止内容跳跃 */
+.message-item {
+  min-height: 60px;
 }
 
 /* 自定义滚动条 */

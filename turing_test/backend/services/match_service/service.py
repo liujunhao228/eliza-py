@@ -222,8 +222,9 @@ class MatchService:
             "matched_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        # 异步发送开场白
-        asyncio.create_task(self._send_opening_message(session.id, user_id, is_honeypot))
+        # 异步发送开场白（注册任务以便取消）
+        opening_task = asyncio.create_task(self._send_opening_message(session.id, user_id, is_honeypot))
+        session_state_manager.register_opening_task(session.id, opening_task)
 
         logger.info(f"为用户 {user_id} 分配 {'钓鱼机器人' if is_honeypot else 'AI'}对手，会话 ID: {session.id}")
 
@@ -253,7 +254,8 @@ class MatchService:
         # 等待随机延迟
         await asyncio.sleep(random.uniform(delay_min, delay_max))
 
-        async with async_session_maker() as db:
+        # 延迟后检查任务是否被取消
+        try:
             # 检查是否已有消息（用户先发言）
             state = session_state_manager.get(session_id)
             if state and state.turn_count > 0:
@@ -266,11 +268,18 @@ class MatchService:
                 return
 
             # 发送开场白
-            await MessageService.send_opening_message(
-                session_id=session_id,
-                user_id=user_id,
-                db=db,
-            )
+            async with async_session_maker() as db:
+                await MessageService.send_opening_message(
+                    session_id=session_id,
+                    user_id=user_id,
+                    db=db,
+                )
+        except asyncio.CancelledError:
+            logger.info(f"开场白任务已取消：session_id={session_id}")
+            raise
+        finally:
+            # 清理任务注册
+            session_state_manager.cancel_opening_task(session_id)
 
     def get_queue_size(self) -> int:
         """获取队列大小"""

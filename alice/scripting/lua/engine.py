@@ -40,6 +40,7 @@ from alice.scripting.context import ScriptContext
 from alice.scripting.config import ScriptConfigLoader
 from alice.scripting.lua.sandbox import LuaSandbox
 from alice.scripting.lua.compiled_script import CompiledScript
+from alice.scripting.end_action import normalize_end_reason
 
 logger = logging.getLogger(__name__)
 
@@ -264,7 +265,7 @@ class LuaScriptEngine(BaseScriptEngine):
                             intent_name=config.name or script_id,
                             metadata={'source': 'generate_response'},
                             end_action=result.get('end_action', 'none'),
-                            end_reason=result.get('end_reason', ''),
+                            end_reason=normalize_end_reason(result.get('end_reason', '')),
                         )
                     return ScriptResponse(
                         text=str(result),
@@ -284,7 +285,7 @@ class LuaScriptEngine(BaseScriptEngine):
                 intent_name=config.name or script_id,
                 metadata={'source': 'template'},
                 end_action=config.metadata.get('end_action', 'none'),
-                end_reason=config.metadata.get('end_reason', ''),
+                end_reason=normalize_end_reason(config.metadata.get('end_reason', '')),
             )
 
         return None

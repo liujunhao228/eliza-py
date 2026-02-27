@@ -103,14 +103,14 @@ class ScriptResponse:
         intent_name: 意图名称
         metadata: 附加元数据
         end_action: 结束对话动作 ("none" | "direct" | "farewell")
-        end_reason: 结束原因 ("max_turns", "suspicion", "timeout", "user_farewell", etc.)
+        end_reason: 结束原因 (使用 EndReason 枚举值或空字符串)
     """
     text: str = ""
     script_id: str = ""
     intent_name: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)
     end_action: str = "none"  # "none" | "direct" | "farewell"
-    end_reason: str = ""
+    end_reason: str = ""  # 使用 EndReason 枚举值，如 "bot_max_turns", "user_gave_up" 等
 
 
 class BaseScriptEngine(ABC):

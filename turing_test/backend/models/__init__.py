@@ -173,7 +173,7 @@ class Session(Base):
     end_reason: Mapped[Optional[str]] = mapped_column(
         String(30),
         nullable=True,
-        comment="结束原因：'normal_end', 'user_gave_up', 'mid_game_judgment', 'timeout'"
+        comment="结束原因：'user_normal_end', 'user_gave_up', 'sys_timeout', 'sys_error'"
     )
 
     # 关系

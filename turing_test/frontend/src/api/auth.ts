@@ -3,17 +3,32 @@ import api from './index'
 import type { User, LoginResponse } from '@/types'
 
 /**
- * 用户登录/注册
- * 使用邀请码登录，如果用户不存在则自动注册
- * @param code 邀请码
- * @param nickname 用户昵称（可选，新用户注册时必需）
+ * 用户登录
+ * @param inviteCode 邀请码（注册模式需要，登录模式可为空）
+ * @param nickname 用户昵称（注册模式需要，登录模式可为空）
+ * @param password 用户密码
+ * @param isLoginMode 是否为登录模式（true: 用户名 + 密码登录，false: 邀请码注册/登录）
  */
-export async function login(code: string, nickname?: string): Promise<LoginResponse> {
-  const payload: { invite_code: string; nickname?: string } = { invite_code: code }
-  if (nickname && nickname.trim()) {
-    payload.nickname = nickname.trim()
+export async function login(
+  inviteCode: string,
+  nickname: string,
+  password: string,
+  isLoginMode?: boolean
+): Promise<LoginResponse> {
+  if (isLoginMode) {
+    // 登录模式：使用用户名 + 密码
+    return api.post('/auth/login', {
+      username: nickname,
+      password: password
+    })
+  } else {
+    // 注册/登录模式：使用邀请码 + 昵称 + 密码
+    return api.post('/auth/login', {
+      invite_code: inviteCode,
+      nickname: nickname.trim(),
+      password: password
+    })
   }
-  return api.post('/auth/login', payload)
 }
 
 /**

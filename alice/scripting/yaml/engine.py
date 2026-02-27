@@ -40,6 +40,7 @@ from alice.scripting.config import ScriptConfigLoader
 from alice.scripting.yaml.parser import YAMLScriptParser, ScriptIntent
 from alice.scripting.yaml.condition_checker import ConditionChecker
 from alice.scripting.yaml.template_engine import TemplateEngine
+from alice.scripting.end_action import normalize_end_reason
 
 logger = logging.getLogger(__name__)
 
@@ -319,7 +320,7 @@ class YAMLScriptEngine(BaseScriptEngine):
                 'keyword_only': intent.keyword_only,
             },
             end_action=intent.end_action,
-            end_reason=intent.end_reason,
+            end_reason=normalize_end_reason(intent.end_reason),
         )
 
     def reload_script(self, script_id: str) -> bool:

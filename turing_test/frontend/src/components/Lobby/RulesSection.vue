@@ -1,8 +1,14 @@
 <template>
   <div class="rules-section">
     <div class="header">
-      <h1>🎯 实验大厅</h1>
-      <p class="subtitle">准备好开始你的图灵测试了吗？</p>
+      <div class="header-title">
+        <h1>🎯 实验大厅</h1>
+        <p class="subtitle">准备好开始你的图灵测试了吗？</p>
+      </div>
+      <button class="btn-logout" @click="handleLogout">
+        <span class="btn-icon">🚪</span>
+        退出登录
+      </button>
     </div>
 
     <!-- 用户信息卡片 -->
@@ -16,7 +22,7 @@
           <div class="stats">
             <span class="stat-item">
               <i class="el-icon-star"></i>
-              积分: {{ userStore.score }}
+              积分：{{ userStore.score }}
             </span>
           </div>
         </div>
@@ -26,7 +32,7 @@
     <!-- 规则说明 -->
     <div class="rules-card">
       <h2>📜 实验规则</h2>
-      
+
       <el-collapse v-model="activeNames" accordion>
         <el-collapse-item title="1. 入场券制度" name="1">
           <div class="rule-content">
@@ -62,7 +68,7 @@
         <el-collapse-item title="4. 元对话双刃剑机制" name="4">
           <div class="rule-content">
             <p><strong>什么是元对话？</strong></p>
-            <p>指讨论身份、真人、机器、AI等话题的行为</p>
+            <p>指讨论身份、真人、机器、AI 等话题的行为</p>
             <p><strong>每次元对话会增加倍数：</strong></p>
             <ul>
               <li>判断正确时：基础分 × (1 + 次数×0.2)</li>
@@ -73,7 +79,7 @@
               → (+10 × 5.0 × 1.6) - 2 - 1.5 = +76.5 分<br>
               → 如果判断错误：(-15 × 5.0 × 1.9) - 2 - 1.5 = -144.5 分
             </p>
-            <p class="warning">🚨 高频元对话（>5次）会增加遇到钓鱼机器人的风险！</p>
+            <p class="warning">🚨 高频元对话（>5 次）会增加遇到钓鱼机器人的风险！</p>
           </div>
         </el-collapse-item>
 
@@ -81,7 +87,7 @@
           <div class="rule-content">
             <p>• 对话过程中可以随时进行场中判断</p>
             <p>• <strong>判断正确</strong>：双倍奖励（基础分 × 2.0）</p>
-            <p>• <strong>判断错误</strong>：1.5倍惩罚（基础分 × 1.5）</p>
+            <p>• <strong>判断错误</strong>：1.5 倍惩罚（基础分 × 1.5）</p>
             <p>• 对话立即结束，无需填写后续问卷</p>
           </div>
         </el-collapse-item>
@@ -120,12 +126,17 @@ const userStore = useUserStore()
 
 const emit = defineEmits<{
   (e: 'start-match'): void
+  (e: 'logout'): void
 }>()
 
 const activeNames = ref(['1'])
 
 function handleStartMatch() {
   emit('start-match')
+}
+
+function handleLogout() {
+  emit('logout')
 }
 </script>
 
@@ -141,8 +152,14 @@ function handleStartMatch() {
 }
 
 .header {
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 30px;
+}
+
+.header-title {
+  flex: 1;
 }
 
 .header h1 {
@@ -155,6 +172,28 @@ function handleStartMatch() {
   font-size: 16px;
   color: var(--text-secondary);
   margin: 0;
+}
+
+.btn-logout {
+  flex-shrink: 0;
+  margin-left: 16px;
+  padding: 10px 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--rounded-md);
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-logout:hover {
+  background: var(--color-red-50);
+  border-color: var(--color-red-200);
+  color: var(--color-error);
 }
 
 .user-card {
@@ -311,8 +350,23 @@ function handleStartMatch() {
     padding: 15px;
   }
 
+  .header {
+    flex-direction: column;
+    gap: 16px;
+    text-align: center;
+  }
+
+  .header-title {
+    width: 100%;
+  }
+
   .header h1 {
     font-size: 24px;
+  }
+
+  .btn-logout {
+    width: 100%;
+    margin-left: 0;
   }
 
   .user-card {

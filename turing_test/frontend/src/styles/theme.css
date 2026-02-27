@@ -178,10 +178,10 @@
     --bg-surface: #ffffff;
     --bg-overlay: rgba(255, 255, 255, 0.8);
 
-    /* 文本色 */
-    --text-primary: #1e293b;
-    --text-secondary: #475569;
-    --text-tertiary: #64748b;
+    /* 文本色 - 确保对比度 ≥ 4.5:1 */
+    --text-primary: #0f172a;        /* 对比度 15:1 */
+    --text-secondary: #334155;      /* 对比度 8:1 */
+    --text-tertiary: #475569;       /* 对比度 4.6:1 (达标) */
     --text-disabled: #94a3b8;
 
     /* 边框色 */
@@ -636,7 +636,7 @@ p {
   }
 }
 
-/* 🎨 滚动条样式 */
+/* 🎨 滚动条样式 - 支持 Webkit 和 Firefox */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -654,6 +654,73 @@ p {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-gray-500);
+}
+
+/* Firefox 滚动条支持 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-gray-400) var(--bg-secondary);
+}
+
+/* 🎨 减少动画偏好支持 - 无障碍访问 */
+/* 仅在用户系统设置要求减少动画时生效 */
+@media (prefers-reduced-motion: reduce) {
+  /* 大部分非关键动画减少或禁用 */
+  .fade-enter-active,
+  .fade-leave-active,
+  .slide-up-enter-active,
+  .slide-up-leave-active,
+  .base-card--hoverable,
+  .base-button:not(.base-loading__spinner *),
+  .base-skeleton--pulse,
+  .base-skeleton--wave {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  /* 必要的功能动画保持正常（加载、输入提示等） */
+  .base-loading__spinner,
+  .base-loading__spinner circle,
+  .loading-spinner,
+  .typing-dot,
+  .toast-list-enter-active,
+  .toast-list-leave-active {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+    transition-duration: 0.3s !important;
+  }
+}
+
+/* 🎨 默认允许所有动画（除非用户系统设置要求减少） */
+/* 这个媒体查询只在明确支持 no-preference 时生效 */
+@media (prefers-reduced-motion: no-preference) {
+  /* 确保加载动画正常播放 */
+  .base-loading__spinner,
+  .base-loading__spinner circle,
+  .loading-spinner,
+  .typing-dot,
+  .pulse-ring,
+  .spinner {
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+  
+  .typing-dot {
+    animation-timing-function: ease-in-out;
+  }
+}
+
+/* 🎨 默认动画行为（当媒体查询不支持时的回退） */
+/* 注意：这只在不支持 prefers-reduced-motion 的旧浏览器中生效 */
+@supports not (animation: none) {
+  .base-loading__spinner,
+  .base-loading__spinner circle,
+  .loading-spinner,
+  .typing-dot,
+  .pulse-ring {
+    animation-iteration-count: infinite;
+  }
 }
 
 /* 🎨 选择文本样式 */

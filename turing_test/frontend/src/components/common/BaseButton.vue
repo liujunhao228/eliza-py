@@ -108,6 +108,11 @@ function handleClick(event: MouseEvent) {
   outline-offset: 2px;
 }
 
+.base-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .base-button:active {
   transform: translateY(0);
 }

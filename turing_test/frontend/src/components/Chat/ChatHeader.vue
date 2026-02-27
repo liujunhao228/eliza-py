@@ -224,6 +224,7 @@ function handleBack() {
   background: var(--color-primary);
   border-radius: 50%;
   animation: typingBounce 1.4s ease-in-out infinite;
+  animation-fill-mode: forwards;
 }
 
 .typing-dot:nth-child(2) {

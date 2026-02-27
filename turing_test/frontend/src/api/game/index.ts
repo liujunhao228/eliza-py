@@ -11,9 +11,6 @@ export { getSessionMessages } from './message'
 // 匹配相关
 export { startMatching, getMatchResult, leaveMatch, getMatchStatus } from './match'
 
-// 判断相关
-export { submitMidGameJudgment, makeMidGameJudgment } from './judgment'
-
 // 问卷相关
 export { submitSurvey } from './survey'
 

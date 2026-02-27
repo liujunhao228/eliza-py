@@ -32,16 +32,18 @@ class SessionState:
 class SessionStateManager:
     """
     会话状态管理器
-    
+
     功能：
     1. 内存中维护会话状态（turn_count, is_user_turn 等）
     2. 会话锁防止并发处理消息
     3. 异步持久化到数据库
+    4. 追踪开场白任务以便取消
     """
-    
+
     def __init__(self):
         self._states: Dict[int, SessionState] = {}
         self._locks: Dict[int, asyncio.Lock] = {}
+        self._opening_tasks: Dict[int, asyncio.Task] = {}  # 追踪待处理的开场白任务
     
     async def create(
         self, 
@@ -124,9 +126,38 @@ class SessionStateManager:
     
     def cleanup(self, session_id: int):
         """清理会话状态（会话结束时调用）"""
+        # 取消待处理的开场白任务
+        if session_id in self._opening_tasks:
+            task = self._opening_tasks[session_id]
+            if not task.done():
+                task.cancel()
+                logger.info(f"[SessionState] 取消开场白任务：session_id={session_id}")
+            self._opening_tasks.pop(session_id, None)
+        
         self._states.pop(session_id, None)
         self._locks.pop(session_id, None)
         logger.info(f"[SessionState] 清理：session_id={session_id}")
+
+    def register_opening_task(self, session_id: int, task: asyncio.Task):
+        """注册开场白任务"""
+        self._opening_tasks[session_id] = task
+        logger.debug(f"[SessionState] 注册开场白任务：session_id={session_id}")
+
+    def cancel_opening_task(self, session_id: int) -> bool:
+        """
+        取消开场白任务（用户先发言时调用）
+        
+        Returns:
+            是否成功取消
+        """
+        if session_id in self._opening_tasks:
+            task = self._opening_tasks[session_id]
+            if not task.done():
+                task.cancel()
+                logger.info(f"[SessionState] 取消开场白任务（用户先发言）：session_id={session_id}")
+            self._opening_tasks.pop(session_id, None)
+            return True
+        return False
 
 
 # 全局实例

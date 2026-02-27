@@ -55,7 +55,7 @@ export function useChatState() {
   })
 
   // 注册 WebSocket 消息处理器
-  function registerMessageHandlers() {
+  function registerMessageHandlers(showEndSessionToast?: () => void) {
     console.log('[Chat] 注册 WebSocket 消息处理器')
 
     // 注册 chat 消息处理器
@@ -89,15 +89,33 @@ export function useChatState() {
     // 注册 session_ended 消息处理器
     on('session_ended', () => {
       console.log('[Chat] 收到 session_ended 消息')
-      showInfo('会话已结束')
-      router.push('/survey')
+      // 显示倒计时提示
+      if (showEndSessionToast) {
+        showEndSessionToast()
+      } else {
+        // 兜底：直接跳转
+        showInfo('会话已结束')
+        router.push('/survey')
+      }
+    })
+
+    // 注册 conversation_end 消息处理器（兜底机制）
+    on('conversation_end', (data: any) => {
+      console.log('[Chat] 收到 conversation_end 消息:', data)
+      const reason = data.data?.reason || data.reason
+      
+      // 关键词触发的结束已在前端处理，这里只处理其他原因
+      if (reason !== 'user_keyword' && reason !== 'bot_keyword') {
+        showInfo('对话已结束')
+        router.push('/survey')
+      }
     })
 
     // 注册 mid_game_result 消息处理器
     on('mid_game_result', (data: any) => {
       console.log('[Chat] 收到 mid_game_result 消息:', data)
       showSuccess(`场中判断结果：${data.is_correct ? '正确' : '错误'}，积分变化：${data.final_score}`)
-      
+
       // 更新 store 状态（场中判断后隐藏身份判断和信心等级）
       // data 中包含 user_guess 和 is_correct
       const userGuess = data.data?.user_guess || data.user_guess
@@ -146,6 +164,7 @@ export function useChatState() {
       case 'error':
       case 'typing':
       case 'stop_typing':
+      case 'conversation_end':  // 已有专用处理器，忽略
         // 这些消息类型已有专用处理器，忽略
         break
 
@@ -153,6 +172,13 @@ export function useChatState() {
         // 处理其他未注册的消息类型
         console.log('[Chat] 收到未注册消息:', data.type, data.data)
     }
+  }
+
+  /**
+   * 检测是否为结束关键词
+   */
+  function isEndKeyword(content: string): boolean {
+    return content.trim().toLowerCase() === 'end'
   }
 
   // 处理聊天消息
@@ -166,6 +192,19 @@ export function useChatState() {
       timestamp: data.timestamp || new Date().toISOString(),
       isMetaConversation: data.isMetaConversation || false,
       metaKeyword: data.meta_keyword
+    }
+
+    // 检测 Bot 回复 "end" 关键词
+    if (message.sender === 'opponent' && isEndKeyword(data.content)) {
+      // 添加消息到列表（让用户看到 Bot 回复了 "end"）
+      gameStore.addMessage(message)
+      
+      // 延迟一点再结束，让用户看到 Bot 的回复
+      setTimeout(() => {
+        showInfo('对方已结束对话')
+        router.push('/survey')
+      }, 500)
+      return
     }
 
     // 检查是否是用户自己发送的消息（可能已有乐观更新）
@@ -219,8 +258,8 @@ export function useChatState() {
   }
 
   // 生命周期
-  function onMountedSetup() {
-    registerMessageHandlers()
+  function onMountedSetup(showEndSessionToast?: () => void) {
+    registerMessageHandlers(showEndSessionToast)
   }
 
   function onUnmountedSetup() {

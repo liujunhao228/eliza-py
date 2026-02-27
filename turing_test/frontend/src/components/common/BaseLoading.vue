@@ -145,8 +145,15 @@ withDefaults(defineProps<Props>(), {
   animation: spin 1s linear infinite;
 }
 
+/* 确保 circle 元素动画正常播放 */
 .base-loading__spinner circle {
   animation: dash 1.5s ease-in-out infinite;
+}
+
+/* 显式定义动画属性，确保不被覆盖 */
+.base-loading__spinner,
+.base-loading__spinner circle {
+  animation-fill-mode: forwards;
 }
 
 @keyframes spin {

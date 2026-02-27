@@ -2,7 +2,6 @@
 游戏相关 API
 
 包括：
-- 场中判断
 - 问卷提交
 - 积分历史
 - 积分预测
@@ -22,7 +21,6 @@ from pydantic import BaseModel, ConfigDict
 from turing_test.backend.database import get_db
 from turing_test.backend.models import User, Session, Message, ScoreHistory, UserStats, Survey
 from turing_test.backend.schemas import (
-    MidGameJudgmentRequest,
     SurveyRequest,
     SurveyResponse,
     GameResultResponse,
@@ -125,6 +123,7 @@ async def end_session(
         )
 
     # 获取结束原因，默认为 user_gave_up
+    # 标准化值：user_normal_end（已判断后结束）, user_gave_up（未判断放弃）, sys_timeout（超时）
     end_reason = request.get("end_reason", "user_gave_up")
 
     # 设置结束时间和原因
@@ -198,130 +197,6 @@ async def get_session_messages(
             )
             for msg in messages
         ],
-    )
-
-
-# =============================================================================
-# 场中判断
-# =============================================================================
-
-@router.post(
-    "/session/{session_id}/end-game",
-    response_model=GameResultResponse,
-    tags=["游戏"],
-    summary="场中判断",
-    description="提交场中判断，立即结束会话并结算积分",
-)
-async def submit_mid_game_judgment(
-    session_id: int,
-    request: MidGameJudgmentRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    场中判断 API
-
-    用户在游戏中途做出判断，立即结束会话并结算积分。
-    场中判断享受双倍乘数奖励/惩罚。
-    """
-    # 获取会话
-    result = await db.execute(
-        select(Session).where(Session.id == session_id)
-    )
-    session = result.scalar_one_or_none()
-
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="会话不存在",
-        )
-
-    # 检查会话是否已结束
-    if session.ended_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="会话已结束，无法重复提交",
-        )
-
-    # 获取用户
-    result = await db.execute(
-        select(User).where(User.id == session.user_id)
-    )
-    user = result.scalar_one_or_none()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="用户不存在",
-        )
-
-    # 获取元对话计数
-    meta_count = session.meta_conversation_count
-    turn = session.turn_count
-
-    # 计算积分
-    final_score, breakdown = calculate_final_score(
-        user_guess=request.user_guess,
-        opponent_type=session.opponent_type,
-        confidence_level="high",  # 场中判断固定为高信心
-        turn=turn,
-        meta_count=meta_count,
-        is_mid_game=True,  # 场中判断双倍乘数
-    )
-
-    # 更新会话
-    session.triggered_mid_game = True
-    session.confidence_level = "high"
-    session.user_guess = request.user_guess
-    session.is_correct = breakdown.is_correct
-    session.final_score = int(final_score)
-    session.score_breakdown = get_score_breakdown_dict(breakdown)
-    session.ended_at = datetime.now(timezone.utc)
-
-    # 更新用户积分
-    score_before = user.score
-    user.score += int(final_score)
-    user.score_after = user.score
-
-    if final_score > 0:
-        user.total_score_earned += int(final_score)
-    else:
-        user.total_score_lost += abs(int(final_score))
-
-    # 更新最高/最低分
-    if user.score > user.highest_score:
-        user.highest_score = user.score
-    if user.score < user.lowest_score:
-        user.lowest_score = user.score
-
-    # 记录积分历史
-    score_history = ScoreHistory(
-        user_id=user.id,
-        session_id=session.id,
-        score_change=int(final_score),
-        score_before=score_before,
-        score_after=user.score,
-        reason="mid_game_judgment",
-    )
-    db.add(score_history)
-
-    # 更新用户统计
-    await update_user_stats(db, user, session, breakdown.is_correct, meta_count)
-
-    await db.commit()
-
-    logger.info(
-        f"场中判断：user_id={user.id}, session_id={session.id}, "
-        f"guess={request.user_guess}, opponent={session.opponent_type}, "
-        f"correct={breakdown.is_correct}, score={final_score}"
-    )
-
-    return GameResultResponse(
-        session_id=session.id,
-        opponent_type=_normalize_opponent_type(session.opponent_type),
-        user_guess=request.user_guess,
-        is_correct=breakdown.is_correct,
-        final_score=int(final_score),
-        score_breakdown=get_score_breakdown_dict(breakdown),
     )
 
 

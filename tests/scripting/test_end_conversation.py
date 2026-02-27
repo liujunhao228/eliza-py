@@ -180,7 +180,7 @@ class TestYAMLScriptEngine:
 
         intent = yaml_engine._intents[intent_name]
         assert intent.end_action == "direct"
-        assert intent.end_reason == "max_turns"
+        assert intent.end_reason == "bot_max_turns"
 
     def test_parse_farewell_intent(self, yaml_engine, test_script_path):
         """测试解析告别意图"""
@@ -198,7 +198,7 @@ class TestYAMLScriptEngine:
 
         intent = yaml_engine._intents[intent_name]
         assert intent.end_action == "farewell"
-        assert intent.end_reason == "user_farewell"
+        assert intent.end_reason == "bot_farewell"
 
     def test_generate_response_with_end_action(self, yaml_engine, test_script_path):
         """测试生成带有结束动作的响应"""
@@ -308,12 +308,20 @@ class TestEndActionScenarios:
             use_ltp=False,
         )
 
-        # 模拟多轮对话
+        # 模拟多轮对话（超过 15 轮）
+        end_action = None
         for i in range(16):
             response, end_action = bot.respond_with_end_action(f"消息{i}")
+            # 前 10 轮会触发 medium_turns_end，15 轮触发 max_turns_end
+            # 这里只验证最终会触发结束动作
             if end_action and end_action.get("action") == "direct":
-                assert end_action.get("reason") == "max_turns"
+                # 可能是 bot_medium_turns (10 轮) 或 bot_max_turns (15 轮)
+                assert end_action.get("reason") in ("bot_medium_turns", "bot_max_turns")
                 break
+        
+        # 确保确实触发了结束动作
+        assert end_action is not None
+        assert end_action.get("action") == "direct"
 
 
 class TestTimeConditionChecker:

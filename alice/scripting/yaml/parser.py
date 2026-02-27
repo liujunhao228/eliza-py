@@ -35,7 +35,7 @@ class ScriptIntent:
         reassembly_rules: 重组规则
         keyword_only: 是否仅关键词匹配
         end_action: 结束对话动作 ("none" | "direct" | "farewell")
-        end_reason: 结束原因
+        end_reason: 结束原因 (使用 EndReason 枚举值，如 "bot_max_turns", "user_gave_up" 等)
         usage_count: 使用次数统计
         last_used: 最后使用时间
     """
@@ -46,7 +46,7 @@ class ScriptIntent:
     reassembly_rules: List[str] = field(default_factory=list)
     keyword_only: bool = False
     end_action: str = "none"  # "none" | "direct" | "farewell"
-    end_reason: str = ""
+    end_reason: str = ""  # 使用 EndReason 枚举值
     usage_count: int = 0
     last_used: Optional[str] = None
 

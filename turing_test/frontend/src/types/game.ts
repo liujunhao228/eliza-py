@@ -109,6 +109,21 @@ export type UserGuess = 'human' | 'ai' | 'unsure'
 // 对手类型（包含 unknown 以支持匿名机制）
 export type OpponentType = 'human' | 'ai' | 'honeypot' | 'unknown'
 
+// 结束原因
+export type EndReason =
+  | 'user_gave_up'        // 用户未判断主动放弃
+  | 'user_normal_end'     // 用户完成判断后正常结束
+  | 'user_keyword'        // 用户关键词触发（如 "end"）
+  | 'bot_keyword'         // Bot 关键词触发（如 "end"）
+  | 'bot_max_turns'       // 达到最大轮数
+  | 'bot_medium_turns'    // 达到中等轮数
+  | 'bot_defense'         // Bot 被识破/怀疑
+  | 'bot_timeout'         // 用户敷衍/无实质内容
+  | 'bot_farewell'        // 用户告别后 Bot 离开
+  | 'bot_time_limit'      // 时间过晚/过早
+  | 'sys_timeout'         // 系统超时
+  | 'sys_error'           // 系统错误
+
 // 流畅度评分（1-5）
 export type FluencyRating = 1 | 2 | 3 | 4 | 5
 

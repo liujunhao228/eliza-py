@@ -57,6 +57,7 @@ withDefaults(defineProps<Props>(), {
   border-radius: var(--rounded-xl);
   overflow: hidden;
   transition: all 0.3s ease;
+  cursor: default;
 }
 
 .base-card--bordered {
@@ -84,6 +85,11 @@ withDefaults(defineProps<Props>(), {
 .base-card--hoverable:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
+}
+
+.base-card--hoverable:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 /* 卡片头部 */

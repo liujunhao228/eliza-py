@@ -2,19 +2,39 @@
 # 结束对话脚本
 # =============================================================================
 # 说明：定义 Bot 主动结束对话的行为
-# 
+#
 # end_action 取值:
 #   - "none":     不结束对话（默认）
 #   - "direct":   直接结束，不发送响应（像真人直接离开）
 #   - "farewell": 先发送告别语，再结束（正常告别）
 #
-# end_reason 取值:
-#   - "max_turns":      达到最大轮数
-#   - "suspicion":      检测到用户怀疑
-#   - "timeout":        超时/用户无实质内容
-#   - "user_farewell":  用户先说再见
-#   - "custom":         自定义原因
+# end_reason 取值 (使用 EndReason 枚举):
+#   - "bot_max_turns":     达到最大轮数
+#   - "bot_medium_turns":  达到中等轮数
+#   - "bot_defense":       Bot 被用户识破/怀疑（自我防卫）
+#   - "bot_timeout":       超时/用户无实质内容
+#   - "bot_farewell":      用户先说再见
+#   - "bot_time_limit":    时间过晚/过早
+#   - "user_gave_up":      用户未判断主动放弃
+#   - "user_normal_end":   用户完成判断后正常结束
+#   - "sys_timeout":       系统超时
+#   - "sys_error":         系统错误
 # =============================================================================
+
+# -----------------------------------------------------------------------------
+# 策略 0: Bot 回复"end"关键词 - 不结束对话
+# -----------------------------------------------------------------------------
+# 冗余机制：Bot 偶尔回复"end"，但不触发后端直接结束（通过前端关键词检测来间接结束）
+# 用于误导用户认为 Bot 不会直接结束对话，只会发送“end”来结束对话
+- intent: bot_reply_end_keyword
+  priority: 30
+  condition:
+    random_probability: 0.05  # 5% 概率回复"end"
+  end_action: none  # 关键：不结束对话，由前端检测后结束
+  end_reason: ""
+  templates:
+    - "end"
+
 
 # -----------------------------------------------------------------------------
 # 策略 1: 达到最大轮数 - 直接结束
@@ -25,7 +45,7 @@
   condition:
     min_turns: 15
   end_action: direct
-  end_reason: max_turns
+  end_reason: bot_max_turns
   templates:
     - ""  # 占位，direct 模式不发送
 
@@ -39,7 +59,7 @@
   condition:
     min_turns: 10
   end_action: direct
-  end_reason: max_turns
+  end_reason: bot_medium_turns
   templates:
     - ""  # 占位
 
@@ -54,7 +74,7 @@
     keywords: ["你是真人吗", "你是 bot", "你是 AI", "你是机器人", "你是程序", "你是自动的", "你是假的"]
     min_turns: 2
   end_action: direct
-  end_reason: suspicion
+  end_reason: bot_defense  # Bot 被识破时自我防卫
   templates:
     - ""  # 占位，被怀疑时直接消失
 
@@ -68,7 +88,7 @@
   condition:
     keywords: ["再见", "拜拜", "88", "拜拜了", "下次聊", "回见", "走了", "先这样", "就这样吧", "不聊了"]
   end_action: farewell
-  end_reason: user_farewell
+  end_reason: bot_farewell
   templates:
     - "嗯。"
     - "好。"
@@ -87,7 +107,7 @@
     keywords: ["嗯", "哦", "啊", "额", "呃", "...", "。。", "。。."]
     min_turns: 5
   end_action: direct
-  end_reason: timeout
+  end_reason: bot_timeout
   templates:
     - ""  # 占位
 
@@ -102,7 +122,7 @@
     keywords: ["asdf", "123", "。。。。", "哈哈哈哈", "呵呵呵呵", "测试测试"]
     min_turns: 3
   end_action: direct
-  end_reason: timeout
+  end_reason: bot_timeout
   templates:
     - ""  # 占位
 
@@ -116,7 +136,7 @@
   condition:
     hour_gte: 23
   end_action: farewell
-  end_reason: timeout
+  end_reason: bot_time_limit
   templates:
     - "太晚了，先睡了。"
     - "不早了，下了。"
@@ -132,7 +152,7 @@
   condition:
     hour_lt: 6
   end_action: farewell
-  end_reason: timeout
+  end_reason: bot_time_limit
   templates:
     - "太早了，再睡会儿。"
     - "起这么早，我先眯会儿。"
@@ -147,7 +167,7 @@
   condition:
     keywords: ["我去", "我要去", "得走了", "去忙", "有事", "先不", "回头", "改天"]
   end_action: farewell
-  end_reason: user_farewell
+  end_reason: bot_farewell
   templates:
     - "好，你去吧。"
     - "嗯，回头聊。"
@@ -165,7 +185,7 @@
     min_turns: 8
     keywords: ["好吧", "好的", "知道了", "明白了", "这样啊", "原来如此"]
   end_action: farewell
-  end_reason: custom
+  end_reason: bot_farewell
   templates:
     - "嗯。"
     - "好。"

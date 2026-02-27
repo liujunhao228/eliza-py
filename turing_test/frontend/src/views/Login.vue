@@ -6,8 +6,58 @@
         <p class="subtitle">你是一个对话者，还是被测试的 AI？</p>
       </div>
 
-      <!-- 步骤 1：验证邀请码 -->
-      <div v-if="step === 1" class="step">
+      <!-- 登录/注册切换 -->
+      <div class="tab-switcher">
+        <button
+          :class="['tab-btn', { active: mode === 'register' }]"
+          @click="switchMode('register')"
+        >
+          注册
+        </button>
+        <button
+          :class="['tab-btn', { active: mode === 'login' }]"
+          @click="switchMode('login')"
+        >
+          登录
+        </button>
+      </div>
+
+      <!-- 登录模式 -->
+      <div v-if="mode === 'login'" class="step">
+        <h3>已有账号？直接登录</h3>
+        <BaseInput
+          v-model="loginForm.username"
+          placeholder="请输入昵称"
+          :maxlength="20"
+          size="large"
+          clearable
+          @keydown.enter="handleLogin"
+        />
+
+        <BaseInput
+          v-model="loginForm.password"
+          type="password"
+          placeholder="请输入密码"
+          :maxlength="72"
+          size="large"
+          clearable
+          @keydown.enter="handleLogin"
+        />
+
+        <BaseButton
+          type="primary"
+          size="large"
+          :loading="loading"
+          block
+          @click="handleLogin"
+        >
+          登录
+        </BaseButton>
+        <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+      </div>
+
+      <!-- 注册模式：步骤 1：验证邀请码 -->
+      <div v-if="mode === 'register' && step === 1" class="step">
         <h3>请输入邀请码</h3>
         <BaseInput
           v-model="inviteCode"
@@ -29,12 +79,12 @@
         <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
       </div>
 
-      <!-- 步骤 2：设置昵称 -->
-      <div v-if="step === 2" class="step">
-        <h3>设置你的昵称</h3>
+      <!-- 注册模式：步骤 2：设置昵称和密码 -->
+      <div v-if="mode === 'register' && step === 2" class="step">
+        <h3>设置你的昵称和密码</h3>
         <BaseInput
           v-model="nickname"
-          :placeholder="defaultNickname"
+          placeholder="请输入昵称"
           :maxlength="20"
           :minlength="2"
           size="large"
@@ -42,6 +92,29 @@
           @keydown.enter="registerUser"
         />
         <p class="hint-text">昵称长度 2-20 个字符，仅支持中文、英文、数字和#符号</p>
+
+        <BaseInput
+          v-model="password"
+          type="password"
+          placeholder="请输入密码（至少 8 位，包含大小写字母和数字）"
+          :maxlength="72"
+          :minlength="8"
+          size="large"
+          clearable
+          @keydown.enter="registerUser"
+        />
+        <p class="hint-text">密码长度 8-72 位，需包含大小写字母和数字</p>
+
+        <BaseInput
+          v-model="confirmPassword"
+          type="password"
+          placeholder="请再次输入密码"
+          :maxlength="72"
+          size="large"
+          clearable
+          @keydown.enter="registerUser"
+        />
+
         <BaseButton
           type="primary"
           size="large"
@@ -84,14 +157,61 @@ const router = useRouter()
 const userStore = useUserStore()
 
 // 状态
+const mode = ref<'login' | 'register'>('register')
 const step = ref(1)
 const inviteCode = ref('')
 const nickname = ref('')
+const password = ref('')
+const confirmPassword = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
 
+// 登录表单
+const loginForm = ref({
+  username: '',
+  password: ''
+})
+
 // 生成默认昵称
 const defaultNickname = `访客#${Math.floor(100 + Math.random() * 900)}`
+
+// 切换登录/注册模式
+function switchMode(newMode: 'login' | 'register') {
+  mode.value = newMode
+  errorMessage.value = ''
+}
+
+// 登录处理
+async function handleLogin() {
+  if (!loginForm.value.username.trim()) {
+    errorMessage.value = '请输入昵称'
+    return
+  }
+
+  if (!loginForm.value.password) {
+    errorMessage.value = '请输入密码'
+    return
+  }
+
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    // 使用账号密码登录
+    const response = await login(
+      '',  // 邀请码为空，表示直接登录
+      loginForm.value.username.trim(),
+      loginForm.value.password,
+      true  // 标记为登录模式
+    )
+    userStore.setLoginResponse(response)
+    router.push('/lobby')
+  } catch (error: any) {
+    errorMessage.value = error.message || '登录失败'
+  } finally {
+    loading.value = false
+  }
+}
 
 // 验证昵称格式
 function validateNickname(nick: string): boolean {
@@ -134,6 +254,41 @@ async function verifyCode() {
   }
 }
 
+// 验证密码格式
+function validatePassword(pwd: string): boolean {
+  // 长度检查
+  if (pwd.length < 8) {
+    errorMessage.value = '密码长度至少 8 位'
+    return false
+  }
+
+  // bcrypt 限制最大 72 字节
+  if (pwd.length > 72) {
+    errorMessage.value = '密码长度不能超过 72 位'
+    return false
+  }
+
+  // 包含大写字母
+  if (!/[A-Z]/.test(pwd)) {
+    errorMessage.value = '密码必须包含大写字母'
+    return false
+  }
+
+  // 包含小写字母
+  if (!/[a-z]/.test(pwd)) {
+    errorMessage.value = '密码必须包含小写字母'
+    return false
+  }
+
+  // 包含数字
+  if (!/[0-9]/.test(pwd)) {
+    errorMessage.value = '密码必须包含数字'
+    return false
+  }
+
+  return true
+}
+
 // 登录/注册
 async function registerUser() {
   if (!nickname.value.trim()) {
@@ -146,11 +301,31 @@ async function registerUser() {
     return
   }
 
+  // 验证密码
+  if (!password.value) {
+    errorMessage.value = '请输入密码'
+    return
+  }
+
+  if (!validatePassword(password.value)) {
+    return
+  }
+
+  // 验证确认密码
+  if (password.value !== confirmPassword.value) {
+    errorMessage.value = '两次输入的密码不一致'
+    return
+  }
+
   loading.value = true
 
   try {
-    // 直接登录，如果用户不存在会自动创建，同时传递昵称
-    const response = await login(inviteCode.value.trim().toUpperCase(), nickname.value.trim())
+    // 直接登录，如果用户不存在会自动创建，同时传递昵称和密码
+    const response = await login(
+      inviteCode.value.trim().toUpperCase(),
+      nickname.value.trim(),
+      password.value
+    )
     userStore.setLoginResponse(response)
     errorMessage.value = ''
     router.push('/lobby')
@@ -188,7 +363,7 @@ async function registerUser() {
 
 .header {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 
 .header h1 {
@@ -201,6 +376,40 @@ async function registerUser() {
   font-size: 16px;
   color: var(--text-secondary);
   margin: 0;
+}
+
+/* 登录/注册切换标签 */
+.tab-switcher {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 4px;
+  background: var(--bg-tertiary);
+  border-radius: var(--rounded-lg);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--rounded-md);
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.tab-btn.active {
+  background: var(--color-primary-gradient);
+  color: white;
+  box-shadow: var(--shadow-sm);
 }
 
 .step {

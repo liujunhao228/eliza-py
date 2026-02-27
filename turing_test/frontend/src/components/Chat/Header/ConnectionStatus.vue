@@ -127,6 +127,22 @@ const iconClass = computed(() => ({
 }
 
 /* 动画 */
+.status-icon-disconnected {
+  animation: pulse 2s ease-in-out infinite;
+  animation-fill-mode: forwards;
+}
+
+.status-icon-connecting,
+.status-icon-reconnecting {
+  animation: spin 1.5s linear infinite;
+  animation-fill-mode: forwards;
+}
+
+.status-icon-error {
+  animation: shake 0.5s ease-in-out;
+  animation-fill-mode: forwards;
+}
+
 @keyframes pulse {
   0%, 100% {
     opacity: 1;

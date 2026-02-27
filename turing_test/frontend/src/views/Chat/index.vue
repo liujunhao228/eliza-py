@@ -35,6 +35,8 @@
             role="button"
             aria-label="滚动到底部"
             tabindex="0"
+            @keydown.enter="scrollToBottom"
+            @keydown.space.prevent="scrollToBottom"
           >
             <el-icon><Bottom /></el-icon>
           </div>
@@ -67,6 +69,14 @@
       @cancel="showEndSessionModal = false"
       @confirm="handleConfirmEndSession"
     />
+
+    <!-- 结束对话倒计时提示 -->
+    <EndSessionToast
+      ref="endSessionToastRef"
+      :duration="5"
+      redirect-url="/survey"
+      @countdown-end="handleCountdownEnd"
+    />
   </div>
 </template>
 
@@ -82,6 +92,7 @@ import MessageList from '@/components/Chat/MessageList.vue'
 import ChatInput from '@/components/Chat/ChatInput.vue'
 import MidGameJudgmentModal from '@/components/Chat/MidGameJudgmentModal.vue'
 import EndSessionModal from '@/components/Chat/EndSessionModal.vue'
+import EndSessionToast from '@/components/Chat/EndSessionToast.vue'
 import { useChatState } from './composables/useChatState'
 import { useMessageHandler } from './composables/useMessageHandler'
 import { useScroll } from './composables/useScroll'
@@ -95,6 +106,7 @@ const userStore = useUserStore()
 // 本地状态
 const showEndSessionModal = ref(false)
 const isEndingSession = ref(false)
+const endSessionToastRef = ref<InstanceType<typeof EndSessionToast> | null>(null)
 
 // 计算是否已做判断（根据 triggeredMidGame 判断）
 const hasMadeJudgment = computed(() => {
@@ -177,6 +189,16 @@ const handleConfirmEndSession = async () => {
   }
 }
 
+// 处理倒计时结束
+const handleCountdownEnd = () => {
+  console.log('[Chat] 倒计时结束，即将跳转')
+}
+
+// 导出显示倒计时提示的方法给 useChatState 使用
+const showEndSessionToast = () => {
+  endSessionToastRef.value?.show()
+}
+
 // 生命周期
 onMounted(async () => {
   // 检查用户登录状态
@@ -197,7 +219,7 @@ onMounted(async () => {
   await loadHistoryMessages()
 
   // 注册 WebSocket 消息处理器
-  chatStateOnMounted()
+  chatStateOnMounted(showEndSessionToast)
 
   // 手动连接 WebSocket
   if (canConnect.value) {

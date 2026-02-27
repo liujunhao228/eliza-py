@@ -31,6 +31,13 @@ export function useMessageHandler() {
   const pendingMessages = ref<Set<string>>(new Set())
 
   /**
+   * 检测是否为结束关键词
+   */
+  function isEndKeyword(content: string): boolean {
+    return content.trim().toLowerCase() === 'end'
+  }
+
+  /**
    * 发送消息
    */
   async function handleSendMessage(content: string, sendFn: (type: string, data: any) => void): Promise<void> {
@@ -41,6 +48,13 @@ export function useMessageHandler() {
     }
     if (!userStore.userId) {
       showError('用户未登录')
+      return
+    }
+
+    // 检测结束关键词 "end"
+    if (isEndKeyword(content)) {
+      // 用户发送 "end" 时直接结束会话，不发送实际消息
+      await handleEndChat('user_keyword')
       return
     }
 

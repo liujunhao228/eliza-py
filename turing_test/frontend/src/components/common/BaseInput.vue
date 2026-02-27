@@ -212,6 +212,7 @@ function togglePasswordVisible() {
   border-radius: var(--rounded-md);
   padding: 10px 14px;
   transition: all 0.2s ease;
+  cursor: text;
 }
 
 .base-input:hover:not(:disabled) {
@@ -219,6 +220,12 @@ function togglePasswordVisible() {
 }
 
 .base-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.base-input:focus-visible {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);

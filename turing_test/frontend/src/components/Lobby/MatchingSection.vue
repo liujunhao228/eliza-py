@@ -134,6 +134,7 @@ defineExpose({
   border-top-color: var(--color-primary-600);
   border-radius: var(--rounded-full);
   animation: spin 1s linear infinite;
+  animation-fill-mode: forwards;
 }
 
 .pulse-ring {
@@ -145,6 +146,7 @@ defineExpose({
   border: 3px solid rgba(99, 102, 241, 0.3);
   border-radius: var(--rounded-full);
   animation: pulse 2s ease-in-out infinite;
+  animation-fill-mode: forwards;
 }
 
 @keyframes spin {

@@ -223,30 +223,34 @@ class TestProfileDelayMultiplier(unittest.TestCase):
 class TestDelayConfigLoading(unittest.TestCase):
     """延迟配置加载测试"""
 
-    @patch('turing_test.backend.services.ai_bot_service.settings')
-    def test_load_delay_config_from_settings(self, mock_settings):
+    @patch('config.manager.get_config_manager')
+    def test_load_delay_config_from_settings(self, mock_get_config_manager):
         """测试从配置加载延迟设置"""
-        # 模拟配置对象
-        mock_settings.turing = {
-            'ai_bot': {
-                'reply_delay_min': 1.5,
-                'reply_delay_max': 4.0,
-                'opening_delay_min': 3.0,
-                'opening_delay_max': 6.0,
-                'typing_delay_per_char': 0.06,
-                'honeypot': {
-                    'reply_delay_min': 3.0,
-                    'reply_delay_max': 10.0,
-                    'opening_delay_min': 6.0,
-                    'opening_delay_max': 20.0,
-                    'occasional_long_delay_probability': 0.15,
-                    'occasional_long_delay_min': 20.0,
-                    'occasional_long_delay_max': 90.0,
-                    'meta_delay_multiplier': 2.0,
-                    'early_session_delay_multiplier': 1.5,
+        # 模拟配置管理器
+        mock_config_mgr = MagicMock()
+        mock_config_mgr._config = {
+            'turing': {
+                'ai_bot': {
+                    'reply_delay_min': 1.5,
+                    'reply_delay_max': 4.0,
+                    'opening_delay_min': 3.0,
+                    'opening_delay_max': 6.0,
+                    'typing_delay_per_char': 0.06,
+                    'honeypot': {
+                        'reply_delay_min': 3.0,
+                        'reply_delay_max': 10.0,
+                        'opening_delay_min': 6.0,
+                        'opening_delay_max': 20.0,
+                        'occasional_long_delay_probability': 0.15,
+                        'occasional_long_delay_min': 20.0,
+                        'occasional_long_delay_max': 90.0,
+                        'meta_delay_multiplier': 2.0,
+                        'early_session_delay_multiplier': 1.5,
+                    }
                 }
             }
         }
+        mock_get_config_manager.return_value = mock_config_mgr
 
         # 导入并测试
         from turing_test.backend.services.ai_bot_service import AIBotService
@@ -333,3 +337,175 @@ class TestIntegration(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestOpeningTaskCancellation(unittest.TestCase):
+    """开场白任务取消逻辑测试"""
+
+    def test_session_state_manager_tracks_opening_task(self):
+        """测试 SessionStateManager 追踪开场白任务"""
+        from turing_test.backend.services.session_state import session_state_manager
+        import asyncio
+
+        async def run_test():
+            # 创建会话状态
+            await session_state_manager.create(
+                session_id=999,
+                user_id=1,
+                is_honeypot=False,
+                opponent_type="ai"
+            )
+
+            # 创建模拟任务
+            async def dummy_task():
+                await asyncio.sleep(10)
+
+            task = asyncio.create_task(dummy_task())
+
+            # 注册任务
+            session_state_manager.register_opening_task(999, task)
+
+            # 验证任务已注册
+            self.assertIn(999, session_state_manager._opening_tasks)
+            self.assertEqual(session_state_manager._opening_tasks[999], task)
+
+            # 清理
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            session_state_manager.cleanup(999)
+
+        asyncio.run(run_test())
+
+    def test_cancel_opening_task_success(self):
+        """测试成功取消开场白任务"""
+        from turing_test.backend.services.session_state import session_state_manager
+        import asyncio
+
+        async def run_test():
+            # 创建会话状态
+            await session_state_manager.create(
+                session_id=888,
+                user_id=1,
+                is_honeypot=False,
+                opponent_type="ai"
+            )
+
+            # 创建待处理任务
+            async def long_task():
+                try:
+                    await asyncio.sleep(10)
+                    return False  # 如果正常完成返回 False
+                except asyncio.CancelledError:
+                    # 被取消时重新抛出
+                    raise
+
+            task = asyncio.create_task(long_task())
+
+            # 注册任务
+            session_state_manager.register_opening_task(888, task)
+
+            # 取消任务
+            result = session_state_manager.cancel_opening_task(888)
+
+            # 验证取消成功
+            self.assertTrue(result)
+            self.assertNotIn(888, session_state_manager._opening_tasks)
+
+            # 等待任务处理取消并验证
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass  # 预期行为
+
+            # 验证任务已取消
+            self.assertTrue(task.cancelled())
+
+            # 清理
+            session_state_manager.cleanup(888)
+
+        asyncio.run(run_test())
+
+    def test_cancel_nonexistent_task(self):
+        """测试取消不存在的任务"""
+        from turing_test.backend.services.session_state import session_state_manager
+
+        # 取消不存在的任务应该返回 False
+        result = session_state_manager.cancel_opening_task(999999)
+        self.assertFalse(result)
+
+    def test_cleanup_cancels_opening_task(self):
+        """测试 cleanup 时会取消待处理的开场白任务"""
+        from turing_test.backend.services.session_state import session_state_manager
+        import asyncio
+
+        async def run_test():
+            # 创建会话状态
+            await session_state_manager.create(
+                session_id=777,
+                user_id=1,
+                is_honeypot=False,
+                opponent_type="ai"
+            )
+
+            # 创建待处理任务
+            async def long_task():
+                try:
+                    await asyncio.sleep(10)
+                    return False
+                except asyncio.CancelledError:
+                    raise
+
+            task = asyncio.create_task(long_task())
+
+            # 注册任务
+            session_state_manager.register_opening_task(777, task)
+
+            # 清理会话
+            session_state_manager.cleanup(777)
+
+            # 等待任务处理取消
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass  # 预期行为
+
+            # 验证任务已取消
+            self.assertTrue(task.cancelled())
+
+        asyncio.run(run_test())
+
+    def test_cancel_completed_task(self):
+        """测试取消已完成的任务"""
+        from turing_test.backend.services.session_state import session_state_manager
+        import asyncio
+
+        async def run_test():
+            # 创建会话状态
+            await session_state_manager.create(
+                session_id=666,
+                user_id=1,
+                is_honeypot=False,
+                opponent_type="ai"
+            )
+
+            # 创建立即完成的任务
+            async def immediate_task():
+                return "done"
+
+            task = asyncio.create_task(immediate_task())
+            await task  # 等待任务完成
+
+            # 注册已完成的任务
+            session_state_manager.register_opening_task(666, task)
+
+            # 取消已完成的任务应该返回 True（因为从字典中移除了）
+            result = session_state_manager.cancel_opening_task(666)
+            self.assertTrue(result)
+
+            # 清理
+            session_state_manager.cleanup(666)
+
+        asyncio.run(run_test())

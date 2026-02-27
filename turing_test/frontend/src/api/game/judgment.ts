@@ -1,32 +1,9 @@
 /**
- * 判断相关 API
+ * 场中判断相关 API
  *
- * 负责：
- * - 场中判断（立即结束）
- * - 场中判断（不结束对话）
+ * 注意：场中判断通过 WebSocket 实现，不使用 REST API
+ * 此文件已废弃，保留仅供参考
+ *
+ * WebSocket 使用方式:
+ * send('mid_game_judgment', { user_guess: 'human' | 'ai' })
  */
-
-import api from '../index'
-import type { MidGameJudgmentResponse } from '@/types'
-
-/**
- * 场中判断（立即结束）
- */
-export async function submitMidGameJudgment(
-  sessionId: number,
-  userGuess: 'human' | 'ai'
-): Promise<MidGameJudgmentResponse> {
-  return api.post(`/session/${sessionId}/end-game`, { user_guess: userGuess })
-}
-
-/**
- * 场中判断（不结束对话）
- * @param sessionId 会话 ID
- * @param userGuess 用户猜测
- */
-export async function makeMidGameJudgment(
-  sessionId: number,
-  userGuess: 'human' | 'ai'
-): Promise<{ is_correct: boolean; score_change: number }> {
-  return api.post(`/game/${sessionId}/mid-game`, { guess: userGuess })
-}
