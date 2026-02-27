@@ -475,33 +475,34 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* ===== CSS 变量 ===== */
+/* ===== CSS 变量映射到主题系统 ===== */
 .shared-session-page {
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-success: #10b981;
-  --color-error: #ef4444;
-  --color-warning: #f59e0b;
-  --color-text-primary: #1f2937;
-  --color-text-secondary: #6b7280;
-  --color-text-tertiary: #9ca3af;
-  --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f9fafb;
-  --color-bg-tertiary: #f3f4f6;
-  --color-border: #e5e7eb;
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  /* 映射到主题变量 */
+  --color-primary: var(--color-primary-600);
+  --color-primary-hover: var(--color-primary-700);
+  --color-success: var(--color-green-500);
+  --color-error: var(--color-red-500);
+  --color-warning: var(--color-amber-500);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  --color-border: var(--border-primary);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --radius-sm: var(--rounded);
+  --radius-md: var(--rounded-md);
+  --radius-lg: var(--rounded-lg);
+  --radius-xl: var(--rounded-xl);
 }
 
 .shared-session-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
   padding: 0;
   margin: 0;
 }
@@ -573,12 +574,12 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-  color: #065f46;
-  border-radius: 20px;
+  background: linear-gradient(135deg, var(--color-green-50) 0%, var(--color-green-100) 100%);
+  color: var(--color-green-800);
+  border-radius: var(--rounded-full);
   font-size: 12px;
   font-weight: 500;
-  border: 1px solid #a7f3d0;
+  border: 1px solid var(--color-green-300);
 }
 
 .share-badge svg {
@@ -679,11 +680,11 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-  border: 1px solid #fcd34d;
+  background: linear-gradient(135deg, var(--color-amber-50) 0%, var(--color-amber-100) 100%);
+  border: 1px solid var(--color-amber-300);
   border-radius: var(--radius-lg);
   padding: 16px 20px;
-  color: #92400e;
+  color: var(--color-amber-800);
   margin-bottom: 24px;
   font-size: 14px;
   font-weight: 500;
@@ -747,15 +748,15 @@ onMounted(() => {
 }
 
 .opponent-badge.human {
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-  color: #1e40af;
-  border: 1px solid #93c5fd;
+  background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-primary-100) 100%);
+  color: var(--color-primary-800);
+  border: 1px solid var(--color-primary-300);
 }
 
 .opponent-badge.ai {
-  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-  color: #3730a3;
-  border: 1px solid #a5b4fc;
+  background: linear-gradient(135deg, var(--color-purple-50) 0%, var(--color-purple-100) 100%);
+  color: var(--color-purple-800);
+  border: 1px solid var(--color-purple-300);
 }
 
 .opponent-badge svg {
@@ -939,15 +940,15 @@ onMounted(() => {
 }
 
 .user-avatar {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-700) 100%);
   color: white;
-  border-color: #2563eb;
+  border-color: var(--color-primary-700);
 }
 
 .opponent-avatar {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, var(--color-green-500) 0%, var(--color-green-700) 100%);
   color: white;
-  border-color: #059669;
+  border-color: var(--color-green-700);
 }
 
 .message-body {
@@ -974,7 +975,7 @@ onMounted(() => {
 }
 
 .message-opponent .message-sender-name {
-  color: #059669;
+  color: var(--color-green-700);
 }
 
 .meta-tag {
@@ -1011,15 +1012,15 @@ onMounted(() => {
 }
 
 .message-user .message-content {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-700) 100%);
   color: white;
-  border-bottom-right-radius: 4px;
+  border-bottom-right-radius: var(--rounded-sm);
 }
 
 .message-opponent .message-content {
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-bottom-left-radius: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-bottom-left-radius: var(--rounded-sm);
 }
 
 /* ===== 页脚 ===== */

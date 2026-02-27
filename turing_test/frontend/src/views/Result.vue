@@ -163,7 +163,7 @@ function viewHistory() {
 <style scoped>
 .result-page {
   min-height: 100vh;
-  background: var(--color-primary-gradient);
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-purple-600) 100%);
   padding: 20px;
   display: flex;
   align-items: center;

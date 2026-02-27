@@ -115,12 +115,12 @@ function selectConfidence(level: ConfidenceLevel) {
   gap: 8px;
   font-size: 16px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
 }
 
 .label-tip {
   font-size: 12px;
-  color: #909399;
+  color: var(--text-secondary);
   font-weight: normal;
 }
 
@@ -133,47 +133,47 @@ function selectConfidence(level: ConfidenceLevel) {
 .confidence-option {
   position: relative;
   padding: 20px 16px;
-  border: 2px solid #e4e7ed;
-  border-radius: 12px;
+  border: 2px solid var(--border-primary);
+  border-radius: var(--rounded-lg);
   cursor: pointer;
   transition: all 0.3s;
-  background: white;
+  background: var(--bg-surface);
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
 .confidence-option:hover {
-  border-color: #409eff;
+  border-color: var(--color-primary-600);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
 }
 
 .confidence-option.selected {
-  border-color: #67c23a;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  box-shadow: 0 4px 16px rgba(103, 194, 58, 0.3);
+  border-color: var(--color-success);
+  background: linear-gradient(135deg, var(--color-green-50) 0%, var(--color-green-100) 100%);
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3);
 }
 
 /* 低信心配色 */
 .confidence-option.low.selected {
-  border-color: #909399;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ed 100%);
-  box-shadow: 0 4px 16px rgba(144, 147, 153, 0.3);
+  border-color: var(--text-tertiary);
+  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  box-shadow: 0 4px 16px rgba(148, 163, 184, 0.3);
 }
 
 /* 中信心配色 */
 .confidence-option.mid.selected {
-  border-color: #409eff;
-  background: linear-gradient(135deg, #ecf5ff 0%, #d9ecff 100%);
-  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.3);
+  border-color: var(--color-primary-600);
+  background: linear-gradient(135deg, var(--color-primary-50) 0%, var(--color-primary-100) 100%);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
 }
 
 /* 高信心配色 */
 .confidence-option.high.selected {
-  border-color: #67c23a;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  box-shadow: 0 4px 16px rgba(103, 194, 58, 0.3);
+  border-color: var(--color-success);
+  background: linear-gradient(135deg, var(--color-green-50) 0%, var(--color-green-100) 100%);
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3);
 }
 
 .option-header {
@@ -187,21 +187,21 @@ function selectConfidence(level: ConfidenceLevel) {
 }
 
 .confidence-option.low .option-icon {
-  color: #909399;
+  color: var(--text-tertiary);
 }
 
 .confidence-option.mid .option-icon {
-  color: #409eff;
+  color: var(--color-primary-600);
 }
 
 .confidence-option.high .option-icon {
-  color: #67c23a;
+  color: var(--color-success);
 }
 
 .option-title {
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
 }
 
 .option-description {
@@ -213,12 +213,12 @@ function selectConfidence(level: ConfidenceLevel) {
 .multiplier {
   font-size: 14px;
   font-weight: 600;
-  color: #e6a23c;
+  color: var(--color-amber-500);
 }
 
 .desc-text {
   font-size: 12px;
-  color: #606266;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -227,18 +227,18 @@ function selectConfidence(level: ConfidenceLevel) {
   flex-direction: column;
   gap: 4px;
   padding-top: 8px;
-  border-top: 1px dashed #dcdfe6;
+  border-top: 1px dashed var(--border-tertiary);
 }
 
 .score-correct {
   font-size: 14px;
-  color: #67c23a;
+  color: var(--color-success);
   font-weight: 600;
 }
 
 .score-wrong {
   font-size: 14px;
-  color: #f56c6c;
+  color: var(--color-error);
   font-weight: 600;
 }
 

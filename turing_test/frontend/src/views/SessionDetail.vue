@@ -174,21 +174,23 @@ onMounted(async () => {
 
 .back-btn {
   padding: 8px 16px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: white;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--rounded-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 14px;
+  transition: all 0.2s ease;
 }
 
 .back-btn:hover {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
 }
 
 .header h1 {
   font-size: 20px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .header-actions {
@@ -206,31 +208,33 @@ onMounted(async () => {
 }
 
 .btn-primary {
-  background: #007bff;
+  background: var(--color-primary-gradient);
   color: white;
 }
 
 .btn-primary:hover {
-  background: #0056b3;
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
 }
 
 .btn-secondary {
-  background: #6c757d;
-  color: white;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
 }
 
 .btn-secondary:hover {
-  background: #545b62;
+  background: var(--bg-secondary);
+  border-color: var(--border-secondary);
 }
 
 .loading, .error {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .error {
-  color: #dc3545;
+  color: var(--color-error);
 }
 
 .stats-bar {
@@ -238,8 +242,8 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: 20px;
   padding: 15px;
-  background: #f8f9fa;
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--rounded-lg);
   margin-bottom: 20px;
 }
 
@@ -251,29 +255,29 @@ onMounted(async () => {
 
 .stat-label {
   font-size: 12px;
-  color: #666;
+  color: var(--text-tertiary);
 }
 
 .stat-value {
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .score.positive {
-  color: #28a745;
+  color: var(--color-success);
 }
 
 .score.negative {
-  color: #dc3545;
+  color: var(--color-error);
 }
 
 .correct-text {
-  color: #28a745;
+  color: var(--color-success);
 }
 
 .incorrect-text {
-  color: #dc3545;
+  color: var(--color-error);
 }
 
 .messages-container {
@@ -281,8 +285,8 @@ onMounted(async () => {
   flex-direction: column;
   gap: 15px;
   padding: 20px;
-  background: #f8f9fa;
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--rounded-lg);
   max-height: 600px;
   overflow-y: auto;
 }
@@ -290,19 +294,20 @@ onMounted(async () => {
 .message {
   max-width: 70%;
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: var(--rounded-lg);
 }
 
 .message-user {
   align-self: flex-end;
-  background: #007bff;
+  background: var(--color-primary-gradient);
   color: white;
 }
 
 .message-opponent {
   align-self: flex-start;
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
 }
 
 .message-sender {
@@ -317,8 +322,9 @@ onMounted(async () => {
 .meta-tag {
   font-size: 10px;
   padding: 2px 6px;
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
+  background: var(--bg-tertiary);
+  border-radius: var(--rounded-sm);
+  color: var(--text-secondary);
 }
 
 .message-content {
@@ -333,5 +339,6 @@ onMounted(async () => {
   opacity: 0.7;
   margin-top: 6px;
   text-align: right;
+  color: var(--text-tertiary);
 }
 </style>

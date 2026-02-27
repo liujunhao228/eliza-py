@@ -241,35 +241,37 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* ===== CSS 变量 ===== */
+/* ===== CSS 变量映射到主题系统 ===== */
 .modal-overlay {
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-success: #10b981;
-  --color-error: #ef4444;
-  --color-warning: #f59e0b;
-  --color-text-primary: #1f2937;
-  --color-text-secondary: #6b7280;
-  --color-text-tertiary: #9ca3af;
-  --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f9fafb;
-  --color-bg-tertiary: #f3f4f6;
-  --color-border: #e5e7eb;
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  /* 映射到主题变量 */
+  --color-primary: var(--color-primary-600);
+  --color-primary-hover: var(--color-primary-700);
+  --color-success: var(--color-green-500);
+  --color-error: var(--color-red-500);
+  --color-warning: var(--color-amber-500);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  --color-bg-surface: var(--bg-surface);
+  --color-border: var(--border-primary);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --radius-sm: var(--rounded);
+  --radius-md: var(--rounded-md);
+  --radius-lg: var(--rounded-lg);
+  --radius-xl: var(--rounded-xl);
 }
 
 /* ===== 模态框 overlay ===== */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -295,7 +297,7 @@ onMounted(async () => {
 
 /* ===== 模态框主体 ===== */
 .modal {
-  background: var(--color-bg-primary);
+  background: var(--bg-surface);
   border-radius: var(--radius-xl);
   width: 100%;
   max-width: 520px;
@@ -310,10 +312,10 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-primary);
   position: sticky;
   top: 0;
-  background: var(--color-bg-primary);
+  background: var(--bg-surface);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   z-index: 10;
 }
@@ -347,13 +349,13 @@ onMounted(async () => {
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  color: var(--color-text-tertiary);
+  color: var(--text-tertiary);
   transition: all 0.2s ease;
 }
 
 .close-btn:hover {
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-primary);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .close-btn svg {
@@ -373,7 +375,7 @@ onMounted(async () => {
 
 .skeleton-card {
   height: 120px;
-  background: var(--color-bg-tertiary);
+  background: var(--bg-tertiary);
   border-radius: var(--radius-lg);
   animation: pulse 1.5s ease-in-out infinite;
 }
@@ -400,7 +402,7 @@ onMounted(async () => {
 }
 
 .error-message {
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   font-size: 14px;
   margin: 0;
 }
@@ -411,7 +413,7 @@ onMounted(async () => {
   gap: 12px;
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--border-primary);
 }
 
 /* ===== 模态框底部 ===== */
@@ -420,8 +422,8 @@ onMounted(async () => {
   justify-content: flex-end;
   gap: 12px;
   padding: 16px 24px;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
   border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   position: sticky;
   bottom: 0;
@@ -464,14 +466,14 @@ onMounted(async () => {
 }
 
 .btn-secondary {
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
 }
 
 .btn-secondary:hover {
-  background: var(--color-bg-tertiary);
-  border-color: var(--color-text-tertiary);
+  background: var(--bg-tertiary);
+  border-color: var(--border-tertiary);
 }
 
 .btn-danger {
@@ -482,7 +484,7 @@ onMounted(async () => {
 }
 
 .btn-danger:hover {
-  background: #dc2626;
+  background: var(--color-red-600);
   box-shadow: var(--shadow-md);
 }
 

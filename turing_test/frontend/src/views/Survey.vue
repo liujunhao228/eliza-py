@@ -266,7 +266,7 @@ onMounted(() => {
 
 .survey-page {
   min-height: 100vh;
-  background: var(--color-primary-gradient);
+  background: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-purple-600) 100%);
   padding: 20px;
   display: flex;
   align-items: center;
@@ -327,13 +327,13 @@ onMounted(() => {
 }
 
 .result-badge.correct {
-  background-color: var(--color-success-100);
-  color: var(--color-success-700);
+  background: var(--color-green-100);
+  color: var(--color-green-700);
 }
 
 .result-badge.incorrect {
-  background-color: var(--color-error-100);
-  color: var(--color-error-700);
+  background: var(--color-red-100);
+  color: var(--color-red-700);
 }
 
 .mid-game-hint {

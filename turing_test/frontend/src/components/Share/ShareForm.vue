@@ -165,24 +165,25 @@ watch(
 </script>
 
 <style scoped>
-/* ===== CSS 变量 ===== */
+/* ===== CSS 变量映射到主题系统 ===== */
 .share-form {
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-success: #10b981;
-  --color-text-primary: #1f2937;
-  --color-text-secondary: #6b7280;
-  --color-text-tertiary: #9ca3af;
-  --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f9fafb;
-  --color-bg-tertiary: #f3f4f6;
-  --color-border: #e5e7eb;
-  --color-border-focus: #3b82f6;
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  /* 映射到主题变量 */
+  --color-primary: var(--color-primary-600);
+  --color-primary-hover: var(--color-primary-700);
+  --color-success: var(--color-green-500);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-bg-primary: var(--bg-surface);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  --color-border: var(--border-primary);
+  --color-border-focus: var(--color-primary-600);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --radius-sm: var(--rounded);
+  --radius-md: var(--rounded-md);
+  --radius-lg: var(--rounded-lg);
 }
 
 .share-form {
@@ -384,24 +385,16 @@ watch(
 /* ===== 暗色模式支持 ===== */
 @media (prefers-color-scheme: dark) {
   .share-form {
-    --color-primary: #60a5fa;
-    --color-primary-hover: #3b82f6;
-    --color-text-primary: #f9fafb;
-    --color-text-secondary: #9ca3af;
-    --color-text-tertiary: #6b7280;
-    --color-bg-primary: #1f2937;
-    --color-bg-secondary: #111827;
-    --color-bg-tertiary: #030712;
-    --color-border: #374151;
-    --color-border-focus: #60a5fa;
-  }
-
-  .toggle-option:hover {
-    background: var(--color-bg-secondary);
-  }
-
-  .toggle-option.active {
-    background: var(--color-bg-secondary);
+    --color-primary: var(--color-primary-400);
+    --color-primary-hover: var(--color-primary-500);
+    --color-text-primary: var(--text-primary);
+    --color-text-secondary: var(--text-secondary);
+    --color-text-tertiary: var(--text-tertiary);
+    --color-bg-primary: var(--bg-primary);
+    --color-bg-secondary: var(--bg-secondary);
+    --color-bg-tertiary: var(--bg-tertiary);
+    --color-border: var(--border-primary);
+    --color-border-focus: var(--color-primary-400);
   }
 }
 

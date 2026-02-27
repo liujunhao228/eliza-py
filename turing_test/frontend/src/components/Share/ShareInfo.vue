@@ -291,9 +291,9 @@ const formatDate = (dateString: string): string => {
 }
 
 .status-badge.active {
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-  color: #065f46;
-  border: 1px solid #a7f3d0;
+  background: linear-gradient(135deg, var(--color-green-50) 0%, var(--color-green-100) 100%);
+  color: var(--color-green-800);
+  border: 1px solid var(--color-green-300);
 }
 
 .status-badge.active .status-dot {
@@ -301,9 +301,9 @@ const formatDate = (dateString: string): string => {
 }
 
 .status-badge.expired {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #92400e;
-  border: 1px solid #fcd34d;
+  background: linear-gradient(135deg, var(--color-amber-50) 0%, var(--color-amber-100) 100%);
+  color: var(--color-amber-800);
+  border: 1px solid var(--color-amber-300);
 }
 
 .status-badge.expired .status-dot {
@@ -365,15 +365,15 @@ const formatDate = (dateString: string): string => {
   }
 
   .status-badge.active {
-    background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
-    color: #a7f3d0;
-    border-color: #059669;
+    background: linear-gradient(135deg, var(--color-green-900) 0%, var(--color-green-800) 100%);
+    color: var(--color-green-200);
+    border-color: var(--color-green-600);
   }
 
   .status-badge.expired {
-    background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
-    color: #fde68a;
-    border-color: #f59e0b;
+    background: linear-gradient(135deg, var(--color-amber-900) 0%, var(--color-amber-800) 100%);
+    color: var(--color-amber-200);
+    border-color: var(--color-amber-600);
   }
 
   .share-link-input:hover {

@@ -160,11 +160,18 @@
     --border-secondary: #475569;
     --border-tertiary: #64748b;
 
-    /* 状态色 */
-    --color-primary: #3b82f6;
-    --color-success: #22c55e;
-    --color-warning: #f59e0b;
-    --color-error: #ef4444;
+    /* 状态色 - 调整为更适合暗色模式的色调 */
+    --color-primary: var(--color-primary-400);
+    --color-success: var(--color-green-400);
+    --color-warning: var(--color-amber-400);
+    --color-error: var(--color-red-400);
+
+    /* 浅色背景调整 */
+    --color-primary-50: rgba(59, 130, 246, 0.1);
+    --color-green-50: rgba(34, 197, 94, 0.1);
+    --color-amber-50: rgba(245, 158, 11, 0.1);
+    --color-red-50: rgba(239, 68, 68, 0.1);
+    --color-purple-50: rgba(168, 85, 247, 0.1);
   }
 }
 
@@ -732,4 +739,60 @@ p {
 ::-moz-selection {
   background: var(--color-primary-100);
   color: var(--text-primary);
+}
+
+/* ==============================================
+   Element Plus 特定组件覆盖
+   ============================================== */
+
+/* 折叠面板 */
+.el-collapse {
+  border-radius: var(--rounded-lg);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-surface);
+}
+
+.el-collapse-item__header {
+  padding: 14px 16px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-primary);
+  transition: all 0.2s ease;
+}
+
+.el-collapse-item__header:hover {
+  background: var(--bg-tertiary);
+  color: var(--color-primary-600);
+}
+
+.el-collapse-item__header.is-active {
+  color: var(--color-primary-600);
+  border-bottom-color: var(--border-primary);
+}
+
+.el-collapse-item__content {
+  padding: 16px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+
+/* 评分 */
+.el-rate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.el-rate__icon {
+  color: var(--color-amber-400);
+}
+
+.el-rate__icon.is-active {
+  color: var(--color-amber-500);
+}
+
+.el-rate__text {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  margin-left: 12px;
 }
