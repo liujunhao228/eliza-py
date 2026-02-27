@@ -288,6 +288,26 @@ def cmd_init_db(args):
         sys.exit(1)
 
 
+def _run_chat_tool(args):
+    """运行 Bot 命令行对话测试工具"""
+    import sys
+    sys.argv = [
+        'cli_chat.py',
+        '--bot', args.bot,
+    ]
+    if args.config:
+        sys.argv.extend(['--config', args.config])
+    if args.watch:
+        sys.argv.append('--watch')
+    if args.no_ltp:
+        sys.argv.append('--no-ltp')
+    if args.log:
+        sys.argv.append('--log')
+
+    from cli_chat import main as cli_chat_main
+    cli_chat_main()
+
+
 def main():
     """主入口函数"""
     parser = argparse.ArgumentParser(
@@ -303,6 +323,9 @@ def main():
   python main.py init               初始化项目
   python main.py init-db            初始化数据库并生成 100 个邀请码
   python main.py init-db --count 500 --expire-days 30  生成 500 个邀请码，30 天过期
+  python main.py chat               Bot 命令行对话测试（默认 Bot）
+  python main.py chat --bot fast    使用快速 Bot 进行对话测试
+  python main.py chat --watch       开启自动重载（需要 watchdog）
         """,
     )
 
@@ -397,6 +420,36 @@ def main():
         help="跳过已有数据检查"
     )
     init_db_parser.set_defaults(func=cmd_init_db)
+
+    # Chat 命令（Bot 命令行对话测试）
+    chat_parser = subparsers.add_parser("chat", help="Bot 命令行对话测试工具")
+    chat_parser.add_argument(
+        "--bot",
+        type=str,
+        default="default",
+        help="Bot ID（从 bots/ 目录加载，默认：default）"
+    )
+    chat_parser.add_argument(
+        "--config",
+        type=str,
+        help="直接指定 Bot 配置文件路径（优先级高于 --bot）"
+    )
+    chat_parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="开启自动重载（需要 watchdog）"
+    )
+    chat_parser.add_argument(
+        "--no-ltp",
+        action="store_true",
+        help="禁用 LTP（使用 jieba 分词，更快但效果较弱）"
+    )
+    chat_parser.add_argument(
+        "--log",
+        action="store_true",
+        help="启用对话日志"
+    )
+    chat_parser.set_defaults(func=lambda args: _run_chat_tool(args))
 
     args = parser.parse_args()
 

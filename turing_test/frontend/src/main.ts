@@ -11,13 +11,19 @@ import './styles/element-plus-theme.css'
 
 const app = createApp(App)
 
-// 注册Element Plus图标
+// 注册 Element Plus 图标
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)
 }
 
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
 app.use(router)
 app.use(ElementPlus)
+
+// 启动时加载系统配置
+import { useConfigStore } from '@/stores/config'
+const configStore = useConfigStore(pinia)
+await configStore.loadConfig()
 
 app.mount('#app')

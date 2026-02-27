@@ -346,6 +346,13 @@ class MidGameConfig:
 
 
 @dataclass
+class MetaConversationConfig:
+    """元对话配置"""
+    enabled: bool = True
+    keywords: List[str] = field(default_factory=list)
+
+
+@dataclass
 class BotPoolConfig:
     """Bot 池配置"""
     min_instances: int
@@ -406,6 +413,8 @@ class TuringConfig:
     log: LogConfig
     score: Optional[ScoreConfig] = None
     mid_game: Optional[MidGameConfig] = None
+    meta_conversation: MetaConversationConfig = None  # type: ignore
+    # 保留 meta_keywords 字段以兼容旧配置
     meta_keywords: List[str] = field(default_factory=list)
 
 

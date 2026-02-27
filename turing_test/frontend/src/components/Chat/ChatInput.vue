@@ -60,7 +60,8 @@ import { ref, computed } from 'vue'
 import { InfoFilled, Promotion } from '@element-plus/icons-vue'
 import { BaseButton } from '@/components/common'
 import { useToast } from '@/composables/useToast'
-import { MAX_MESSAGE_LENGTH, META_KEYWORDS, SENSITIVE_WORDS } from '@/utils/constants'
+import { MAX_MESSAGE_LENGTH, SENSITIVE_WORDS } from '@/utils/constants'
+import { useConfigStore } from '@/stores/config'
 
 interface Props {
   disabled?: boolean
@@ -84,10 +85,16 @@ const { warning: showWarning } = useToast()
 const inputText = ref('')
 const isSending = ref(false)
 
+// 使用配置 Store 动态获取关键词
+const configStore = useConfigStore()
+
 // 检测是否为元对话
 const isMetaConversation = computed(() => {
+  if (!configStore.isEnabled) return false
   const content = inputText.value.toLowerCase()
-  return META_KEYWORDS.some(keyword => content.includes(keyword))
+  return configStore.keywords.some(keyword => 
+    content.includes(keyword.toLowerCase())
+  )
 })
 
 // 检测敏感词

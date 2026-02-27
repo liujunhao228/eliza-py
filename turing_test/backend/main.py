@@ -334,6 +334,10 @@ app.include_router(history_router, prefix="/api", tags=["历史会话"])
 from turing_test.backend.api.share import router as share_router
 app.include_router(share_router, prefix="/api", tags=["分享会话"])
 
+# 配置路由
+from turing_test.backend.api.config import router as config_router
+app.include_router(config_router, prefix="/api/config", tags=["系统配置"])
+
 # WebSocket 路由
 from turing_test.backend.websocket.match import router as match_ws_router
 from turing_test.backend.websocket.chat import router as chat_ws_router

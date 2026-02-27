@@ -9,8 +9,8 @@ name: 小图·钓鱼
 description: 钓鱼机器人，用于检测试图识别 AI 的用户
 
 # ----- 脚本配置 -----
-script_file: alice/scripts/demo.yaml
-rules_file: alice/scripts/rules/mapping.yaml
+script_file: scripts/yaml/demo.yaml
+rules_file: scripts/mapping/mapping.yaml
 
 # ----- 开场白配置 -----
 opening:

@@ -126,16 +126,16 @@ class MessageService:
             asyncio.create_task(
                 MessageService._trigger_ai_response(session_id, content.strip(), db)
             )
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"处理用户消息失败：{e}", exc_info=True)
             await db.rollback()
             return False
         finally:
             session_state_manager.release(session_id)
-    
+
     @staticmethod
     async def _trigger_ai_response(
         session_id: int,
@@ -392,7 +392,7 @@ async def _flush_turn_count(session_id: int, turn_count: int):
         from turing_test.backend.database import async_session_maker
         from turing_test.backend.models import Session
         from sqlalchemy import update
-        
+
         async with async_session_maker() as db:
             await db.execute(
                 update(Session).where(Session.id == session_id)
@@ -406,16 +406,26 @@ async def _flush_turn_count(session_id: int, turn_count: int):
 def _detect_meta_conversation(content: str) -> Tuple[bool, Optional[str]]:
     """
     检测元对话
-    
+
     Args:
         content: 消息内容
-        
+
     Returns:
         (是否为元对话，关键词)
     """
-    keywords = ['真人', '机器', 'AI', '机器人', '人工智能', '程序', '算法']
+    from config import settings
+
+    # 获取配置
+    meta_cfg = settings.turing.meta_conversation
+    if not meta_cfg.enabled:
+        return False, None
+
+    keywords = meta_cfg.keywords
+    if not keywords:
+        return False, None
+
     content_lower = content.lower()
     for kw in keywords:
-        if kw in content_lower:
+        if kw.lower() in content_lower:
             return True, kw
     return False, None

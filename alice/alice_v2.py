@@ -69,10 +69,17 @@ class AliceBot:
 
         # 对话引擎
         self.dialogue_engine = DialogueEngine(
-            script_file=script_file,
-            rules_file=rules_file,
-            use_ltp=use_ltp,
+            config_manager=None,  # 使用全局配置管理器
+            enable_response_cache=True,
         )
+        
+        # 设置自定义脚本路径（如果指定）
+        if script_file:
+            self.dialogue_engine.yaml_script_file = script_file
+        if rules_file:
+            self.dialogue_engine.rules_file = rules_file
+        if use_ltp is not None:
+            self.dialogue_engine.use_ltp = use_ltp
 
         # 监控器
         self.monitor = UnifiedMonitor()

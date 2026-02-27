@@ -279,8 +279,8 @@ class MatchService:
             logger.info(f"开场白任务已取消：session_id={session_id}")
             raise
         finally:
-            # 清理任务注册
-            session_state_manager.cancel_opening_task(session_id)
+            # 清理任务注册（任务已完成，仅清理字典）
+            session_state_manager.cancel_opening_task(session_id, reason="任务完成")
 
     def get_queue_size(self) -> int:
         """获取队列大小"""

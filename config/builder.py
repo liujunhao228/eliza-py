@@ -44,6 +44,7 @@ from .types import (
     BotPoolRefConfig,
     ScoreConfig,
     MidGameConfig,
+    MetaConversationConfig,
     ScriptingConfig,
     LuaScriptEngineConfig,
     YamlScriptEngineConfig,
@@ -394,6 +395,15 @@ class ConfigBuilder:
         score_cfg = cfg.get("score", {})
         mid_game_cfg = cfg.get("mid_game", {})
         meta_keywords = cfg.get("meta_keywords", [])
+        meta_conversation_cfg = cfg.get("meta_conversation", {})
+
+        # 构建元对话配置
+        meta_conversation = MetaConversationConfig(
+            enabled=self._get_optional(meta_conversation_cfg, "enabled", bool, True, "turing.meta_conversation"),
+            keywords=self._get_optional(meta_conversation_cfg, "keywords", list, None, "turing.meta_conversation") or meta_keywords or [
+                '真人', '机器', 'AI', '机器人', '人工智能', '程序', '算法'
+            ],
+        )
 
         # 构建 Bot 池配置
         bot_pool = BotPoolConfig(
@@ -488,6 +498,7 @@ class ConfigBuilder:
             ),
             score=score,
             mid_game=mid_game,
+            meta_conversation=meta_conversation,
             meta_keywords=meta_keywords,
         )
 

@@ -9,8 +9,8 @@ name: 小图·慢速
 description: 慢速 Bot，模拟思考时间更长
 
 # ----- 脚本配置 -----
-script_file: alice/scripts/demo.yaml
-rules_file: alice/scripts/rules/mapping.yaml
+script_file: scripts/yaml/demo.yaml
+rules_file: scripts/mapping/mapping.yaml
 
 # ----- 开场白配置 -----
 opening:

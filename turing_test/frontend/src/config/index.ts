@@ -15,7 +15,6 @@ import {
   MESSAGE_DEBOUNCE_DELAY,
   TEMP_MESSAGE_TTL,
   CONFIDENCE_MULTIPLIER,
-  META_KEYWORDS,
   IDENTITY_KEYWORDS,
   SENSITIVE_WORDS
 } from '@/utils/constants'
@@ -59,10 +58,15 @@ export const AppConfig = Object.freeze({
 
   /**
    * 元对话配置
+   * 注意：关键词列表现在通过 config Store 动态加载
+   * 此处保留默认值作为 fallback
    */
   metaConversation: {
-    /** 元对话关键词列表 */
-    keywords: META_KEYWORDS,
+    /** 元对话关键词列表（默认值，实际使用 config Store 中的动态配置） */
+    defaultKeywords: [
+      '真人', '机器', 'AI', '机器人', '人工智能',
+      '程序', '算法', '人类', '人', '电脑', '计算'
+    ],
     /** 场中判断关键词列表 */
     identityKeywords: IDENTITY_KEYWORDS
   },

@@ -127,13 +127,8 @@ class SessionStateManager:
     def cleanup(self, session_id: int):
         """清理会话状态（会话结束时调用）"""
         # 取消待处理的开场白任务
-        if session_id in self._opening_tasks:
-            task = self._opening_tasks[session_id]
-            if not task.done():
-                task.cancel()
-                logger.info(f"[SessionState] 取消开场白任务：session_id={session_id}")
-            self._opening_tasks.pop(session_id, None)
-        
+        self.cancel_opening_task(session_id, reason="会话结束")
+
         self._states.pop(session_id, None)
         self._locks.pop(session_id, None)
         logger.info(f"[SessionState] 清理：session_id={session_id}")
@@ -143,10 +138,14 @@ class SessionStateManager:
         self._opening_tasks[session_id] = task
         logger.debug(f"[SessionState] 注册开场白任务：session_id={session_id}")
 
-    def cancel_opening_task(self, session_id: int) -> bool:
+    def cancel_opening_task(self, session_id: int, reason: str = "用户先发言") -> bool:
         """
-        取消开场白任务（用户先发言时调用）
-        
+        取消开场白任务
+
+        Args:
+            session_id: 会话 ID
+            reason: 取消原因（"用户先发言" 或 "任务完成"）
+
         Returns:
             是否成功取消
         """
@@ -154,8 +153,8 @@ class SessionStateManager:
             task = self._opening_tasks[session_id]
             if not task.done():
                 task.cancel()
-                logger.info(f"[SessionState] 取消开场白任务（用户先发言）：session_id={session_id}")
             self._opening_tasks.pop(session_id, None)
+            logger.info(f"[SessionState] 取消开场白任务（{reason}）：session_id={session_id}")
             return True
         return False
 

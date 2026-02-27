@@ -50,6 +50,7 @@ from .types import (
     BotPoolRefConfig,
     ScoreConfig,
     MidGameConfig,
+    MetaConversationConfig,
     # 脚本引擎配置
     ScriptingConfig,
     LuaScriptEngineConfig,
@@ -115,6 +116,7 @@ __all__ = [
     "BotPoolRefConfig",
     "ScoreConfig",
     "MidGameConfig",
+    "MetaConversationConfig",
     # 脚本引擎配置
     "ScriptingConfig",
     "LuaScriptEngineConfig",

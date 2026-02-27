@@ -28,7 +28,7 @@ scripting:
 
   yaml:
     script_file: scripts/yaml/demo.yaml   # 默认配置
-    opening_script_file: scripts/opening.yaml  # 开场白脚本
+    opening_script_file: scripts/opening.yaml  # 默认开场白脚本
 
   rules_file: scripts/mapping/mapping.yaml
 

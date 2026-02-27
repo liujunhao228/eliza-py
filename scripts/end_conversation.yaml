@@ -47,7 +47,7 @@
   end_action: direct
   end_reason: bot_max_turns
   templates:
-    - ""  # 占位，direct 模式不发送
+    - ""  # 占位，direct 模式不发送结束语
 
 
 # -----------------------------------------------------------------------------
