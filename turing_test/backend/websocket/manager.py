@@ -2,15 +2,30 @@
 WebSocket 连接管理器（改进版）
 
 管理所有活跃的 WebSocket 连接，支持心跳机制和连接统计。
+性能优化：
+- 消息队列和批量处理
+- 连接状态缓存
+- 速率限制优化
 """
 
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 from fastapi import WebSocket, WebSocketDisconnect
 from loguru import logger
 import json
 import asyncio
 from datetime import datetime, timezone, timedelta
-from collections import defaultdict
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
+
+
+@dataclass
+class QueuedMessage:
+    """队列中的消息"""
+    user_id: int
+    message: dict
+    timestamp: float = field(default_factory=lambda: datetime.now(timezone.utc).timestamp())
+    retry_count: int = 0
+    max_retries: int = 3
 
 
 class ConnectionState:
@@ -41,6 +56,8 @@ class ConnectionManager:
         self,
         heartbeat_interval: int = 30,  # 心跳间隔（秒）
         heartbeat_timeout: int = 90,    # 心跳超时（秒）= 3 次心跳间隔
+        message_queue_size: int = 1000,  # 消息队列大小
+        batch_send_interval: float = 0.1,  # 批量发送间隔（秒）
     ):
         # 用户 ID 到连接状态的映射
         self.active_connections: Dict[int, ConnectionState] = {}
@@ -69,11 +86,26 @@ class ConnectionManager:
         self._rate_limit_window = 60  # 时间窗口（秒）
         self._rate_limit_max = 10     # 每个窗口内最大连接数
 
+        # 消息队列优化
+        self._message_queues: Dict[int, deque] = defaultdict(lambda: deque(maxlen=100))
+        self._queue_processor_task: Optional[asyncio.Task] = None
+        self._batch_send_interval = batch_send_interval  # 批量发送间隔
+        self._max_queue_size = message_queue_size  # 单个队列最大大小
+
+        # 性能统计
+        self._queue_dropped_messages = 0
+        self._batch_send_count = 0
+
     async def start_heartbeat_monitor(self):
         """启动心跳监控任务"""
         if self._heartbeat_task is None:
             self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
             logger.info("❤️ 心跳监控任务已启动")
+
+        # 启动消息队列处理器
+        if self._queue_processor_task is None:
+            self._queue_processor_task = asyncio.create_task(self._queue_processor_loop())
+            logger.info("📬 消息队列处理器已启动")
 
     async def stop_heartbeat_monitor(self):
         """停止心跳监控任务"""
@@ -88,6 +120,81 @@ class ConnectionManager:
                 logger.warning("⚠️ 心跳监控任务取消超时")
             self._heartbeat_task = None
             logger.info("❤️ 心跳监控任务已停止")
+
+        if self._queue_processor_task:
+            self._queue_processor_task.cancel()
+            try:
+                await asyncio.wait_for(self._queue_processor_task, timeout=5.0)
+            except asyncio.CancelledError:
+                pass
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ 消息队列处理器取消超时")
+            self._queue_processor_task = None
+            logger.info("📬 消息队列处理器已停止")
+
+    async def _queue_processor_loop(self):
+        """消息队列处理循环"""
+        while True:
+            try:
+                await asyncio.sleep(self._batch_send_interval)
+
+                # 批量处理所有队列
+                for user_id in list(self._message_queues.keys()):
+                    queue = self._message_queues[user_id]
+                    if not queue:
+                        continue
+
+                    # 批量发送（最多 10 条）
+                    messages_to_send = []
+                    while queue and len(messages_to_send) < 10:
+                        messages_to_send.append(queue.popleft())
+
+                    if messages_to_send:
+                        await self._send_batch(user_id, messages_to_send)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"消息队列处理错误：{e}", exc_info=True)
+
+    async def _send_batch(self, user_id: int, messages: List[QueuedMessage]) -> bool:
+        """批量发送消息"""
+        if user_id not in self.active_connections:
+            return False
+
+        connection = self.active_connections[user_id]
+        if not connection.is_alive or connection.websocket is None:
+            return False
+
+        try:
+            # 合并消息（如果是相同类型）
+            if len(messages) == 1:
+                await connection.websocket.send_json(messages[0].message)
+            else:
+                # 多条消息打包发送
+                batch_message = {
+                    "type": "batch",
+                    "data": {
+                        "messages": [m.message for m in messages],
+                        "count": len(messages),
+                    }
+                }
+                await connection.websocket.send_json(batch_message)
+
+            self.total_messages_sent += len(messages)
+            self._batch_send_count += 1
+            return True
+
+        except Exception as e:
+            logger.error(f"批量发送消息给用户 {user_id} 失败：{e}")
+            # 消息重新入队（带重试限制）
+            for msg in messages:
+                if msg.retry_count < msg.max_retries:
+                    msg.retry_count += 1
+                    self._message_queues[user_id].append(msg)
+                else:
+                    self._queue_dropped_messages += 1
+            return False
 
     async def _heartbeat_loop(self):
         """心跳监控循环"""
@@ -217,10 +324,18 @@ class ConnectionManager:
             # 移除断开标志
             self._disconnecting_users.discard(user_id)
 
-    async def send_personal_message(self, user_id: int, message: dict):
-        """发送个人消息"""
+    async def send_personal_message(self, user_id: int, message: dict, use_queue: bool = True):
+        """发送个人消息（支持队列）
+
+        Args:
+            user_id: 用户 ID
+            message: 消息字典
+            use_queue: 是否使用消息队列（默认 True）
+
+        Returns:
+            是否发送成功
+        """
         if user_id in self._disconnecting_users:
-            # 用户正在断开连接，不再发送消息
             logger.debug(f"send_personal_message: 用户 {user_id} 正在断开连接，跳过")
             return False
 
@@ -233,6 +348,19 @@ class ConnectionManager:
             logger.warning(f"用户 {user_id} 连接已失效")
             return False
 
+        # 使用队列
+        if use_queue:
+            queue = self._message_queues[user_id]
+            if len(queue) >= self._max_queue_size:
+                # 队列已满，丢弃最早的消息
+                self._queue_dropped_messages += 1
+                queue.popleft()
+
+            queued_msg = QueuedMessage(user_id=user_id, message=message)
+            queue.append(queued_msg)
+            return True
+
+        # 直接发送（紧急消息）
         try:
             await connection.websocket.send_json(message)
             self.total_messages_sent += 1
@@ -349,7 +477,10 @@ class ConnectionManager:
         }
 
     def get_statistics(self) -> dict:
-        """获取连接统计"""
+        """获取连接统计（包含性能指标）"""
+        # 计算队列中的消息总数
+        total_queued = sum(len(q) for q in self._message_queues.values())
+
         return {
             "active_connections": len(self.active_connections),
             "total_connections": self.total_connections,
@@ -359,6 +490,10 @@ class ConnectionManager:
             "active_sessions": len(self.session_users),
             "heartbeat_sent_count": self.heartbeat_sent_count,
             "heartbeat_timeout_count": self.heartbeat_timeout_count,
+            # 性能指标
+            "queued_messages": total_queued,
+            "batch_send_count": self._batch_send_count,
+            "dropped_messages": self._queue_dropped_messages,
         }
 
     async def handle_message(self, user_id: int, message: dict):

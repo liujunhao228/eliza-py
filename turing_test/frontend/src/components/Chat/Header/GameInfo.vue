@@ -5,7 +5,7 @@
       聊天室
     </h2>
     <div class="turn-info">
-      <span class="turn-label">第 {{ turn }} 轮</span>
+      <span class="turn-label">第 {{ currentTurn }} 轮</span>
       <span v-if="metaCount > 0" class="meta-count">
         元对话 {{ metaCount }} 次
       </span>
@@ -14,6 +14,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { ChatDotRound } from '@element-plus/icons-vue'
 
 interface Props {
@@ -21,7 +22,10 @@ interface Props {
   metaCount: number
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
+
+// 计算当前轮数（双方各发一句算一轮）
+const currentTurn = computed(() => Math.ceil(props.turn / 2))
 </script>
 
 <style scoped>

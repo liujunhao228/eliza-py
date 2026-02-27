@@ -3,42 +3,42 @@
     <!-- 元对话计数 -->
     <div class="status-item">
       <span class="icon">💬</span>
-      <span>元对话: <strong>{{ metaCount }}</strong> 次</span>
+      <span>元对话：<strong>{{ metaCount }}</strong> 次</span>
     </div>
-    
+
     <!-- 倍数显示 -->
     <div class="status-item multipliers">
-      <span>判断正确: </span>
+      <span>判断正确：</span>
       <span class="success-multiplier">×{{ multipliers.correct }}</span>
       <span>|</span>
-      <span>判断错误: </span>
+      <span>判断错误：</span>
       <span class="penalty-multiplier">×{{ multipliers.penalty }}</span>
     </div>
-    
+
     <!-- 轮数惩罚 -->
-    <div class="status-item turn-penalty" v-if="turn > 3">
+    <div class="status-item turn-penalty" v-if="currentTurn > 3">
       <span class="icon">⚠️</span>
       <el-tooltip placement="top" :show-after="500">
         <template #content>
           <div class="tooltip-content">
             <p><strong>轮数惩罚机制：</strong></p>
-            <p>• 前3轮：免惩罚</p>
-            <p>• 第4轮开始：每轮扣除 0.5 分</p>
-            <p>• 当前第 {{ turn }} 轮，惩罚 = {{ turnPenalty.toFixed(1) }} 分</p>
+            <p>• 前 3 轮：免惩罚</p>
+            <p>• 第 4 轮开始：每轮扣除 0.5 分</p>
+            <p>• 当前第 {{ currentTurn }} 轮，惩罚 = {{ turnPenalty.toFixed(1) }} 分</p>
           </div>
         </template>
-        <span>轮数惩罚: {{ turnPenalty.toFixed(1) }} 分</span>
+        <span>轮数惩罚：{{ turnPenalty.toFixed(1) }} 分</span>
       </el-tooltip>
     </div>
-    
+
     <!-- 高频元对话警告 -->
-    <div 
-      class="status-item warning" 
+    <div
+      class="status-item warning"
       v-if="isHighFrequency"
       :class="{ 'pulse': isHighFrequency }"
     >
       <span class="icon">🚨</span>
-      <span>高频元对话警告：钓鱼机器人概率提升至30%</span>
+      <span>高频元对话警告：钓鱼机器人概率提升至 30%</span>
     </div>
   </div>
 </template>
@@ -51,11 +51,12 @@ import { useMetaConversation } from '@/composables/useMetaConversation'
 const gameStore = useGameStore()
 const { metaCount, multipliers, isHighFrequency } = useMetaConversation()
 
-const turn = computed(() => gameStore.turn)
+// 计算当前轮数（双方各发一句算一轮）
+const currentTurn = computed(() => Math.ceil(gameStore.turn / 2))
 const turnPenalty = computed(() => {
   const MIN_FREE_TURNS = 3
   const TURN_PENALTY_RATE = 0.5
-  return Math.max(0, (turn.value - MIN_FREE_TURNS) * TURN_PENALTY_RATE)
+  return Math.max(0, (currentTurn.value - MIN_FREE_TURNS) * TURN_PENALTY_RATE)
 })
 </script>
 

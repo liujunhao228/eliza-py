@@ -15,19 +15,19 @@
 
 使用示例:
     matcher = ScriptMatcher()
-    
+
     # 注册引擎
     matcher.register_engine('lua', LuaScriptEngine())
     matcher.register_engine('yaml', YAMLScriptEngine())
-    
+
     # 加载脚本
     lua_engine.load_script(lua_config)
     yaml_engine.load_script(yaml_config)
-    
+
     # 匹配
     context = ScriptContext(text="你好")
     match = matcher.match(context)
-    
+
     if match:
         # 根据 script_type 获取对应的引擎
         engine = matcher.get_engine_by_type(match.script_type)
@@ -36,6 +36,8 @@
 
 import logging
 import time
+import hashlib
+import json
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 
@@ -45,6 +47,7 @@ from alice.scripting.base import (
     ScriptResponse,
 )
 from alice.scripting.context import ScriptContext
+from alice.cache.lru_cache import LRUCache
 
 logger = logging.getLogger(__name__)
 
@@ -77,21 +80,29 @@ class ScriptMatcher:
     - 无外部依赖：仅依赖 scripting 包内模块
     """
     
-    def __init__(self, default_timeout: float = 1.0):
+    def __init__(self, default_timeout: float = 1.0, enable_cache: bool = True):
         """
         初始化脚本匹配器
-        
+
         Args:
             default_timeout: 默认超时时间（秒）
+            enable_cache: 是否启用匹配结果缓存
         """
         self.engines: Dict[str, BaseScriptEngine] = {}
         self.default_timeout = default_timeout
-        
+        self.enable_cache = enable_cache
+
+        # 匹配结果缓存 (1000 条目，10 分钟 TTL)
+        # 用于缓存相同文本的匹配结果
+        self._match_cache = LRUCache[ScriptMatchResult](max_size=1000, default_ttl=600) if enable_cache else None
+
         # 统计信息
         self._stats = {
             'total_matches': 0,
             'engine_matches': {},
             'avg_duration_ms': 0.0,
+            'cache_hits': 0,
+            'cache_misses': 0,
         }
     
     def register_engine(self, name: str, engine: BaseScriptEngine) -> bool:
@@ -164,74 +175,112 @@ class ScriptMatcher:
                 return engine
         return None
     
+    def _generate_cache_key(self, context: ScriptContext) -> str:
+        """
+        生成缓存键
+
+        Args:
+            context: 脚本上下文
+
+        Returns:
+            MD5 哈希的缓存键
+        """
+        key_data = {
+            'text': context.text,
+            'tokens': context.tokens[:10] if context.tokens else [],  # 限制长度
+            'turn_count': context.turn_count,
+        }
+        key_string = json.dumps(key_data, sort_keys=True, ensure_ascii=False)
+        return hashlib.md5(key_string.encode('utf-8')).hexdigest()
+
     def match(
         self,
         context: ScriptContext,
     ) -> Optional[ScriptMatchResult]:
         """
         匹配所有注册的脚本引擎
-        
+
         返回优先级最高的匹配结果。
-        
+
         Args:
             context: 脚本上下文
-            
+
         Returns:
             最佳匹配结果，无匹配时返回 None
         """
         if not self.engines:
             logger.warning("没有注册的脚本引擎")
             return None
-        
+
         start_time = time.time()
+
+        # 尝试从缓存获取
+        if self.enable_cache and self._match_cache:
+            cache_key = self._generate_cache_key(context)
+            cached_match = self._match_cache.get(cache_key)
+            if cached_match is not None:
+                elapsed = (time.time() - start_time) * 1000
+                self._stats['total_matches'] += 1
+                self._stats['cache_hits'] += 1
+                logger.debug(f"脚本匹配缓存命中：{cached_match.script_id}")
+                return cached_match
+
+        # 缓存未命中
+        if self.enable_cache:
+            self._stats['cache_misses'] += 1
+
         all_matches: List[MatchRecord] = []
-        
+
         # 串行匹配所有引擎
         for engine_name, engine in self.engines.items():
             try:
                 match_start = time.time()
-                
+
                 # 执行匹配
                 match = engine.match(context)
-                
+
                 duration_ms = (time.time() - match_start) * 1000
-                
+
                 # 更新统计
                 self._update_engine_stats(engine_name, match is not None, duration_ms)
-                
+
                 if match:
                     all_matches.append(MatchRecord(
                         match=match,
                         engine=engine,
                         duration_ms=duration_ms,
                     ))
-                    
+
                     # 高置信度提前返回
                     if match.confidence >= 0.95:
                         logger.debug(f"高置信度匹配，提前返回：{match.script_id}")
                         break
-                        
+
             except Exception as e:
                 logger.error(f"引擎匹配失败 [{engine_name}]: {e}")
-        
+
         total_duration_ms = (time.time() - start_time) * 1000
         self._stats['total_matches'] += 1
         self._update_avg_duration(total_duration_ms)
-        
+
         if not all_matches:
             return None
-        
+
         # 选择最佳匹配（按优先级和置信度）
         best = max(all_matches, key=lambda r: (r.match.priority, r.match.confidence))
-        
+
         logger.debug(
             f"最佳匹配：{best.match.script_id} "
             f"(priority={best.match.priority}, confidence={best.match.confidence:.2f})"
         )
-        
+
         # 记录已匹配脚本
         context.matched_scripts.append(best.match.script_id)
-        
+
+        # 缓存结果
+        if self.enable_cache and self._match_cache:
+            self._match_cache.set(cache_key, best.match)
+
         return best.match
     
     def match_all(
@@ -297,12 +346,23 @@ class ScriptMatcher:
                 **engine.get_stats(),
                 **self._stats['engine_matches'].get(name, {}),
             }
-        
+
+        total_requests = self._stats.get('cache_hits', 0) + self._stats.get('cache_misses', 0)
+        cache_hit_rate = (
+            self._stats.get('cache_hits', 0) / total_requests * 100
+            if total_requests > 0
+            else 0.0
+        )
+
         return {
             'registered_engines': list(self.engines.keys()),
             'total_matches': self._stats['total_matches'],
             'avg_duration_ms': self._stats['avg_duration_ms'],
             'engines': engine_stats,
+            'cache_enabled': self.enable_cache,
+            'cache_hits': self._stats.get('cache_hits', 0),
+            'cache_misses': self._stats.get('cache_misses', 0),
+            'cache_hit_rate': f"{cache_hit_rate:.2f}%",
         }
     
     def clear_stats(self) -> None:
@@ -314,7 +374,21 @@ class ScriptMatcher:
                 for name in self.engines
             },
             'avg_duration_ms': 0.0,
+            'cache_hits': 0,
+            'cache_misses': 0,
         }
+
+    def clear_cache(self) -> None:
+        """清除匹配缓存"""
+        if self._match_cache:
+            self._match_cache.clear()
+            logger.info("脚本匹配缓存已清除")
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """获取缓存统计"""
+        if self._match_cache:
+            return self._match_cache.get_stats()
+        return {'enabled': False}
     
     def list_scripts(self) -> Dict[str, List[str]]:
         """

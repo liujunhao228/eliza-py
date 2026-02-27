@@ -23,6 +23,8 @@
 import logging
 import random
 import time
+import hashlib
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -42,6 +44,7 @@ from alice.scripting import (
 from alice.nlp.factory import NlpFactory, NlpPipeline
 from alice.nlp.syntax_reassembly import SyntaxReassembly
 from alice.exceptions import DialogueError
+from alice.cache.lru_cache import LRUCache
 from config import Settings, ConfigManager, get_config_manager
 
 logger = logging.getLogger(__name__)
@@ -85,12 +88,14 @@ class DialogueEngine:
     def __init__(
         self,
         config_manager: Optional[ConfigManager] = None,
+        enable_response_cache: bool = True,
     ):
         """
         初始化对话引擎
 
         Args:
             config_manager: 配置管理器实例，默认使用全局实例
+            enable_response_cache: 是否启用响应结果缓存
 
         Raises:
             ImportError: 当依赖库未安装时
@@ -115,7 +120,7 @@ class DialogueEngine:
         # 核心组件初始化
         self.preprocessor = TextPreprocessor()
         self.context_manager = ContextManager()
-        self.script_matcher = ScriptMatcher()
+        self.script_matcher = ScriptMatcher(enable_cache=enable_response_cache)
 
         # 脚本引擎（延迟初始化）
         self.lua_engine: Optional[LuaScriptEngine] = None
@@ -125,10 +130,25 @@ class DialogueEngine:
         # 重组引擎
         self.reassembly_engine: Optional[SyntaxReassembly] = None
 
+        # 响应结果缓存 (500 条目，5 分钟 TTL)
+        # 缓存完整对话的响应结果
+        self._response_cache = LRUCache[Tuple[str, Optional[EndAction]]](
+            max_size=500, default_ttl=300
+        ) if enable_response_cache else None
+        self._enable_response_cache = enable_response_cache
+
         # 状态
         self._initialized = False
         self._last_match_result: Optional[ScriptMatchResult] = None
         self._last_rule_info: Dict[str, Any] = {}
+
+        # 性能统计
+        self._stats = {
+            'total_responses': 0,
+            'cache_hits': 0,
+            'cache_misses': 0,
+            'avg_response_time_ms': 0.0,
+        }
 
         logger.info("对话引擎实例已创建")
 
@@ -346,6 +366,24 @@ class DialogueEngine:
             logger.error(f"重组引擎初始化失败：{e}")
             self.reassembly_engine = None
 
+    def _generate_cache_key(self, user_input: str, context: Optional[ScriptContext] = None) -> str:
+        """
+        生成响应缓存键
+
+        Args:
+            user_input: 用户输入
+            context: 可选的脚本上下文
+
+        Returns:
+            MD5 哈希的缓存键
+        """
+        key_data = {
+            'input': user_input,
+            'turn_count': context.turn_count if context else 0,
+        }
+        key_string = json.dumps(key_data, sort_keys=True, ensure_ascii=False)
+        return hashlib.md5(key_string.encode('utf-8')).hexdigest()
+
     def respond(self, user_input: str) -> Tuple[str, Optional[EndAction]]:
         """
         生成响应
@@ -373,6 +411,21 @@ class DialogueEngine:
 
         start_time = time.time()
 
+        # 尝试从缓存获取
+        if self._enable_response_cache and self._response_cache:
+            cache_key = self._generate_cache_key(user_input)
+            cached_response = self._response_cache.get(cache_key)
+            if cached_response is not None:
+                elapsed = (time.time() - start_time) * 1000
+                self._stats['total_responses'] += 1
+                self._stats['cache_hits'] += 1
+                logger.debug(f"响应缓存命中：{cached_response[0][:20]}...")
+                return cached_response
+
+        # 缓存未命中
+        if self._enable_response_cache:
+            self._stats['cache_misses'] += 1
+
         try:
             # 1. 文本预处理
             standardized_text = self._preprocess(user_input)
@@ -398,14 +451,31 @@ class DialogueEngine:
 
             # 记录耗时
             duration = time.time() - start_time
+            self._update_stats(duration, cache_hit=False)
             logger.debug(f"响应生成耗时：{duration*1000:.2f}ms")
 
             self._last_rule_info = rule_info
+
+            # 缓存响应结果
+            if self._enable_response_cache and self._response_cache:
+                self._response_cache.set(cache_key, (response, end_action))
+
             return response, end_action
 
         except Exception as e:
             logger.error(f"对话处理失败：{e}", exc_info=True)
             return "抱歉，我遇到了一些问题，请稍后再试", None
+
+    def _update_stats(self, duration: float, cache_hit: bool = False):
+        """更新性能统计"""
+        self._stats['total_responses'] += 1
+        if not cache_hit:
+            self._stats['cache_misses'] += 1
+        
+        # 移动平均
+        n = self._stats['total_responses']
+        old_avg = self._stats['avg_response_time_ms']
+        self._stats['avg_response_time_ms'] = (old_avg * (n - 1) + duration * 1000) / n
 
     def _generate_response_with_priority(
         self,
@@ -645,6 +715,13 @@ class DialogueEngine:
         Returns:
             统计信息字典
         """
+        total_requests = self._stats.get('cache_hits', 0) + self._stats.get('cache_misses', 0)
+        cache_hit_rate = (
+            self._stats.get('cache_hits', 0) / total_requests * 100
+            if total_requests > 0
+            else 0.0
+        )
+
         return {
             "initialized": self._initialized,
             "engines": self.script_matcher.get_stats(),
@@ -652,6 +729,13 @@ class DialogueEngine:
             "nlp": {
                 "use_ltp": self.use_ltp,
                 "enable_ner": self.enable_ner,
+            },
+            "performance": {
+                "total_responses": self._stats.get('total_responses', 0),
+                "avg_response_time_ms": self._stats.get('avg_response_time_ms', 0.0),
+                "cache_hits": self._stats.get('cache_hits', 0),
+                "cache_misses": self._stats.get('cache_misses', 0),
+                "cache_hit_rate": f"{cache_hit_rate:.2f}%",
             },
         }
 

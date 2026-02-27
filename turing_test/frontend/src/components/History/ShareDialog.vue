@@ -1,47 +1,84 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal">
-      <div class="modal-header">
-        <h2>{{ existingShare ? '管理分享' : '创建分享' }}</h2>
-        <button class="close-btn" @click="$emit('close')">×</button>
-      </div>
-
-      <div class="modal-body">
-        <!-- 加载状态 -->
-        <div v-if="loading && !shareInfo" class="loading">处理中...</div>
-
-        <!-- 错误提示 -->
-        <div v-else-if="error" class="error">{{ error }}</div>
-
-        <!-- 已有分享 - 显示信息 -->
-        <template v-else-if="hasExistingShare && shareInfo">
-          <ShareInfoCard
-            :share-info="shareInfo"
-            @copy="handleCopy"
-          />
-          <div class="actions">
-            <button class="btn btn-danger" @click="confirmDelete">
-              删除分享
-            </button>
+  <Transition name="modal">
+    <div class="modal-overlay" @click.self="$emit('close')" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">
+            <svg class="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" />
+            </svg>
+            <h2 id="modal-title">{{ existingShare ? '管理分享' : '创建分享' }}</h2>
           </div>
-        </template>
+          <button class="close-btn" @click="$emit('close')" aria-label="关闭对话框">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
-        <!-- 创建分享 - 显示表单 -->
-        <template v-else-if="!hasExistingShare">
-          <ShareForm 
-            v-model="form"
-          />
-        </template>
-      </div>
+        <div class="modal-body">
+          <!-- 加载状态 - 骨架屏 -->
+          <div v-if="loading && !shareInfo" class="loading-container">
+            <div class="skeleton-card"></div>
+          </div>
 
-      <div v-if="!hasExistingShare && !loading" class="modal-footer">
-        <button class="btn btn-secondary" @click="$emit('close')">取消</button>
-        <button class="btn btn-primary" @click="createShare" :disabled="loading">
-          {{ loading ? '创建中...' : '创建分享' }}
-        </button>
+          <!-- 错误提示 -->
+          <div v-else-if="error" class="error-container">
+            <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <p class="error-message">{{ error }}</p>
+          </div>
+
+          <!-- 已有分享 - 显示信息 -->
+          <template v-else-if="hasExistingShare && shareInfo">
+            <ShareInfoCard
+              :share-info="shareInfo"
+              @copy="handleCopy"
+            />
+            <div class="actions">
+              <button class="btn btn-danger" @click="confirmDelete">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                </svg>
+                删除分享
+              </button>
+            </div>
+          </template>
+
+          <!-- 创建分享 - 显示表单 -->
+          <template v-else-if="!hasExistingShare">
+            <ShareForm
+              v-model="form"
+            />
+          </template>
+        </div>
+
+        <div v-if="!hasExistingShare && !loading" class="modal-footer">
+          <button class="btn btn-secondary" @click="$emit('close')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+            取消
+          </button>
+          <button class="btn btn-primary" @click="createShare" :disabled="loading">
+            <svg v-if="loading" class="btn-spinner" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="60 40" opacity="0.3" />
+              <path d="M12 2a10 10 0 0110 10" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+            </svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            {{ loading ? '创建中...' : '创建分享' }}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
@@ -204,132 +241,301 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* ===== CSS 变量 ===== */
+.modal-overlay {
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-success: #10b981;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+  --color-text-primary: #1f2937;
+  --color-text-secondary: #6b7280;
+  --color-text-tertiary: #9ca3af;
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f9fafb;
+  --color-bg-tertiary: #f3f4f6;
+  --color-border: #e5e7eb;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+}
+
+/* ===== 模态框 overlay ===== */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
+  padding: 24px;
 }
 
+/* ===== 过渡动画 ===== */
+.modal-enter-active,
+.modal-leave-active {
+  transition: all 0.3s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+
+.modal-enter-from .modal,
+.modal-leave-to .modal {
+  transform: scale(0.95) translateY(-10px);
+}
+
+/* ===== 模态框主体 ===== */
 .modal {
-  background: var(--bg-surface);
-  border-radius: 12px;
-  width: 90%;
-  max-width: 500px;
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-xl);
+  width: 100%;
+  max-width: 520px;
   max-height: 90vh;
   overflow-y: auto;
+  box-shadow: var(--shadow-xl);
 }
 
+/* ===== 模态框头部 ===== */
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid var(--bg-tertiary);
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  z-index: 10;
+}
+
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.title-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--color-primary);
 }
 
 .modal-header h2 {
   font-size: 18px;
   font-weight: 600;
+  color: var(--color-text-primary);
   margin: 0;
-  color: var(--text-primary);
 }
 
 .close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  padding: 0;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-text-tertiary);
+  transition: all 0.2s ease;
 }
 
 .close-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
 }
 
+.close-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ===== 模态框主体内容 ===== */
 .modal-body {
+  padding: 24px;
+}
+
+/* ===== 加载状态 - 骨架屏 ===== */
+.loading-container {
   padding: 20px;
 }
 
-.loading, .error {
+.skeleton-card {
+  height: 120px;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-lg);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ===== 错误容器 ===== */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 20px;
   text-align: center;
-  padding: 20px;
-  color: var(--text-secondary);
 }
 
-.error {
+.error-icon {
+  width: 48px;
+  height: 48px;
   color: var(--color-error);
+  margin-bottom: 16px;
 }
 
+.error-message {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ===== 操作按钮区 ===== */
 .actions {
   display: flex;
-  gap: 10px;
-  margin-top: 15px;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
 }
 
+/* ===== 模态框底部 ===== */
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 20px;
-  border-top: 1px solid var(--bg-tertiary);
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  position: sticky;
+  bottom: 0;
 }
 
+/* ===== 按钮样式 ===== */
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 10px 20px;
   border: none;
-  border-radius: 6px;
-  cursor: pointer;
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.2s;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 .btn-primary {
-  background: var(--color-primary-500);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
   color: white;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--color-primary-600);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn-secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
 }
 
 .btn-secondary:hover {
-  background: var(--bg-secondary);
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-text-tertiary);
 }
 
 .btn-danger {
   background: var(--color-error);
   color: white;
   flex: 1;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-danger:hover {
-  background: #c82333;
+  background: #dc2626;
+  box-shadow: var(--shadow-md);
 }
 
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.btn-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ===== 响应式设计 ===== */
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 16px;
+  }
+
+  .modal {
+    max-width: 100%;
+    border-radius: var(--radius-lg);
+  }
+
+  .modal-header {
+    padding: 16px 20px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .modal-body {
+    padding: 20px;
+  }
+
+  .modal-footer {
+    padding: 16px 20px;
+    flex-direction: column-reverse;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .actions .btn {
+    width: 100%;
+  }
 }
 </style>
