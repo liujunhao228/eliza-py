@@ -96,17 +96,21 @@ class ScriptMatchResult:
 class ScriptResponse:
     """
     脚本响应结果
-    
+
     Attributes:
         text: 响应文本
         script_id: 脚本 ID
         intent_name: 意图名称
         metadata: 附加元数据
+        end_action: 结束对话动作 ("none" | "direct" | "farewell")
+        end_reason: 结束原因 ("max_turns", "suspicion", "timeout", "user_farewell", etc.)
     """
-    text: str
-    script_id: str
-    intent_name: str
+    text: str = ""
+    script_id: str = ""
+    intent_name: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)
+    end_action: str = "none"  # "none" | "direct" | "farewell"
+    end_reason: str = ""
 
 
 class BaseScriptEngine(ABC):

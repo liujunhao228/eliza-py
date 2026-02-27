@@ -256,11 +256,21 @@ class LuaScriptEngine(BaseScriptEngine):
                 )
 
                 if result:
+                    # 支持返回字典包含 end_action 和 end_reason
+                    if isinstance(result, dict):
+                        return ScriptResponse(
+                            text=str(result.get('text', '')),
+                            script_id=script_id,
+                            intent_name=config.name or script_id,
+                            metadata={'source': 'generate_response'},
+                            end_action=result.get('end_action', 'none'),
+                            end_reason=result.get('end_reason', ''),
+                        )
                     return ScriptResponse(
                         text=str(result),
                         script_id=script_id,
                         intent_name=config.name or script_id,
-                        metadata={'source': 'generate_response'}
+                        metadata={'source': 'generate_response'},
                     )
             except Exception as e:
                 logger.warning(f"generate_response 执行失败 [{script_id}]: {e}")
@@ -272,7 +282,9 @@ class LuaScriptEngine(BaseScriptEngine):
                 text=random.choice(templates),
                 script_id=script_id,
                 intent_name=config.name or script_id,
-                metadata={'source': 'template'}
+                metadata={'source': 'template'},
+                end_action=config.metadata.get('end_action', 'none'),
+                end_reason=config.metadata.get('end_reason', ''),
             )
 
         return None

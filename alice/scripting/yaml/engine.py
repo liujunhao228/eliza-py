@@ -317,7 +317,9 @@ class YAMLScriptEngine(BaseScriptEngine):
             metadata={
                 'template': template,
                 'keyword_only': intent.keyword_only,
-            }
+            },
+            end_action=intent.end_action,
+            end_reason=intent.end_reason,
         )
 
     def reload_script(self, script_id: str) -> bool:

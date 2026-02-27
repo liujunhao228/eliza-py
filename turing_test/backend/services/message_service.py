@@ -143,40 +143,42 @@ class MessageService:
         state = session_state_manager.get(session_id)
         if not state:
             return
-        
+
         # 检查在线用户
         session_users = manager.session_users.get(session_id, set())
         if not session_users:
             return
-        
+
         # 发送打字提示
         await manager.send_to_session(session_id, {
             "type": "typing",
             "data": {"sender": "opponent", "is_typing": True}
         })
-        
+
         # 判断是否为开场白后的第一条回复
         is_opening_response = state.turn_count == 1
-        
+
         # 获取 AI 响应
         ai_response = "系统故障，请稍后再试"
         ai_delay = 1.0
         is_meta = False
-        
+        end_action = None
+
         try:
-            base_response, base_delay = await get_bot_response(
+            base_response, base_delay, base_end_action = await get_bot_response(
                 user_message,
                 is_opening=is_opening_response,
                 is_honeypot=state.is_honeypot,
                 session_turn_count=state.turn_count,
             )
-            
+
             ai_response = base_response
             ai_delay = base_delay
-            
+            end_action = base_end_action
+
             # 检测元对话
             is_meta, _ = _detect_meta_conversation(user_message)
-            
+
             if state.is_honeypot:
                 from turing_test.backend.services.honeypot_service import get_honeypot_service
                 honeypot = get_honeypot_service()
@@ -189,18 +191,63 @@ class MessageService:
                 )
         except Exception as e:
             logger.error(f"获取 AI 响应失败：{e}")
-        
+
         # 等待延迟（模拟打字）
         if ai_delay > 0:
             await asyncio.sleep(ai_delay)
-        
+
         # 停止打字提示
         await manager.send_to_session(session_id, {
             "type": "stop_typing",
             "data": {"sender": "opponent", "is_typing": False}
         })
-        
-        # 保存 AI 消息
+
+        # 检查是否需要结束对话
+        if end_action and end_action.get("action") in ("direct", "farewell"):
+            # 先发送告别消息（如果是 farewell 模式且有响应文本）
+            if end_action.get("action") == "farewell" and ai_response:
+                ai_message = Message(
+                    session_id=session_id,
+                    sender="opponent",
+                    content=ai_response,
+                    is_meta_conversation=_detect_meta_conversation(ai_response)[0],
+                )
+                db.add(ai_message)
+                await db.commit()
+                await db.refresh(ai_message)
+
+                # 发送告别消息
+                await manager.send_to_session(session_id, {
+                    "type": "chat",
+                    "data": {
+                        "id": ai_message.id,
+                        "sender": "opponent",
+                        "content": ai_response,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "is_meta_conversation": _detect_meta_conversation(ai_response)[0],
+                    }
+                })
+
+            # 发送结束对话通知
+            await manager.send_to_session(session_id, {
+                "type": "conversation_end",
+                "data": {
+                    "action": end_action.get("action"),
+                    "reason": end_action.get("reason", ""),
+                    "session_id": session_id,
+                }
+            })
+
+            # 更新会话状态为结束
+            session_state_manager.end_session(session_id)
+
+            logger.info(
+                f"Bot 主动结束对话：session_id={session_id}, "
+                f"action={end_action.get('action')}, reason={end_action.get('reason')}"
+            )
+            return
+
+        # 正常流程：保存 AI 消息
         ai_message = Message(
             session_id=session_id,
             sender="opponent",
@@ -208,14 +255,14 @@ class MessageService:
             is_meta_conversation=_detect_meta_conversation(ai_response)[0],
         )
         db.add(ai_message)
-        
+
         # 更新内存状态
         turn_count, is_user_turn = session_state_manager.next_turn(session_id)
         asyncio.create_task(_flush_turn_count(session_id, turn_count))
-        
+
         await db.commit()
         await db.refresh(ai_message)
-        
+
         # 发送 AI 响应
         await manager.send_to_session(session_id, {
             "type": "chat",
@@ -227,7 +274,7 @@ class MessageService:
                 "is_meta_conversation": _detect_meta_conversation(ai_response)[0],
             }
         })
-        
+
         logger.info(
             f"AI 响应已发送：session_id={session_id}, "
             f"message_id={ai_message.id}, turn_count={turn_count}"

@@ -34,6 +34,7 @@ from alice.scripting import (
     ScriptConfig,
     ScriptMatchResult,
     ScriptResponse,
+    EndAction,
     LuaScriptEngine,
     YAMLScriptEngine,
     ScriptConfigLoader,
@@ -345,7 +346,7 @@ class DialogueEngine:
             logger.error(f"重组引擎初始化失败：{e}")
             self.reassembly_engine = None
 
-    def respond(self, user_input: str) -> str:
+    def respond(self, user_input: str) -> Tuple[str, Optional[EndAction]]:
         """
         生成响应
 
@@ -361,11 +362,14 @@ class DialogueEngine:
             user_input: 用户输入
 
         Returns:
-            机器人响应
+            (机器人响应，结束动作)
+            - 结束动作为 None 时表示继续对话
+            - 结束动作为 "direct" 时表示直接结束（不发送响应）
+            - 结束动作为 "farewell" 时表示发送告别语后结束
         """
         if not self._initialized:
             logger.warning("对话引擎未初始化")
-            return "系统未初始化，请稍后再试"
+            return "系统未初始化，请稍后再试", None
 
         start_time = time.time()
 
@@ -383,31 +387,32 @@ class DialogueEngine:
             match_result = self.script_matcher.match(context)
             self._last_match_result = match_result
 
-            # 5. 响应生成（优先级：脚本 > 回退）
-            response, rule_info = self._generate_response_with_priority(
+            # 5. 响应生成（优先级：脚本 > 回退）并检测结束动作
+            response, rule_info, end_action = self._generate_response_with_priority(
                 standardized_text, context, match_result
             )
 
-            # 6. 更新上下文
-            self._update_context(user_input, response, context)
+            # 6. 更新上下文（仅在不需要结束时）
+            if not end_action or end_action.action == "none":
+                self._update_context(user_input, response, context)
 
             # 记录耗时
             duration = time.time() - start_time
             logger.debug(f"响应生成耗时：{duration*1000:.2f}ms")
 
             self._last_rule_info = rule_info
-            return response
+            return response, end_action
 
         except Exception as e:
             logger.error(f"对话处理失败：{e}", exc_info=True)
-            return "抱歉，我遇到了一些问题，请稍后再试"
+            return "抱歉，我遇到了一些问题，请稍后再试", None
 
     def _generate_response_with_priority(
         self,
         text: str,
         context: ScriptContext,
         match_result: Optional[ScriptMatchResult],
-    ) -> Tuple[str, Dict[str, Any]]:
+    ) -> Tuple[str, Dict[str, Any], Optional[EndAction]]:
         """
         根据优先级生成响应
 
@@ -421,27 +426,32 @@ class DialogueEngine:
             match_result: 脚本匹配结果
 
         Returns:
-            (响应文本，规则信息)
+            (响应文本，规则信息，结束动作)
         """
         # 尝试脚本匹配响应
         if match_result:
-            script_response = self._generate_script_response(match_result, context)
+            script_response = self._generate_script_response_object(match_result, context)
             if script_response:
+                # 从脚本响应创建 EndAction
+                end_action = EndAction.from_response(script_response) if script_response.end_action != "none" else None
+                
                 return (
-                    script_response,
+                    script_response.text,
                     {
                         "source": "script",
                         "script_id": match_result.script_id,
                         "script_type": match_result.script_type,
                         "priority": match_result.priority,
                         "confidence": match_result.confidence,
-                    }
+                    },
+                    end_action
                 )
 
         # 回退响应
         return (
             self._fallback_response(),
-            {"source": "fallback"}
+            {"source": "fallback"},
+            None
         )
 
     def _generate_script_response(
@@ -450,7 +460,7 @@ class DialogueEngine:
         context: ScriptContext,
     ) -> Optional[str]:
         """
-        从脚本匹配生成响应
+        从脚本匹配生成响应（仅返回文本）
 
         Args:
             match: 匹配结果
@@ -461,6 +471,23 @@ class DialogueEngine:
         """
         response = self.script_matcher.generate_response(match, context)
         return response.text if response else None
+
+    def _generate_script_response_object(
+        self,
+        match: ScriptMatchResult,
+        context: ScriptContext,
+    ) -> Optional[ScriptResponse]:
+        """
+        从脚本匹配生成响应对象（包含 end_action 等信息）
+
+        Args:
+            match: 匹配结果
+            context: 上下文
+
+        Returns:
+            ScriptResponse 对象，失败时返回 None
+        """
+        return self.script_matcher.generate_response(match, context)
     
     def _preprocess(self, text: str) -> str:
         """文本预处理"""

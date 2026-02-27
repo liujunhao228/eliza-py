@@ -7,7 +7,7 @@ AI Bot 服务
 
 import asyncio
 import random
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Any
 from loguru import logger
 
 from config import settings
@@ -147,7 +147,7 @@ class AIBotService:
         is_honeypot: bool = False,
         session_turn_count: int = 0,
         is_meta: bool = False,
-    ) -> Tuple[str, float]:
+    ) -> Tuple[str, float, Optional[Any]]:
         """
         获取 AI 响应
 
@@ -160,25 +160,26 @@ class AIBotService:
             is_meta: 是否为元对话
 
         Returns:
-            (响应内容，打字延迟秒数)
+            (响应内容，打字延迟秒数，结束动作)
+            结束动作为 dict 格式：{"action": "...", "reason": "..."}
         """
         if not self._initialized:
             logger.warning("AI Bot 服务未初始化")
-            return "系统未初始化，请稍后再试。", 1.0
+            return "系统未初始化，请稍后再试。", 1.0, None
 
         # 从 Bot 池获取 Bot
         bot = self._bot_pool.acquire(timeout=5.0)
         if not bot:
             logger.warning("无法获取 Bot 实例")
-            return "抱歉，我现在比较忙，请稍后再试。", 1.0
+            return "抱歉，我现在比较忙，请稍后再试。", 1.0, None
 
         try:
-            # 生成响应
-            response = bot.respond(user_input)
+            # 生成响应（获取完整响应对象）
+            response_text, end_action = bot.respond_with_end_action(user_input)
 
             # 计算打字延迟
             delay = self._calculate_typing_delay(
-                response,
+                response_text,
                 is_opening=is_opening,
                 is_honeypot=is_honeypot,
                 session_turn_count=session_turn_count,
@@ -189,13 +190,13 @@ class AIBotService:
             if simulate_typing and delay > 0:
                 await asyncio.sleep(delay)
 
-            logger.debug(f"AI 响应生成：输入长度={len(user_input)}, 响应长度={len(response)}, 延迟={delay:.2f}秒")
+            logger.debug(f"AI 响应生成：输入长度={len(user_input)}, 响应长度={len(response_text)}, 延迟={delay:.2f}秒，end_action={end_action}")
 
-            return response, delay
+            return response_text, delay, end_action
 
         except Exception as e:
             logger.error(f"生成 AI 响应失败：{e}", exc_info=True)
-            return "系统出现故障，请稍后再试。", 1.0
+            return "系统出现故障，请稍后再试。", 1.0, None
 
         finally:
             # 释放 Bot 回池中
@@ -342,7 +343,7 @@ async def get_bot_response(
     is_opening: bool = False,
     is_honeypot: bool = False,
     session_turn_count: int = 0,
-) -> Tuple[str, float]:
+) -> Tuple[str, float, Optional[Any]]:
     """
     获取 AI 响应（便捷函数）
 
@@ -353,7 +354,8 @@ async def get_bot_response(
         session_turn_count: 会话轮数
 
     Returns:
-        (响应内容，打字延迟秒数)
+        (响应内容，打字延迟秒数，结束动作)
+        结束动作为 dict 格式：{"action": "...", "reason": "..."}
     """
     service = await get_ai_bot_service()
     return await service.get_response(

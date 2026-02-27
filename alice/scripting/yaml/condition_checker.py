@@ -7,6 +7,7 @@
 """
 
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from alice.scripting.context import ScriptContext
@@ -62,6 +63,7 @@ class ConditionChecker:
             self._check_semantic_deps,
             self._check_token_count,
             self._check_turn_count,
+            self._check_time,  # 新增：时间检查
         ]
 
         for check in checks:
@@ -231,6 +233,76 @@ class ConditionChecker:
 
         if "max_turns" in condition:
             if context.turn_count > condition["max_turns"]:
+                return False
+
+        return True
+
+    def _check_time(self, condition: Dict[str, Any], context: ScriptContext) -> bool:
+        """
+        检查时间条件
+
+        支持的条件:
+        - hour_gte: 小时大于等于
+        - hour_gt: 小时大于
+        - hour_lt: 小时小于
+        - hour_lte: 小时小于等于
+        - hour_eq: 小时等于
+        - weekday_gte: 星期几大于等于 (0=周一，6=周日)
+        - weekday_gt: 星期几大于
+        - weekday_lt: 星期几小于
+        - weekday_lte: 星期几小于等于
+        - weekday_eq: 星期几等于
+
+        Args:
+            condition: 条件字典
+            context: 脚本上下文
+
+        Returns:
+            条件是否满足
+        """
+        current_hour = datetime.now().hour
+        current_weekday = datetime.now().weekday()
+
+        # 检查小时条件
+        if "hour_gte" in condition:
+            if current_hour < condition["hour_gte"]:
+                return False
+
+        if "hour_gt" in condition:
+            if current_hour <= condition["hour_gt"]:
+                return False
+
+        if "hour_lt" in condition:
+            if current_hour >= condition["hour_lt"]:
+                return False
+
+        if "hour_lte" in condition:
+            if current_hour > condition["hour_lte"]:
+                return False
+
+        if "hour_eq" in condition:
+            if current_hour != condition["hour_eq"]:
+                return False
+
+        # 检查星期条件
+        if "weekday_gte" in condition:
+            if current_weekday < condition["weekday_gte"]:
+                return False
+
+        if "weekday_gt" in condition:
+            if current_weekday <= condition["weekday_gt"]:
+                return False
+
+        if "weekday_lt" in condition:
+            if current_weekday >= condition["weekday_lt"]:
+                return False
+
+        if "weekday_lte" in condition:
+            if current_weekday > condition["weekday_lte"]:
+                return False
+
+        if "weekday_eq" in condition:
+            if current_weekday != condition["weekday_eq"]:
                 return False
 
         return True

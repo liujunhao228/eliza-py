@@ -17,7 +17,7 @@
 import random
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from alice.core.dialogue_engine import DialogueEngine
 from alice.services.shared_nlp_service import SharedNLPService
@@ -158,12 +158,27 @@ class LightweightAliceBot:
 
     def respond(self, user_input: str) -> str:
         """生成响应"""
+        response, _ = self.respond_with_end_action(user_input)
+        return response
+
+    def respond_with_end_action(self, user_input: str) -> Tuple[str, Optional[Dict[str, Any]]]:
+        """
+        生成响应并返回结束动作
+
+        Args:
+            user_input: 用户输入
+
+        Returns:
+            (响应文本，结束动作)
+            结束动作为 dict 格式：{"action": "...", "reason": "...", "script_id": "..."}
+            无结束时返回 None
+        """
         if not self._initialized:
-            return "系统未初始化，请稍后再试"
+            return "系统未初始化，请稍后再试", None
 
         # 输入验证 - 空输入返回友好提示
         if not user_input or not user_input.strip():
-            return "请输入一些内容吧？"
+            return "请输入一些内容吧？", None
 
         # 检查缓存
         cached_response = self.cache.get(user_input)
@@ -176,7 +191,7 @@ class LightweightAliceBot:
                     'input_preview': sanitize_text(user_input[:20]),
                 }
             )
-            return cached_response
+            return cached_response, None
 
         start_time = time.time()
 
@@ -184,8 +199,8 @@ class LightweightAliceBot:
             # 使用外部 NLP 服务进行预处理
             processed_input = user_input
 
-            # 通过对话引擎生成响应
-            response = self.dialogue_engine.respond(processed_input)
+            # 通过对话引擎生成响应（包含 EndAction）
+            response, end_action = self.dialogue_engine.respond(processed_input)
 
             # 获取规则触发信息
             rule_info = self.dialogue_engine.get_last_rule_info()
@@ -208,10 +223,12 @@ class LightweightAliceBot:
                 )
                 self.dialogue_logger.log_performance("respond", duration * 1000)
 
-            # 缓存响应
-            self.cache.set(user_input, response, ttl=3600)
+            # 缓存响应（仅缓存非结束对话的响应）
+            end_action_dict = end_action.to_dict() if end_action else None
+            if not end_action_dict or end_action_dict.get("action") == "none":
+                self.cache.set(user_input, response, ttl=3600)
 
-            return response
+            return response, end_action_dict
 
         except (InputValidationError, ScriptMatchingError) as e:
             # 业务异常 - 记录并返回友好提示
@@ -223,7 +240,7 @@ class LightweightAliceBot:
                     'input_preview': sanitize_text(user_input[:50]),
                 }
             )
-            return "我暂时无法理解这个消息，能换种方式说吗？"
+            return "我暂时无法理解这个消息，能换种方式说吗？", None
         except ResponseGenerationError as e:
             # 响应生成错误 - 记录错误并返回系统提示
             logger.error(
@@ -235,7 +252,7 @@ class LightweightAliceBot:
                 },
                 exc_info=True,
             )
-            return "系统出现故障，请稍后再试"
+            return "系统出现故障，请稍后再试", None
         except TextProcessingError as e:
             # 文本处理错误
             logger.warning(
@@ -246,7 +263,7 @@ class LightweightAliceBot:
                     'input_preview': sanitize_text(user_input[:50]),
                 }
             )
-            return "我无法处理这个消息，请简化一下内容"
+            return "我无法处理这个消息，请简化一下内容", None
         except Exception as e:
             # 未预期的错误 - 记录详细错误但不降级，让上层处理
             logger.critical(

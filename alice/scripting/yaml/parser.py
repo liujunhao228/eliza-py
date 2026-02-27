@@ -34,6 +34,8 @@ class ScriptIntent:
         templates: 响应模板列表
         reassembly_rules: 重组规则
         keyword_only: 是否仅关键词匹配
+        end_action: 结束对话动作 ("none" | "direct" | "farewell")
+        end_reason: 结束原因
         usage_count: 使用次数统计
         last_used: 最后使用时间
     """
@@ -43,6 +45,8 @@ class ScriptIntent:
     templates: List[str] = field(default_factory=list)
     reassembly_rules: List[str] = field(default_factory=list)
     keyword_only: bool = False
+    end_action: str = "none"  # "none" | "direct" | "farewell"
+    end_reason: str = ""
     usage_count: int = 0
     last_used: Optional[str] = None
 
@@ -145,6 +149,8 @@ class YAMLScriptParser:
                 templates=templates,
                 reassembly_rules=script_data.get("reassembly_rules", []),
                 keyword_only=script_data.get("keyword_only", False),
+                end_action=script_data.get("end_action", "none"),
+                end_reason=script_data.get("end_reason", ""),
             )
 
             intents[intent_name] = intent
