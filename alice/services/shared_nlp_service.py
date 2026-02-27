@@ -367,30 +367,33 @@ class SharedNLPService(SyntaxAnalyzer, EntityRecognizer):
             raise ResponseGenerationError(f"实体抽取处理失败：{e}") from e
 
     def get_cached_result(self, key: str) -> Optional[Any]:
-        """获取缓存结果（支持 TTL）"""
+        """获取缓存结果（支持 TTL，优先从 L1 缓存获取）"""
         with self._cache_lock:
-            cached = self._cache.get(key)
-            if cached:
-                # 检查是否过期
-                if time.time() < cached['expire_time']:
-                    return cached['value']
-                else:
-                    # 缓存过期，删除
-                    del self._cache[key]
+            # 先尝试 L1 缓存
+            cached = self._l1_cache.get(key)
+            if cached is not None:
+                return cached
+            
+            # 再尝试 L2 缓存
+            cached = self._l2_cache.get(key)
+            if cached is not None:
+                # 回写到 L1 缓存
+                self._l1_cache.set(key, cached)
+                return cached
+            
             return None
 
     def set_cached_result(self, key: str, value: Any, ttl: int = 3600):
-        """设置缓存结果（支持 TTL）"""
+        """设置缓存结果（同时写入 L1 和 L2 缓存）"""
         with self._cache_lock:
-            self._cache[key] = {
-                'value': value,
-                'expire_time': time.time() + ttl
-            }
+            self._l1_cache.set(key, value)
+            self._l2_cache.set(key, value)
 
     def clear_cache(self):
         """清除所有缓存"""
         with self._cache_lock:
-            self._cache.clear()
+            self._l1_cache.clear()
+            self._l2_cache.clear()
             logger.info("缓存已清除")
 
     def get_stats(self) -> Dict[str, Any]:
@@ -689,19 +692,20 @@ class SharedNLPService(SyntaxAnalyzer, EntityRecognizer):
     def shutdown(self):
         """
         关闭 NLP 服务，清理资源
-        
+
         清理内容:
         - 清除所有缓存
         - 释放 LTP 引擎资源
         - 重置工厂实例
         """
         logger.info("正在关闭 NLP 服务...")
-        
+
         # 清除缓存
         with self._cache_lock:
-            self._cache.clear()
+            self._l1_cache.clear()
+            self._l2_cache.clear()
             logger.debug("NLP 缓存已清除")
-        
+
         # 重置工厂实例
         self._factory = None
         

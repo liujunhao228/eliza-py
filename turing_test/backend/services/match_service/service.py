@@ -16,6 +16,7 @@ from typing import Dict, Optional
 from loguru import logger
 
 from config import settings
+from turing_test.backend.services.session_state import session_state_manager
 
 
 class MatchService:

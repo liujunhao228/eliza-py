@@ -304,7 +304,6 @@ async def handle_mid_game_judgment(
     session.is_correct = breakdown.is_correct
     session.final_score = int(final_score)
     session.score_breakdown = get_score_breakdown_dict(breakdown)
-    session.ended_at = datetime.now(timezone.utc)
     # 注意：场中判断不结束会话，仅记录积分，end_reason 由用户后续点击"结束对话"时设置
 
     # 更新用户积分
@@ -341,22 +340,13 @@ async def handle_mid_game_judgment(
         f"correct={breakdown.is_correct}, score={final_score}"
     )
 
-    # 发送结果（注意：opponent_type 需要 normalize，向用户隐藏 honeypot）
-    def _normalize_opponent_type(opponent_type: str) -> str:
-        """将 honeypot 隐藏为 ai"""
-        if opponent_type == "honeypot":
-            return "ai"
-        return opponent_type
-
+    # 注意：场中判断后不向用户显示结果，结果在最终问卷提交时才揭晓
+    # 仅发送确认消息，告知前端场中判断已成功提交
     await manager.send_personal_message(user_id, {
-        "type": "mid_game_result",
+        "type": "mid_game_submitted",
         "data": {
             "session_id": session.id,
-            "user_guess": user_guess,
-            "is_correct": breakdown.is_correct,
-            "opponent_type": _normalize_opponent_type(session.opponent_type),
-            "final_score": int(final_score),
-            "score_breakdown": get_score_breakdown_dict(breakdown),
+            "message": "场中判断已记录，结果将在最终问卷提交时揭晓",
         }
     })
 

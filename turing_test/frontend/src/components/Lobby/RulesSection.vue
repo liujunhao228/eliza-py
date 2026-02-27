@@ -12,7 +12,7 @@
     </div>
 
     <!-- 用户信息卡片 -->
-    <div class="user-card">
+    <div class="user-card" @click="goToProfile">
       <div class="user-info">
         <div class="avatar">
           {{ userStore.nickname?.charAt(0).toUpperCase() }}
@@ -27,76 +27,63 @@
           </div>
         </div>
       </div>
+      <span class="click-hint">点击查看个人中心</span>
     </div>
 
     <!-- 规则说明 -->
     <div class="rules-card">
-      <h2>📜 实验规则</h2>
+      <div class="rules-header">
+        <h2>📜 实验规则</h2>
+        <el-button class="btn-toggle" text @click="toggleAll">
+          {{ isAllExpanded ? '全部收起' : '全部展开' }}
+        </el-button>
+      </div>
 
-      <el-collapse v-model="activeNames" accordion>
-        <el-collapse-item title="1. 入场券制度" name="1">
+      <el-collapse v-model="activeNames">
+        <el-collapse-item title="1. 入场券" name="1">
           <div class="rule-content">
-            <p>• <strong>每局消耗</strong>：2 积分入场券</p>
-            <p>• <strong>初始积分</strong>：100 分</p>
-            <p>• <strong>不退还</strong>：无论胜负，入场券不退还</p>
-            <p>• <strong>最低轮数</strong>：至少对话 3 轮后才能结束</p>
+            <p>- 开始每局对话消耗<strong>2 积分</strong></p>
+            <p>- 初始积分：<strong>100 分</strong></p>
           </div>
         </el-collapse-item>
 
-        <el-collapse-item title="2. 判断与积分" name="2">
+        <el-collapse-item title="2. 判断身份" name="2">
           <div class="rule-content">
-            <p>• <strong>识别 AI 正确</strong>：+10 分</p>
-            <p>• <strong>误判 AI 为真人</strong>：-15 分</p>
-            <p>• <strong>识别人类正确</strong>：+10 分</p>
-            <p>• <strong>误判人类为 AI</strong>：-10 分</p>
-            <p>• <strong>轮数惩罚</strong>：第 4 轮开始，每轮扣除 0.5 分</p>
+            <p>- 在问卷中填写你的判断</p>
+            <p>- 成功：获得积分</p>
+            <p>- 错误：扣除积分</p>
+            <p>- 至少对话 3 轮后才能结束对话</p>
           </div>
         </el-collapse-item>
 
-        <el-collapse-item title="3. 信心等级机制" name="3">
+        <el-collapse-item title="3. 信心等级" name="3">
           <div class="rule-content">
-            <p><strong>信心等级会影响积分倍数：</strong></p>
-            <ul>
-              <li>低信心 (50%-70%)：×1.0 倍数</li>
-              <li>中信心 (71%-90%)：×2.5 倍数</li>
-              <li>高信心 (91%-100%)：×5.0 倍数</li>
-            </ul>
-            <p class="warning">⚠️ 风险提示：高信心判断错误将受到 5 倍惩罚！</p>
+            <p>- 在问卷中填写你对判断的把握程度</p>
+            <p>- 信心等级越高，奖惩倍数越高</p>
           </div>
         </el-collapse-item>
 
-        <el-collapse-item title="4. 元对话双刃剑机制" name="4">
+        <el-collapse-item title="4. 场中判断机制" name="4">
           <div class="rule-content">
-            <p><strong>什么是元对话？</strong></p>
-            <p>指讨论身份、真人、机器、AI 等话题的行为</p>
-            <p><strong>每次元对话会增加倍数：</strong></p>
-            <ul>
-              <li>判断正确时：基础分 × (1 + 次数×0.2)</li>
-              <li>判断错误时：基础分 × (1 + 次数×0.3)</li>
-            </ul>
-            <p class="example">
-              <strong>示例：</strong>元对话 3 次，高信心判断正确<br>
-              → (+10 × 5.0 × 1.6) - 2 - 1.5 = +76.5 分<br>
-              → 如果判断错误：(-15 × 5.0 × 1.9) - 2 - 1.5 = -144.5 分
-            </p>
-            <p class="warning">🚨 高频元对话（>5 次）会增加遇到钓鱼机器人的风险！</p>
+            <p>- 对话过程中可以随时进行一次场中判断</p>
+            <p>- 信心等级固定为<strong>"高"</strong></p>
+            <p>- 场中判断的结果无法更改，并代替问卷中的相应部分</p>
           </div>
         </el-collapse-item>
 
-        <el-collapse-item title="5. 场中判断机制" name="5">
+        <el-collapse-item title="5. 元对话" name="5">
           <div class="rule-content">
-            <p>• 对话过程中可以随时进行场中判断</p>
-            <p>• <strong>判断正确</strong>：双倍奖励（基础分 × 2.0）</p>
-            <p>• <strong>判断错误</strong>：1.5 倍惩罚（基础分 × 1.5）</p>
-            <p>• 对话立即结束，无需填写后续问卷</p>
+            <p>- 元对话指讨论身份（比如真人/机器等话题）的行为</p>
+            <p>- 基于双方发言中的关键词识别</p>
+            <p>- 每次触发关键词会增加奖惩倍数</p>
           </div>
         </el-collapse-item>
 
-        <el-collapse-item title="6. 匹配规则" name="6">
+        <el-collapse-item title="6. 场中判断机制" name="6">
           <div class="rule-content">
-            <p>• <strong>匿名对话</strong>：双方身份保密，直到实验结束才揭晓</p>
-            <p>• <strong>完全随机</strong>：你可能会遇到真人、AI 或钓鱼机器人</p>
-            <p>• <strong>自由策略</strong>：不预设任何角色，你可以自由选择对话策略</p>
+            <p>- 对话过程中可以随时进行一次场中判断</p>
+            <p>- 场中判断结果无法更改</p>
+            <p>- 场中判断的结果将代替问卷中的相应结果</p>
           </div>
         </el-collapse-item>
       </el-collapse>
@@ -119,9 +106,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 
+const router = useRouter()
 const userStore = useUserStore()
 
 const emit = defineEmits<{
@@ -129,7 +118,23 @@ const emit = defineEmits<{
   (e: 'logout'): void
 }>()
 
-const activeNames = ref(['1'])
+// 默认展开前 3 个条目
+const activeNames = ref(['1', '2', '3'])
+
+// 所有条目名称
+const allNames = ['1', '2', '3', '4', '5', '6']
+
+// 是否全部展开
+const isAllExpanded = computed(() => activeNames.value.length === allNames.length)
+
+// 全部展开/收起切换
+function toggleAll() {
+  if (isAllExpanded.value) {
+    activeNames.value = []
+  } else {
+    activeNames.value = [...allNames]
+  }
+}
 
 function handleStartMatch() {
   emit('start-match')
@@ -137,6 +142,11 @@ function handleStartMatch() {
 
 function handleLogout() {
   emit('logout')
+}
+
+// 跳转到个人中心
+function goToProfile() {
+  router.push('/profile')
 }
 </script>
 
@@ -202,6 +212,41 @@ function handleLogout() {
   padding: 24px;
   margin-bottom: 30px;
   box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.user-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.5);
+}
+
+.user-card:active {
+  transform: translateY(-2px);
+}
+
+.click-hint {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.click-hint::before {
+  content: '→';
+  font-size: 14px;
+}
+
+.user-card:hover .click-hint {
+  opacity: 1;
 }
 
 .user-info {
@@ -257,56 +302,78 @@ function handleLogout() {
   border: 1px solid var(--border-primary);
 }
 
-.rules-card h2 {
-  font-size: 22px;
-  color: var(--text-primary);
+.rules-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
 }
 
+.rules-header h2 {
+  font-size: 22px;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.btn-toggle {
+  font-size: 13px !important;
+  color: var(--color-primary-600) !important;
+  padding: 6px 12px !important;
+}
+
+.btn-toggle:hover {
+  background: var(--color-primary-50) !important;
+}
+
+/* 折叠面板样式优化 - 提高信息密度 */
+:deep(.el-collapse) {
+  border: none;
+}
+
+:deep(.el-collapse-item) {
+  margin-bottom: 8px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--rounded-md);
+  overflow: hidden;
+}
+
+:deep(.el-collapse-item__header) {
+  font-size: 13px;
+  padding: 10px 12px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  transition: all 0.2s;
+}
+
+:deep(.el-collapse-item__header:hover) {
+  background: var(--bg-secondary);
+}
+
+:deep(.el-collapse-item__arrow) {
+  font-size: 12px;
+  margin-right: 8px;
+}
+
+:deep(.el-collapse-item__content) {
+  padding: 10px 16px 14px;
+  font-size: 13px;
+  line-height: 1.8;
+  background: var(--bg-surface);
+}
+
 .rule-content {
-  padding: 8px 0;
+  padding: 0;
   line-height: 1.8;
 }
 
 .rule-content p {
-  margin: 8px 0;
+  margin: 6px 0;
   color: var(--text-secondary);
 }
 
 .rule-content strong {
   color: var(--color-primary-600);
-}
-
-.rule-content ul {
-  margin: 8px 0;
-  padding-left: 24px;
-}
-
-.rule-content li {
-  margin: 4px 0;
-  color: var(--text-secondary);
-}
-
-.rule-content .warning {
-  margin-top: 12px;
-  padding: 12px;
-  background: var(--color-red-50);
-  border-left: 4px solid var(--color-red-500);
-  border-radius: var(--rounded-sm);
-  color: var(--color-error);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.rule-content .example {
-  margin-top: 12px;
-  padding: 12px;
-  background: var(--color-primary-50);
-  border-left: 4px solid var(--color-primary-600);
-  border-radius: var(--rounded-sm);
-  color: var(--color-primary-700);
-  font-size: 14px;
-  line-height: 1.8;
 }
 
 .action-section {
@@ -371,6 +438,11 @@ function handleLogout() {
 
   .user-card {
     padding: 20px;
+    cursor: pointer;
+  }
+
+  .user-card:hover {
+    transform: translateY(-2px);
   }
 
   .user-info {
@@ -384,8 +456,26 @@ function handleLogout() {
     font-size: 20px;
   }
 
+  .click-hint {
+    position: static;
+    transform: none;
+    margin-top: 12px;
+    opacity: 1;
+    justify-content: center;
+  }
+
   .rules-card {
     padding: 20px;
+  }
+
+  .rules-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .rules-header h2 {
+    font-size: 18px;
   }
 
   .btn-start {

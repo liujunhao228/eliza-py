@@ -111,17 +111,16 @@ export function useChatState() {
       }
     })
 
-    // 注册 mid_game_result 消息处理器
-    on('mid_game_result', (data: any) => {
-      console.log('[Chat] 收到 mid_game_result 消息:', data)
-      showSuccess(`场中判断结果：${data.is_correct ? '正确' : '错误'}，积分变化：${data.final_score}`)
+    // 注册 mid_game_submitted 消息处理器（场中判断后隐藏结果）
+    on('mid_game_submitted', (data: any) => {
+      console.log('[Chat] 收到 mid_game_submitted 消息:', data)
+      showSuccess('场中判断已记录，结果将在最终问卷提交时揭晓')
 
-      // 更新 store 状态（场中判断后隐藏身份判断和信心等级）
-      // data 中包含 user_guess 和 is_correct
+      // 仅标记已触发场中判断，不设置结果（隐藏 isCorrect）
       const userGuess = data.data?.user_guess || data.user_guess
-      const isCorrect = data.is_correct
-      if (userGuess && isCorrect !== undefined) {
-        gameStore.setMidGameResult(userGuess, isCorrect)
+      if (userGuess) {
+        gameStore.setTriggeredMidGame(true)
+        // 注意：不调用 setMidGameResult，避免泄露 isCorrect
       }
     })
 
@@ -159,7 +158,7 @@ export function useChatState() {
       case 'message':
       case 'mid_game_available':
       case 'session_ended':
-      case 'mid_game_result':
+      case 'mid_game_submitted':
       case 'connected':
       case 'error':
       case 'typing':

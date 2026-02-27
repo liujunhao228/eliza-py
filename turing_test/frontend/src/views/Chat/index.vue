@@ -164,8 +164,8 @@ const handleMidGameJudgment = async (choice: 'human' | 'ai') => {
 
 // 处理结束对话（显示确认弹窗）
 const handleEndChat = () => {
-  // 检查最低轮数
-  const currentTurns = Math.floor(gameStore.turn / 2)
+  // 检查最低轮数（与顶部计数器逻辑保持一致，使用 Math.ceil）
+  const currentTurns = Math.ceil(gameStore.turn / 2)
   if (currentTurns < MIN_CHAT_TURNS) {
     showWarning(`请多聊几句再结束哦（至少${MIN_CHAT_TURNS}轮，当前${currentTurns}轮）`)
     return

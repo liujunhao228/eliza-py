@@ -337,8 +337,11 @@ async def submit_survey(
             detail="会话不存在",
         )
 
-    # 检查会话是否已经结算过积分（通过检查 final_score 是否已设置）
-    if session.final_score is not None:
+    # 检查是否已提交过问卷（通过检查 Survey 表是否有记录）
+    existing_survey = await db.execute(
+        select(Survey).where(Survey.session_id == session.id)
+    )
+    if existing_survey.scalar_one_or_none():
         raise HTTPException(
             status_code=400,
             detail="该会话的问卷已提交过，无法重复提交",

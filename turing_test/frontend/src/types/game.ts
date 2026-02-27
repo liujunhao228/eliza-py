@@ -24,7 +24,7 @@ export type WSConnectionState = 'connecting' | 'connected' | 'disconnected' | 'r
 
 // WebSocket 消息类型
 export interface WSMessage {
-  type: 'message' | 'chat' | 'typing' | 'stop_typing' | 'match_found' | 'match_timeout' | 'session_ended' | 'mid_game_available' | 'mid_game_result' | 'ping' | 'pong' | 'error' | 'connected' | 'status'
+  type: 'message' | 'chat' | 'typing' | 'stop_typing' | 'match_found' | 'match_timeout' | 'session_ended' | 'mid_game_available' | 'mid_game_submitted' | 'ping' | 'pong' | 'error' | 'connected' | 'status'
   data?: any
 }
 
@@ -151,19 +151,16 @@ export interface ScoreBreakdownDetail {
   is_correct: boolean
 }
 
-// 场中判断结果数据
-export interface MidGameResultData {
+// 场中判断提交确认消息数据
+export interface MidGameSubmittedData {
   session_id: string
-  is_correct: boolean
-  opponent_type: OpponentType
-  final_score: number
-  score_breakdown: ScoreBreakdownDetail
+  message: string
 }
 
-// 场中判断结果消息
-export interface MidGameResultMessage {
-  type: 'mid_game_result'
-  data: MidGameResultData
+// 场中判断提交确认消息
+export interface MidGameSubmittedMessage {
+  type: 'mid_game_submitted'
+  data: MidGameSubmittedData
 }
 
 // 场中可用消息数据
@@ -263,7 +260,7 @@ export type TypedWSMessage =
   | MatchTimeoutMessage
   | SessionEndedMessage
   | MidGameAvailableMessage
-  | MidGameResultMessage
+  | MidGameSubmittedMessage
   | ChatMessage
   | TypingMessage
   | StatusMessage

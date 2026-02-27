@@ -17,11 +17,9 @@
           <template #default>
             <p class="mid-game-info">
               您的判断：<strong>{{ midGameGuessText }}</strong>
-              <span v-if="midGameIsCorrect !== null" :class="['result-badge', midGameIsCorrect ? 'correct' : 'incorrect']">
-                {{ midGameIsCorrect ? '✓ 判断正确' : '✗ 判断错误' }}
-              </span>
             </p>
             <p class="mid-game-hint">信心等级：<strong>high</strong>（场中判断固定）</p>
+            <p class="mid-game-hint">结果将在提交后揭晓</p>
           </template>
         </el-alert>
 
@@ -181,26 +179,35 @@ const midGameGuessText = computed(() => {
   return '未知'
 })
 
-// 计算属性：场中判断是否正确
-const midGameIsCorrect = computed(() => {
-  return gameStore.midGameIsCorrect
-})
-
 // 表单验证规则：场中判断后不需要验证 user_guess 和 confidence_level
-const formRules: FormRules<SurveyData> = {
-  user_guess: [
-    { required: true, message: '请选择你的判断', trigger: 'change' }
-  ],
-  confidence_level: [
-    { required: true, message: '请选择信心等级', trigger: 'change' }
-  ],
-  fluency_rating: [
-    { required: true, message: '请评价对话流畅度', trigger: 'change' }
-  ],
-  self_role: [
-    { required: true, message: '请选择你的角色', trigger: 'change' }
-  ]
-}
+const formRules = computed<FormRules<SurveyData>>(() => {
+  if (hasMidGameJudgment.value) {
+    // 场中判断后，不需要验证 user_guess 和 confidence_level
+    return {
+      fluency_rating: [
+        { required: true, message: '请评价对话流畅度', trigger: 'change' }
+      ],
+      self_role: [
+        { required: true, message: '请选择你的角色', trigger: 'change' }
+      ]
+    }
+  }
+  // 正常问卷提交，需要验证所有字段
+  return {
+    user_guess: [
+      { required: true, message: '请选择你的判断', trigger: 'change' }
+    ],
+    confidence_level: [
+      { required: true, message: '请选择信心等级', trigger: 'change' }
+    ],
+    fluency_rating: [
+      { required: true, message: '请评价对话流畅度', trigger: 'change' }
+    ],
+    self_role: [
+      { required: true, message: '请选择你的角色', trigger: 'change' }
+    ]
+  }
+})
 
 // 提交状态
 const submitting = ref(false)
@@ -428,10 +435,18 @@ onMounted(() => {
   background-color: var(--color-primary-50);
 }
 
+.role-radio .el-radio__label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .role-icon {
   font-size: 24px;
-  margin-right: 12px;
-  vertical-align: middle;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .role-text {
@@ -439,6 +454,7 @@ onMounted(() => {
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.5;
+  flex: 1;
 }
 
 /* 文本输入框 */
