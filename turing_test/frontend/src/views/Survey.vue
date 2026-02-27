@@ -103,7 +103,7 @@
                 <span class="role-text">干扰者（试图模拟机器，骗过对方）</span>
               </el-radio>
               <el-radio value="other" class="role-radio">
-                <span class="guess-icon">❓</span>
+                <span class="role-icon">❓</span>
                 <span class="role-text">其他（不确定或没有特定角色，或在对话中切换了角色）</span>
               </el-radio>
             </el-radio-group>
@@ -381,16 +381,39 @@ onMounted(() => {
   background-color: var(--color-primary-50);
 }
 
+/* 修复 radio 整体布局：圆形选择框与 label 内容对齐 */
+.guess-radio .el-radio__input {
+  display: flex;
+  align-items: center;
+  margin-right: 12px;
+}
+
+.guess-radio .el-radio__inner {
+  margin-top: 0;
+}
+
+/* 修复 label 内部布局：图标与文字横向排列 */
+.guess-radio .el-radio__label {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  line-height: 1;
+}
+
 .guess-icon {
   font-size: 24px;
-  display: block;
-  margin-bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .guess-text {
   font-size: 16px;
   font-weight: 500;
   color: var(--text-primary);
+  line-height: 1.5;
+  flex: 1;
 }
 
 /* 流畅度评分 */
@@ -416,6 +439,14 @@ onMounted(() => {
   gap: 12px;
 }
 
+.role-options :deep(.el-radio) {
+  width: 100% !important;
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+  display: flex;
+  align-items: center;
+}
+
 .role-radio {
   border: 2px solid var(--border-secondary);
   border-radius: var(--rounded-md);
@@ -423,6 +454,9 @@ onMounted(() => {
   transition: all 0.3s;
   cursor: pointer;
   width: 100%;
+  display: flex;
+  align-items: center;
+  margin: 0 !important;
 }
 
 .role-radio:hover {
@@ -435,15 +469,30 @@ onMounted(() => {
   background-color: var(--color-primary-50);
 }
 
-.role-radio .el-radio__label {
+/* 修复 radio 整体布局：圆形选择框与 label 内容对齐 */
+.role-radio .el-radio__input {
   display: flex;
   align-items: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.role-radio .el-radio__inner {
+  margin-top: 0;
+}
+
+/* 修复 label 内部布局：图标与文字对齐 */
+.role-radio .el-radio__label {
+  display: flex !important;
+  align-items: center;
   gap: 12px;
+  line-height: 1;
+  padding-left: 0 !important;
 }
 
 .role-icon {
   font-size: 24px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
