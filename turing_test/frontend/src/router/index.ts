@@ -37,7 +37,25 @@ interface AppRouteMeta extends RouteMeta {
   keepScroll?: boolean
 }
 
-// 路由配置
+/**
+ * 基础标题
+ */
+const BASE_TITLE = '人机辨识实验'
+
+/**
+ * 动态设置页面标题
+ */
+function setPageTitle(title?: string): void {
+  if (title) {
+    document.title = `${title} - ${BASE_TITLE}`
+  } else {
+    document.title = BASE_TITLE
+  }
+}
+
+/**
+ * 路由配置
+ */
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
@@ -49,7 +67,7 @@ const routes: RouteRecordRaw[] = [
     path: '/lobby',
     name: 'Lobby',
     component: Lobby,
-    meta: { 
+    meta: {
       requiresAuth: true,
       title: '大厅'
     } satisfies AppRouteMeta
@@ -58,7 +76,7 @@ const routes: RouteRecordRaw[] = [
     path: '/chat',
     name: 'Chat',
     component: Chat,
-    meta: { 
+    meta: {
       requiresAuth: true,
       title: '聊天'
     } satisfies AppRouteMeta
@@ -67,7 +85,7 @@ const routes: RouteRecordRaw[] = [
     path: '/survey',
     name: 'Survey',
     component: Survey,
-    meta: { 
+    meta: {
       requiresAuth: true,
       title: '问卷'
     } satisfies AppRouteMeta
@@ -76,7 +94,7 @@ const routes: RouteRecordRaw[] = [
     path: '/result',
     name: 'Result',
     component: Result,
-    meta: { 
+    meta: {
       requiresAuth: true,
       title: '结果'
     } satisfies AppRouteMeta
@@ -103,26 +121,16 @@ const routes: RouteRecordRaw[] = [
     path: '/share/:token',
     name: 'SharedSession',
     component: SharedSession,
-    meta: { 
-      requiresAuth: false,  // 公开访问，无需登录
+    meta: {
+      requiresAuth: false,
       title: '共享会话'
     } satisfies AppRouteMeta
+  },
+  {
+    path: '/:pathMatch(.*)',
+    redirect: '/'
   }
 ]
-
-// 创建路由实例
-const router = createRouter({
-  history: createWebHistory(),
-  routes,
-  scrollBehavior(to, _from, savedPosition) {
-    // 如果页面设置了保持滚动位置
-    if (to.meta.keepScroll && savedPosition) {
-      return savedPosition
-    }
-    // 默认滚动到顶部
-    return { top: 0 }
-  }
-})
 
 /**
  * 判断路由是否需要认证
@@ -152,8 +160,25 @@ function clearUserData(): void {
   localStorage.removeItem(STORAGE_KEYS.OPPONENT_TYPE)
 }
 
+// 创建路由实例
+const router = createRouter({
+  history: createWebHistory(),
+  routes,
+  scrollBehavior(to, _from, savedPosition) {
+    // 如果页面设置了保持滚动位置
+    if (to.meta.keepScroll && savedPosition) {
+      return savedPosition
+    }
+    // 默认滚动到顶部
+    return { top: 0 }
+  }
+})
+
 // 路由守卫
 router.beforeEach((to, _from, next) => {
+  // 设置页面标题
+  setPageTitle((to.meta as AppRouteMeta).title)
+
   const requiresAuth = isAuthRoute(to.meta)
 
   // 检查是否需要登录
