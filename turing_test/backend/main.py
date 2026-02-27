@@ -299,6 +299,117 @@ async def general_exception_handler(request, exc):
 
 
 # =============================================================================
+# 数据导出端点（用于免费服务器获取数据库）
+# =============================================================================
+
+from fastapi import Security, Query
+from fastapi.security import APIKeyHeader
+from starlette.responses import FileResponse
+import os
+
+API_KEY = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+# 从环境变量读取管理密钥（可选功能）
+ADMIN_API_KEY = os.getenv("TURING_ADMIN_API_KEY", "")
+
+@app.get(
+    "/admin/export-data",
+    tags=["数据导出"],
+    summary="导出数据库文件",
+    description="下载 SQLite 数据库文件（需要管理员 API Key）",
+    responses={
+        200: {"description": "数据库文件", "content": {"application/octet-stream": {}}},
+        401: {"model": ErrorResponse, "description": "未授权"},
+        404: {"model": ErrorResponse, "description": "数据库文件不存在"},
+    },
+)
+async def export_database(
+    api_key: str = Security(API_KEY),
+    file: str = Query(default="turing.db", description="要下载的文件名，默认为 turing.db")
+):
+    """
+    导出数据库文件供下载
+    
+    使用方法:
+        curl -H "X-API-Key: YOUR_API_KEY" https://your-server.com/admin/export-data -o turing.db
+        curl -H "X-API-Key: YOUR_API_KEY" "https://your-server.com/admin/export-data?file=turing_backup_20260227_120000.db" -o backup.db
+    """
+    # 如果设置了 ADMIN_API_KEY，则验证
+    if ADMIN_API_KEY:
+        if not api_key or api_key != ADMIN_API_KEY:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="无效的 API Key"
+            )
+    
+    # 防止路径遍历攻击
+    if ".." in file or file.startswith("/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的文件名"
+        )
+    
+    # 数据库文件路径
+    db_path = Path("data") / file
+    
+    if not db_path.exists():
+        # 列出可用的备份文件
+        backup_dir = Path("data/backups")
+        if backup_dir.exists():
+            available_backups = [f.name for f in backup_dir.glob("*.db")]
+            detail = f"数据库文件不存在：{file}"
+            if available_backups:
+                detail += f"。可用的备份：{', '.join(available_backups[:5])}"
+        else:
+            detail = f"数据库文件不存在：{file}"
+        
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=detail
+        )
+    
+    logger.info(f"数据库导出请求 - 文件：{db_path}")
+    
+    return FileResponse(
+        path=str(db_path),
+        media_type="application/octet-stream",
+        filename=file
+    )
+
+@app.get(
+    "/admin/list-backups",
+    tags=["数据导出"],
+    summary="列出所有备份文件",
+    description="列出数据目录中的所有备份文件（需要管理员 API Key）",
+)
+async def list_backups(api_key: str = Security(API_KEY)):
+    """列出所有可用的备份文件"""
+    # 验证
+    if ADMIN_API_KEY:
+        if not api_key or api_key != ADMIN_API_KEY:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="无效的 API Key"
+            )
+    
+    backups = []
+    backup_dir = Path("data/backups")
+    
+    if backup_dir.exists():
+        for f in sorted(backup_dir.glob("*.db"), reverse=True):
+            backups.append({
+                "filename": f.name,
+                "size": f.stat().st_size,
+                "created": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+            })
+    
+    return {"backups": backups, "count": len(backups)}
+
+# 需要 datetime 导入
+from datetime import datetime
+
+
+# =============================================================================
 # API 路由
 # =============================================================================
 

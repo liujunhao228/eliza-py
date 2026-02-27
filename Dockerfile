@@ -43,9 +43,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# 安装最小运行时依赖（仅需 libgomp1 用于某些科学计算包）
+# 安装最小运行时依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
+    bash \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -55,8 +56,13 @@ COPY --from=builder /install /install
 # 复制应用代码（代码变化不会使依赖层缓存失效）
 COPY . .
 
+# 复制启动备份脚本并设置执行权限
+COPY scripts/startup-backup.sh /usr/local/bin/startup-backup
+RUN chmod +x /usr/local/bin/startup-backup
+
 # 创建必要的目录并设置权限
-RUN mkdir -p /app/data /app/logs /app/scripts/lua
+RUN mkdir -p /app/data /app/data/backups /app/logs /app/scripts/lua && \
+    chown -R appuser:appuser /app
 
 # 创建非 root 用户（安全最佳实践）
 RUN useradd --create-home --shell /bin/bash appuser && \
@@ -70,8 +76,27 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD python -c "import socket; s=socket.socket(); s.settimeout(5); result=s.connect_ex(('127.0.0.1', 8000)); s.close(); exit(0 if result==0 else 1)" || exit 1
 
-# 默认启动命令
+# =============================================================================
+# 环境变量说明
+# =============================================================================
+# 可通过 docker run -e 或 docker-compose environment 设置：
+#
+# 数据导出保护（可选）:
+#   TURING_ADMIN_API_KEY=your-secret-key-here
+#   设置后，/admin/export-data 端点需要携带此 API Key 才能下载
+#
+# 启动备份（可选）:
+#   ENABLE_STARTUP_BACKUP=true  (默认：true)
+#   启动应用前自动备份现有数据库
+#
+# 示例:
+#   docker run -e TURING_ADMIN_API_KEY=my-secret-key eliza-py
+#   curl -H "X-API-Key: my-secret-key" https://your-server.com/admin/export-data -o turing.db
+# =============================================================================
+
+# 默认启动命令（使用启动备份脚本）
 # 可通过 docker run 覆盖：
 #   docker run eliza-py python main.py alice  # Alice 模式
 #   docker run eliza-py python main.py turing # Turing 模式（默认）
-CMD ["python", "main.py", "turing"]
+#   docker run eliza-py bash                  # 仅启动 shell
+CMD ["/usr/local/bin/startup-backup", "python", "main.py", "turing"]
