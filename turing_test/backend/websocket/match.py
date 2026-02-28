@@ -78,7 +78,11 @@ async def match_websocket(
         from turing_test.backend.services.match_service import get_match_service
         match_service = get_match_service()
         try:
+            # 从匹配队列移除
             await match_service.remove_from_queue(user_id)
+            # 清理匹配结果缓存（避免用户重新匹配时冲突）
+            await match_service.clear_result(user_id)
+            logger.info(f"用户 {user_id} 已清理匹配状态")
         except Exception as e:
-            logger.error(f"清理匹配队列时出错：{e}")
+            logger.error(f"清理匹配状态时出错：{e}")
         manager.disconnect(user_id)

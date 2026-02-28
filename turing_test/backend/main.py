@@ -74,10 +74,23 @@ async def lifespan(app: FastAPI):
     await manager.start_heartbeat_monitor()
     logger.info("✅ WebSocket 心跳监控已启动")
 
+    # 启动会话超时清理任务
+    from turing_test.backend.services.session_state import session_state_manager
+    await session_state_manager.start()
+    logger.info("✅ 会话超时清理任务已启动")
+
     yield
 
     # 关闭时清理
     logger.info("🔄 正在关闭应用...")
+
+    # 停止会话超时清理任务
+    try:
+        from turing_test.backend.services.session_state import session_state_manager
+        await session_state_manager.stop()
+        logger.info("✅ 会话超时清理任务已停止")
+    except Exception as e:
+        logger.error(f"❌ 会话超时清理任务关闭失败：{e}")
 
     # 停止 WebSocket 心跳监控
     try:

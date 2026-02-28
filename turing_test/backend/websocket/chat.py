@@ -240,6 +240,25 @@ async def chat_websocket(
             # 清理会话状态
             from turing_test.backend.services.session_state import session_state_manager
             session_state_manager.cleanup(session_id)
+            
+            # 如果会话未正常结束，标记为系统错误结束
+            try:
+                # 检查会话是否已结束
+                result = await db.execute(
+                    select(Session).where(Session.id == session_id)
+                )
+                session = result.scalar_one_or_none()
+                if session and session.ended_at is None:
+                    # 会话未结束，标记为系统错误
+                    session.ended_at = datetime.now(timezone.utc)
+                    session.end_reason = "sys_error"
+                    await db.commit()
+                    logger.info(
+                        f"会话异常结束：user_id={user_id}, session_id={session_id}, "
+                        f"reason=sys_error (连接异常断开)"
+                    )
+            except Exception as e:
+                logger.error(f"标记会话异常结束时出错：{e}")
 
 
 async def handle_mid_game_judgment(

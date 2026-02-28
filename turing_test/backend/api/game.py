@@ -142,6 +142,14 @@ async def end_session(
     session.end_reason = end_reason
     await db.commit()
 
+    # 清理匹配结果缓存（允许用户重新匹配）
+    from turing_test.backend.services.match_service import get_match_service
+    match_service = get_match_service()
+    await match_service.clear_result(session.user_id)
+    # 如果是真人匹配，也需要清理对手的匹配结果
+    if session.opponent_user_id:
+        await match_service.clear_result(session.opponent_user_id)
+
     logger.info(f"用户主动结束会话：session_id={session_id}, reason={end_reason}")
 
     return SuccessResponse(

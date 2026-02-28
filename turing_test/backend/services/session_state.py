@@ -9,9 +9,10 @@
 
 import asyncio
 from typing import Dict, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, field
 from loguru import logger
+from sqlalchemy import select
 
 
 @dataclass
@@ -42,12 +43,94 @@ class SessionStateManager:
     2. 会话锁防止并发处理消息
     3. 异步持久化到数据库
     4. 追踪开场白任务以便取消
+    5. 定期清理超时会话
     """
+
+    # 会话超时配置（秒）
+    SESSION_TIMEOUT_SECONDS = 300  # 5 分钟无活动视为超时
 
     def __init__(self):
         self._states: Dict[int, SessionState] = {}
         self._locks: Dict[int, asyncio.Lock] = {}
         self._opening_tasks: Dict[int, asyncio.Task] = {}  # 追踪待处理的开场白任务
+        self._cleanup_task: Optional[asyncio.Task] = None
+        self._running = False
+
+    async def start(self) -> None:
+        """启动后台清理任务"""
+        if self._running:
+            return
+        self._running = True
+        self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+        logger.info("[SessionState] 后台清理任务已启动")
+
+    async def stop(self) -> None:
+        """停止后台清理任务"""
+        self._running = False
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+            self._cleanup_task = None
+        logger.info("[SessionState] 后台清理任务已停止")
+
+    async def _cleanup_loop(self) -> None:
+        """定期清理超时会话"""
+        while self._running:
+            try:
+                await asyncio.sleep(60)  # 每分钟检查一次
+                await self._cleanup_timeout_sessions()
+            except asyncio.CancelledError:
+                logger.info("[SessionState] 清理任务已取消")
+                break
+            except Exception as e:
+                logger.error(f"[SessionState] 清理任务出错：{e}", exc_info=True)
+
+    async def _cleanup_timeout_sessions(self) -> None:
+        """清理超时的会话"""
+        now = datetime.now(timezone.utc)
+        timeout_threshold = now - timedelta(seconds=self.SESSION_TIMEOUT_SECONDS)
+        timeout_sessions: list[int] = []
+
+        # 找出超时的会话
+        for session_id, state in list(self._states.items()):
+            if state.last_active < timeout_threshold:
+                timeout_sessions.append(session_id)
+
+        # 处理超时会话
+        for session_id in timeout_sessions:
+            try:
+                await self._mark_session_timeout(session_id)
+            except Exception as e:
+                logger.error(f"清理超时会话失败：session_id={session_id}, error={e}")
+
+    async def _mark_session_timeout(self, session_id: int) -> None:
+        """标记会话为超时结束"""
+        from turing_test.backend.database import async_session_maker
+        from turing_test.backend.models import Session
+
+        try:
+            async with async_session_maker() as db:
+                result = await db.execute(
+                    select(Session).where(Session.id == session_id)
+                )
+                session = result.scalar_one_or_none()
+
+                if session and session.ended_at is None:
+                    session.ended_at = datetime.now(timezone.utc)
+                    session.end_reason = "sys_timeout"
+                    await db.commit()
+                    logger.info(
+                        f"会话超时结束：session_id={session_id}, "
+                        f"user_id={session.user_id}"
+                    )
+        except Exception as e:
+            logger.error(f"标记会话超时失败：session_id={session_id}, error={e}")
+
+        # 清理内存状态
+        self.cleanup(session_id)
     
     async def create(
         self, 
