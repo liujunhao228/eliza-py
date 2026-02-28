@@ -149,7 +149,6 @@ Windows 脚本自动执行完整部署流程，包括：
 
 - **卷名称**: `eliza-py-data`
 - **容器路径**: `/app/data/turing.db`
-- **备份目录**: `/app/data/backups/`
 
 ### 备份数据库
 

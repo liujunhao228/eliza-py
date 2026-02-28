@@ -11,6 +11,8 @@
 """
 
 import logging
+import os
+from pathlib import Path
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -32,7 +34,39 @@ logger = logging.getLogger(__name__)
 # 将 SQLite URL 转换为异步格式
 database_url = settings.turing.database.url
 if database_url.startswith("sqlite:///"):
-    database_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
+    # 提取相对路径并转换为绝对路径
+    # sqlite:///data/turing.db -> data/turing.db
+    # sqlite:////app/data/turing.db -> /app/data/turing.db (已经是绝对路径)
+    db_path = database_url.replace("sqlite:///", "")
+    
+    logger.info(f"[DEBUG] 原始数据库路径：{db_path}")
+    logger.info(f"[DEBUG] 当前工作目录：{Path.cwd()}")
+    logger.info(f"[DEBUG] PROJECT_ROOT 环境变量：{os.getenv('PROJECT_ROOT', '未设置')}")
+
+    # 如果是相对路径，转换为绝对路径（相对于项目根目录）
+    if not db_path.startswith("/"):
+        # 优先使用环境变量 PROJECT_ROOT，其次使用当前文件所在目录的父目录
+        # 避免 uv run 时工作目录变化导致路径解析错误
+        project_root = os.getenv("PROJECT_ROOT")
+        if project_root:
+            project_root = Path(project_root)
+            logger.info(f"[DEBUG] 使用环境变量 PROJECT_ROOT: {project_root}")
+        else:
+            # 使用 __file__ 定位项目根目录 (turing_test/backend/database.py -> turing_test -> project_root)
+            project_root = Path(__file__).resolve().parent.parent.parent
+            logger.info(f"[DEBUG] 使用 __file__ 定位项目根目录：{project_root}")
+        db_path = str(project_root / db_path)
+        logger.info(f"[DEBUG] 计算后的绝对路径：{db_path}")
+
+    database_url = f"sqlite+aiosqlite:///{db_path}"
+    logger.info(f"[DEBUG] 最终数据库 URL: {database_url}")
+
+    # 确保数据库目录存在
+    db_dir = Path(db_path).parent
+    logger.info(f"[DEBUG] 数据库目录：{db_dir}")
+    logger.info(f"[DEBUG] 数据库目录是否存在：{db_dir.exists()}")
+    db_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"✅ SQLite 数据库目录已确保存在：{db_dir}")
     # SQLite 不支持传统连接池，使用 NullPool 避免兼容性问题
     #
     # 关于 check_same_thread=False 的安全性说明:

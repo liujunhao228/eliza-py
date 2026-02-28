@@ -9,19 +9,19 @@
          │
          ▼
     ┌─────────────┐
-    │   FastAPI   │  对外唯一入口 (8000 端口)
-    │   :8000     │
+    │    nginx    │  对外唯一入口 (80 端口)
+    │     :80     │
     └──────┬──────┘
            │
      ┌─────┴─────┐
      │           │
      ▼           ▼
 ┌─────────┐  ┌──────────┐
-│前端静态  │  │ 后端 API  │
-│  文件   │  │  路由     │
-│         │  │  /api/*   │
-└─────────┘  │  /ws/*    │
-             └──────────┘
+│前端静态  │  │ FastAPI  │
+│  文件   │  │  :8000   │
+│         │  │  /api/*  │
+│         │  │  /ws/*   │
+└─────────┘  └──────────┘
 ```
 
 ## 部署步骤
@@ -192,10 +192,18 @@ sudo systemctl start eliza-py
 使用项目根目录的 `Dockerfile`：
 
 ```bash
+# 构建镜像
 docker build -t eliza-py .
-docker run -d -p 8000:8000 \
+
+# 运行容器（暴露 80 端口）
+docker run -d -p 80:80 \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/logs:/app/logs \
   -e CONFIG_TURING_AUTH_SECRET_KEY=your-secret-key \
   eliza-py
 ```
+
+**说明：**
+- 容器暴露 80 端口（nginx），后端 8000 端口仅内部通信
+- 前端静态文件由 nginx 直接 serve
+- API 请求 (`/api/*`) 和 WebSocket (`/ws/*`) 反向代理到后端

@@ -30,7 +30,6 @@ from pathlib import Path
 
 # 第三方库导入
 import uvicorn
-import pytest
 
 # 项目模块导入
 from config import get_config_manager
@@ -85,6 +84,8 @@ def cmd_turing(args):
 
 def cmd_test(args):
     """运行测试"""
+    import pytest
+
     test_dir = args.test_dir or "tests"
     pytest_args = [test_dir, "-v"]
 

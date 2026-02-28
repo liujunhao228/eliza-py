@@ -40,5 +40,4 @@ modules:
 # 前端 URL 配置
 # -----------------------------------------------------------------------------
 # 用于生成分享链接等需要前端 URL 的场景
-frontend_url: "http://localhost:5173"   # 开发环境
-# frontend_url: "https://your-domain.com"  # 生产环境
+frontend_url: "https://sxxvjhchgubs.ap-northeast-1.clawcloudrun.com"

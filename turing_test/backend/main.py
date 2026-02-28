@@ -8,10 +8,9 @@ import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import List
+from datetime import datetime
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from loguru import logger
 
 # =============================================================================
@@ -331,10 +330,9 @@ async def export_database(
 ):
     """
     导出数据库文件供下载
-    
+
     使用方法:
         curl -H "X-API-Key: YOUR_API_KEY" https://your-server.com/admin/export-data -o turing.db
-        curl -H "X-API-Key: YOUR_API_KEY" "https://your-server.com/admin/export-data?file=turing_backup_20260227_120000.db" -o backup.db
     """
     # 如果设置了 ADMIN_API_KEY，则验证
     if ADMIN_API_KEY:
@@ -353,21 +351,11 @@ async def export_database(
     
     # 数据库文件路径
     db_path = Path("data") / file
-    
+
     if not db_path.exists():
-        # 列出可用的备份文件
-        backup_dir = Path("data/backups")
-        if backup_dir.exists():
-            available_backups = [f.name for f in backup_dir.glob("*.db")]
-            detail = f"数据库文件不存在：{file}"
-            if available_backups:
-                detail += f"。可用的备份：{', '.join(available_backups[:5])}"
-        else:
-            detail = f"数据库文件不存在：{file}"
-        
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=detail
+            detail=f"数据库文件不存在：{file}"
         )
     
     logger.info(f"数据库导出请求 - 文件：{db_path}")
@@ -377,38 +365,6 @@ async def export_database(
         media_type="application/octet-stream",
         filename=file
     )
-
-@app.get(
-    "/admin/list-backups",
-    tags=["数据导出"],
-    summary="列出所有备份文件",
-    description="列出数据目录中的所有备份文件（需要管理员 API Key）",
-)
-async def list_backups(api_key: str = Security(API_KEY)):
-    """列出所有可用的备份文件"""
-    # 验证
-    if ADMIN_API_KEY:
-        if not api_key or api_key != ADMIN_API_KEY:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="无效的 API Key"
-            )
-    
-    backups = []
-    backup_dir = Path("data/backups")
-    
-    if backup_dir.exists():
-        for f in sorted(backup_dir.glob("*.db"), reverse=True):
-            backups.append({
-                "filename": f.name,
-                "size": f.stat().st_size,
-                "created": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
-            })
-    
-    return {"backups": backups, "count": len(backups)}
-
-# 需要 datetime 导入
-from datetime import datetime
 
 
 # =============================================================================
@@ -460,42 +416,6 @@ app.include_router(chat_ws_router, prefix="/ws", tags=["WebSocket"])
 # 聊天路由（待实现）
 # from api.chat import router as chat_router
 # app.include_router(chat_router, prefix="/api/chat", tags=["聊天"])
-
-
-# =============================================================================
-# 静态文件服务（生产环境）
-# =============================================================================
-
-# 挂载前端静态文件目录
-static_dir = Path(__file__).parent / "static"
-if static_dir.exists():
-    # 挂载静态文件目录
-    app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="static:assets")
-
-    # SPA 回退路由：所有未匹配的路由返回 index.html
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        """
-        SPA 回退路由
-        所有未匹配的 API 路由都返回 index.html，由前端路由处理
-        """
-        # 排除 API 路由和静态资源
-        if full_path.startswith(("api", "ws", "docs", "redoc", "openapi")):
-            raise HTTPException(status_code=404, detail="API 端点不存在")
-        
-        # 处理 favicon.ico
-        if full_path == "favicon.ico":
-            favicon_path = static_dir / "favicon.ico"
-            if favicon_path.exists():
-                return FileResponse(favicon_path)
-            raise HTTPException(status_code=404, detail="favicon 不存在")
-
-        index_html = static_dir / "index.html"
-        if index_html.exists():
-            return FileResponse(index_html)
-        raise HTTPException(status_code=404, detail="前端页面不存在")
-else:
-    logger.warning(f"静态文件目录不存在：{static_dir}，生产环境请先构建前端")
 
 
 # =============================================================================

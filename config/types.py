@@ -452,6 +452,12 @@ class LogConfig:
 
 
 @dataclass
+class CorsConfig:
+    """CORS 跨域配置"""
+    origins: List[str] = field(default_factory=list)
+
+
+@dataclass
 class TuringConfig:
     """Turing 测试模块配置"""
     database: DatabaseConfig
@@ -466,6 +472,7 @@ class TuringConfig:
     performance: PerformanceConfig
     websocket: WebSocketConfig
     log: LogConfig
+    cors: CorsConfig = None  # type: ignore
     score: Optional[ScoreConfig] = None
     mid_game: Optional[MidGameConfig] = None
     meta_conversation: MetaConversationConfig = None  # type: ignore

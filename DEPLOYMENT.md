@@ -89,10 +89,6 @@ scripts\deploy.bat
 1. 在控制台设置挂载点：`/app/data`
 2. 容器重启/删除重建后，数据自动保留
 
-**本项目的 Dockerfile 已配置好自动备份机制**：
-- 每次启动时自动创建数据库备份到 `/app/data/backups/`
-- 保留最近 3 个备份，避免占用过多空间
-
 ### 方案 B：临时存储 + 定期下载（保底方案）
 
 如果存储是临时的，建议：
@@ -102,16 +98,6 @@ scripts\deploy.bat
    curl -H "X-API-Key: 你的密钥" \
         https://your-server.com/admin/export-data \
         -o turing-$(date +%Y%m%d).db
-   ```
-
-2. **使用外部备份**（需要配置环境变量）：
-   ```bash
-   # S3 兼容存储（如 Cloudflare R2）
-   BACKUP_S3_BUCKET=my-bucket
-   BACKUP_S3_KEY=backups/turing.db
-   S3_ENDPOINT_URL=https://xxx.r2.cloudflarestorage.com
-   AWS_ACCESS_KEY_ID=xxx
-   AWS_SECRET_ACCESS_KEY=xxx
    ```
 
 ## 部署步骤
@@ -252,7 +238,6 @@ Invoke-RestMethod -Uri $url -Headers @{"X-API-Key" = $apiKey} -OutFile "turing.d
 |------|------|------|
 | `/health` | 健康检查 | 无需 |
 | `/admin/export-data` | 下载数据库文件 | 可选（通过 `TURING_ADMIN_API_KEY` 保护） |
-| `/admin/list-backups` | 列出所有备份文件 | 可选（通过 `TURING_ADMIN_API_KEY` 保护） |
 
 ### 下载数据库
 
@@ -261,15 +246,6 @@ Invoke-RestMethod -Uri $url -Headers @{"X-API-Key" = $apiKey} -OutFile "turing.d
 curl -H "X-API-Key: 你的密钥" \
      https://your-server.com/admin/export-data \
      -o turing.db
-
-# 下载特定备份
-curl -H "X-API-Key: 你的密钥" \
-     "https://your-server.com/admin/export-data?file=turing_backup_20260227_120000.db" \
-     -o backup.db
-
-# 列出所有备份
-curl -H "X-API-Key: 你的密钥" \
-     https://your-server.com/admin/list-backups
 ```
 
 ## 安全建议
@@ -282,8 +258,8 @@ curl -H "X-API-Key: 你的密钥" \
    - 避免资源浪费
    - 避免数据泄露
 
-3. **备份数据库**
-   - 下载后立即本地备份
+3. **定期下载数据库**
+   - 使用 `/admin/export-data` 端点下载
    - 可导入 SQLite 浏览器查看：`sqlite3 turing.db`
 
 ## 故障排查
@@ -304,17 +280,7 @@ curl -H "X-API-Key: 你的密钥" \
 - 原因：存储是临时的，未配置持久化卷
 - 解决：
   1. 确认云服务商是否支持持久化存储
-  2. 如果不支持，定期下载数据库备份（见方案 B）
-
-### 备份目录在哪里？
-- 备份位置：`/app/data/backups/`
-- 可通过导出端点下载任意备份：
-  ```bash
-  # 下载特定备份（需要知道文件名）
-  curl -H "X-API-Key: 你的密钥" \
-       https://your-server.com/admin/export-data?file=turing_backup_20260227_120000.db \
-       -o turing.db
-  ```
+  2. 如果不支持，定期下载数据库（见方案 B）
 
 ## 本地查看数据库
 
@@ -347,7 +313,7 @@ docker push registry.clawcloudrun.com/myuser/eliza-py:latest
 #    - 挂载点：/app/data  ← 重要！
 #    - 端口：8000
 
-# 4. 实验期间定期备份（推荐每天执行）
+# 4. 实验期间定期下载数据库（推荐每天执行）
 curl -H "X-API-Key: my-secret-key-12345" \
      https://hosktqwopusa.ap-northeast-1.clawcloudrun.com/admin/export-data \
      -o turing-$(date +%Y%m%d).db
@@ -357,11 +323,7 @@ curl -H "X-API-Key: my-secret-key-12345" \
      https://hosktqwopusa.ap-northeast-1.clawcloudrun.com/admin/export-data \
      -o turing-final.db
 
-# 6. 查看有哪些备份可用
-curl -H "X-API-Key: my-secret-key-12345" \
-     https://hosktqwopusa.ap-northeast-1.clawcloudrun.com/admin/list-backups
-
-# 7. 验证下载
+# 6. 验证下载
 sqlite3 turing-final.db ".tables"
 ```
 

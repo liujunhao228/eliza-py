@@ -39,6 +39,7 @@ from .types import (
     TuringConfig,
     WebSocketConfig,
     LogConfig,
+    CorsConfig,
     ModulesConfig,
     ModuleRefConfig,
     TuringModuleRefConfig,
@@ -393,6 +394,7 @@ class ConfigBuilder:
         perf_cfg = cfg.get("performance", {})
         ws_cfg = cfg.get("websocket", {})
         log_cfg = cfg.get("log", {})
+        cors_cfg = cfg.get("cors", {})
         score_cfg = cfg.get("score", {})
         mid_game_cfg = cfg.get("mid_game", {})
         meta_keywords = cfg.get("meta_keywords", [])
@@ -529,6 +531,9 @@ class ConfigBuilder:
                 file=self._get_optional(log_cfg, "file", str, None, "turing.log"),
                 max_size_mb=self._get_optional(log_cfg, "max_size_mb", int, 10, "turing.log"),
                 backup_count=self._get_optional(log_cfg, "backup_count", int, 5, "turing.log"),
+            ),
+            cors=CorsConfig(
+                origins=cors_cfg.get("origins", []),
             ),
             score=score,
             mid_game=mid_game,
