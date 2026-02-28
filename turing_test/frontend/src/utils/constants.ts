@@ -8,10 +8,10 @@
 // =============================================================================
 
 /** API 基础 URL */
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
-/** WebSocket 基础 URL */
-export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000/ws'
+/** WebSocket 基础 URL - 使用相对路径，自动适配当前访问的域名和端口 */
+export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || '/ws'
 
 // =============================================================================
 // 游戏配置
@@ -20,8 +20,8 @@ export const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8
 /** 最少对话轮数（双方各发送 MIN_CHAT_TURNS 句） */
 export const MIN_CHAT_TURNS = 3
 
-/** 匹配超时时间（秒） */
-export const MATCH_TIMEOUT = 30
+/** 匹配超时时间（秒）- 与后端 timeout_seconds 保持一致 */
+export const MATCH_TIMEOUT = 10
 
 /** 最大对话轮数 */
 export const MAX_TURNS = 15

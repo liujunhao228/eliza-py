@@ -49,14 +49,15 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { BaseCard, BaseProgress, BaseButton } from '@/components/common'
+import { MATCH_TIMEOUT } from '@/utils/constants'
 
 const emit = defineEmits<{
   (e: 'cancel'): void
   (e: 'complete'): void
 }>()
 
-// 固定等待时间（秒）
-const fixedWaitTime = 3
+// 固定等待时间（秒）- 与后端配置保持一致
+const fixedWaitTime = MATCH_TIMEOUT
 
 // 状态
 const waitTime = ref(0)

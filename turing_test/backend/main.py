@@ -127,8 +127,6 @@ app = FastAPI(
 import os as _os
 import logging as _logging
 
-logger = _logging.getLogger(__name__)
-
 _cors_env = _os.getenv("CONFIG_TURING_CORS_ORIGINS", "")
 
 if _cors_env:
@@ -165,7 +163,7 @@ else:
             "   当前将拒绝所有跨域请求"
         )
 
-del _os, _logger
+del _os
 
 app.add_middleware(
     CORSMiddleware,

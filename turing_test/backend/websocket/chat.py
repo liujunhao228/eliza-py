@@ -332,7 +332,9 @@ async def handle_mid_game_judgment(
     )
     db.add(score_history)
 
+    # 提交事务
     await db.commit()
+    await db.refresh(session)  # 刷新 session 对象，确保后续查询能获取最新值
 
     logger.info(
         f"场中判断：user_id={user_id}, session_id={session.id}, "

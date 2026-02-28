@@ -163,12 +163,14 @@ class MessageResponse(BaseSchema):
 class SurveyRequest(BaseModel):
     """问卷请求"""
     session_id: int
-    user_guess: Optional[str] = Field(None, pattern="^(human|ai|unsure)$")  # 场中判断后无需传递
-    confidence_level: Optional[str] = Field(None, pattern="^(low|mid|high)$")  # 场中判断后无需传递
+    # 场中判断后无需传递 user_guess 和 confidence_level，使用 None 作为默认值
+    # 注意：pattern 验证仅在值非 None 时执行
+    user_guess: Optional[str] = Field(default=None, pattern="^(human|ai|unsure)$")
+    confidence_level: Optional[str] = Field(default=None, pattern="^(low|mid|high)$")
     fluency_rating: int = Field(..., ge=1, le=5)
-    reason: Optional[str] = Field(None, max_length=1000)
+    reason: Optional[str] = Field(default=None, max_length=1000)
     self_role: str = Field(..., pattern="^(prover|interferer|other)$")
-    strategy: Optional[str] = Field(None, max_length=1000)
+    strategy: Optional[str] = Field(default=None, max_length=1000)
 
 
 class SurveyResponse(BaseSchema):

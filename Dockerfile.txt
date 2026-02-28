@@ -19,9 +19,9 @@ RUN npm ci --silent
 # 复制源代码
 COPY turing_test/frontend/ ./
 
-# 创建生产环境配置（使用相对路径，适配 Docker 容器部署）
+# 创建生产环境配置
 RUN echo "VITE_API_BASE_URL=/api" > .env.production && \
-    echo "VITE_WS_BASE_URL=/ws" >> .env.production
+    echo "VITE_WS_BASE_URL=ws://localhost/ws" >> .env.production
 
 # 构建前端
 RUN npm run build
@@ -38,11 +38,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# 安装构建依赖和 uv (合并为单层减少层数)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc python3-dev && \
-    rm -rf /var/lib/apt/lists/* && \
-    pip install --no-cache-dir uv
+# 安装构建依赖和 uv（使用单行减少层数）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc python3-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# 安装 uv
+RUN pip install --no-cache-dir uv
 
 # 仅复制依赖文件（利用层缓存）
 COPY pyproject.toml uv.lock ./
@@ -50,6 +53,12 @@ COPY pyproject.toml uv.lock ./
 # 创建虚拟环境并安装依赖
 RUN uv venv /opt/venv && \
     UV_PROJECT_ENVIRONMENT=/opt/venv uv sync --frozen --no-dev
+
+# 复制 uv 到标准路径
+RUN cp /usr/local/bin/uv /opt/uv
+
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
 # =============================================================================
 # 阶段 3: 运行阶段（最小化镜像）
@@ -59,49 +68,46 @@ FROM python:3.12.12-slim AS runner
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    VIRTUAL_ENV=/opt/venv \
-    PATH="/opt/venv/bin:$PATH"
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
-# 1. 安装运行时依赖
-# 2. 创建非 root 用户 (放在前面，方便后续 COPY 使用 --chown)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends nginx libgomp1 bash && \
-    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
-    groupadd --gid 1001 appgroup && \
-    useradd --uid 1001 --gid appgroup --shell /bin/bash --create-home appuser
+# 单行安装运行时依赖（减少层数）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nginx libgomp1 bash \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && rm -rf /var/cache/apt/archives/*
 
-# 从构建阶段复制虚拟环境 (直接设置权限)
-COPY --from=builder --chown=appuser:appgroup /opt/venv /opt/venv
+# 从构建阶段复制虚拟环境和 uv
+COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /opt/uv /usr/local/bin/uv
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
-# 复制 uv 工具
-COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
+# 从前端构建阶段复制静态文件
+COPY --from=frontend-builder /app/turing_test/backend/static /usr/share/nginx/html
 
-# 从前端构建阶段复制静态文件 (直接设置权限)
-COPY --from=frontend-builder --chown=appuser:appgroup /app/turing_test/backend/static /usr/share/nginx/html
+# 复制 nginx 配置
+COPY docker/nginx.conf /etc/nginx/nginx.conf
 
-# 复制 Nginx 配置 (直接设置权限)
-COPY --chown=appuser:appgroup docker/nginx.conf /etc/nginx/nginx.conf
+# 复制应用代码（放在最后以利用层缓存）
+COPY . .
 
-# 复制应用代码 (直接设置权限，放在最后利用层缓存)
-COPY --chown=appuser:appgroup . .
-
-# 复制入口脚本并设置权限
-COPY --chown=appuser:appgroup docker/entrypoint.sh /usr/local/bin/entrypoint
+# 复制入口脚本
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint
 RUN chmod +x /usr/local/bin/entrypoint
 
-# 创建并设置必要的运行时目录权限
-# 注意：不再需要 chown /app /usr/share/nginx/html 等，因为 COPY 时已处理
-RUN mkdir -p /app/data /app/logs /app/scripts/lua \
-    /var/log/nginx /var/cache/nginx /run \
-    /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi \
-    /tmp/nginx_uwsgi /tmp/nginx_scgi && \
-    chown -R appuser:appgroup \
-        /app/data /app/logs /app/scripts/lua \
-        /var/log/nginx /var/cache/nginx /run \
-        /tmp/nginx_*
+# 创建非 root 用户和组
+RUN groupadd --gid 1001 appgroup && \
+    useradd --uid 1001 --gid appgroup --shell /bin/bash --create-home appuser
+
+# 创建目录并设置权限（在 COPY . . 之后）
+RUN mkdir -p /app/data /app/logs /app/scripts/lua && \
+    chown -R appuser:appgroup /app /opt/venv /usr/share/nginx/html && \
+    chmod 755 /app/data && \
+    mkdir -p /var/log/nginx /var/cache/nginx /run /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi /tmp/nginx_uwsgi /tmp/nginx_scgi && \
+    chown -R appuser:appgroup /var/log/nginx /var/cache/nginx /run /tmp/nginx_client_body /tmp/nginx_proxy /tmp/nginx_fastcgi /tmp/nginx_uwsgi /tmp/nginx_scgi
 
 # 暴露端口
 EXPOSE 3001 8080

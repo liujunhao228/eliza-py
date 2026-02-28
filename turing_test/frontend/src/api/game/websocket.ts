@@ -397,7 +397,11 @@ class WebSocketManager implements IWebSocketManager {
  * @param userId 用户 ID
  */
 export function createMatchWebSocket(userId: number): WebSocketManager {
-  const url = `${WS_BASE_URL}/match?user_id=${userId}`
+  // 处理相对路径：将 /ws 转换为完整的 WebSocket URL
+  const baseUrl = WS_BASE_URL.startsWith('/') 
+    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${WS_BASE_URL}`
+    : WS_BASE_URL
+  const url = `${baseUrl}/match?user_id=${userId}`
   return new WebSocketManager({
     url,
     reconnect: true,
@@ -415,7 +419,11 @@ export function createMatchWebSocket(userId: number): WebSocketManager {
  * @param userId 用户 ID
  */
 export function createChatWebSocket(sessionId: number, userId: number): WebSocketManager {
-  const url = `${WS_BASE_URL}/chat?session_id=${sessionId}&user_id=${userId}`
+  // 处理相对路径：将 /ws 转换为完整的 WebSocket URL
+  const baseUrl = WS_BASE_URL.startsWith('/') 
+    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${WS_BASE_URL}`
+    : WS_BASE_URL
+  const url = `${baseUrl}/chat?session_id=${sessionId}&user_id=${userId}`
   return new WebSocketManager({
     url,
     reconnect: true,

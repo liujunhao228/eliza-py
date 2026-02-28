@@ -360,6 +360,8 @@ async def submit_survey(
         # 场中判断后积分已结算，无需重复计算
         final_score = session.final_score
         breakdown_is_correct = session.is_correct
+        # 获取元对话次数用于统计更新
+        meta_count = session.meta_conversation_count
     else:
         # 正常问卷提交，使用请求体中的值
         if not request.user_guess or not request.confidence_level:
@@ -377,7 +379,7 @@ async def submit_survey(
         # 获取对方判断信息
         opponent_guess = None
         opponent_confidence = None
-        
+
         # 真人对战：从对手会话读取对方判断
         if session.opponent_type == "human" and session.opponent_session_id:
             opponent_session_result = await db.execute(

@@ -1,0 +1,25 @@
+- intent: turn0_special #开局时提出对暗号
+  priority: 100
+  condition:
+    min_turns: 0
+    max_turns: 0
+  templates:
+    - "对暗号：鸡你太美的原歌名是？"
+    - "对暗号：ikun是指？"
+    - "对暗号：你玩什么游戏？"
+
+- intent: decoy_0
+  priority: 99
+  condition:
+    keywords: ["蔡徐坤", "小黑子", "律师函", "绿尸寒", "油饼", "煎鱼"]  # 匹配可能的回应
+    max_turns: 3
+  templates:
+    - "我确信你是真人了，那我们来刷分吧"
+
+- intent: decoy_1
+  priority: 98
+  condition:
+    keywords: ["刷", "？", "?"]
+    max_turns: 3
+  templates:
+    - ""

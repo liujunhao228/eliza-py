@@ -282,12 +282,15 @@ class MatchService:
         success = await self._add_to_queue_internal(user_id, websocket_ref, user_score)
         if not success:
             raise RuntimeError("加入队列失败")
-        
-        # 等待匹配结果（最多等待 5 秒）
-        result = await self._wait_for_result(user_id, timeout=5.0)
+
+        # 等待匹配结果（使用配置的超时时间）
+        result = await self._wait_for_result(
+            user_id,
+            timeout=float(self._config.timeout_seconds)
+        )
         if result is None:
             raise RuntimeError("匹配超时")
-        
+
         return self._to_safe_result(result)
 
     async def _add_to_queue_internal(
@@ -347,15 +350,25 @@ class MatchService:
         user_id: UserId,
         timeout: float = 5.0
     ) -> Optional[MatchResultData]:
-        """等待匹配结果"""
+        """
+        等待匹配结果
+
+        注意：超时后会额外检查一次，因为后台清理任务可能刚好添加了结果
+        """
         start_time = datetime.now(timezone.utc).timestamp()
-        
+
         while (datetime.now(timezone.utc).timestamp() - start_time) < timeout:
             async with self._results_lock:
                 if user_id in self._match_results:
                     return self._match_results[user_id]
             await asyncio.sleep(0.1)
-        
+
+        # 超时后额外检查一次（避免竞态条件）
+        async with self._results_lock:
+            if user_id in self._match_results:
+                logger.info(f"用户 {user_id} 在超时后获取到匹配结果")
+                return self._match_results[user_id]
+
         return None
 
     async def remove_from_queue(self, user_id: UserId) -> bool:

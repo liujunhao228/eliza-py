@@ -246,6 +246,37 @@ async def print_stats():
 # =============================================================================
 
 async def main():
+    # 调试信息：打印数据库路径
+    import os
+    logger.info("\n🔍 [DEBUG] 数据库初始化调试信息:")
+    logger.info(f"🔍 [DEBUG] 配置文件中的数据库 URL: {settings.turing.database.url}")
+    logger.info(f"🔍 [DEBUG] 当前工作目录：{Path.cwd()}")
+    logger.info(f"🔍 [DEBUG] PROJECT_ROOT 环境变量：{os.getenv('PROJECT_ROOT', '未设置')}")
+    
+    # 计算预期的数据库路径
+    db_url = settings.turing.database.url
+    if db_url.startswith("sqlite:///"):
+        db_path = db_url.replace("sqlite:///", "")
+        if not db_path.startswith("/"):
+            project_root = os.getenv('PROJECT_ROOT')
+            if project_root:
+                expected_db_path = str(Path(project_root) / db_path)
+            else:
+                expected_db_path = str(Path(__file__).parent.parent.parent.parent / db_path)
+        else:
+            expected_db_path = db_path
+        logger.info(f"🔍 [DEBUG] 预期的数据库文件路径：{expected_db_path}")
+        logger.info(f"🔍 [DEBUG] 数据库文件是否存在：{Path(expected_db_path).exists()}")
+        
+        # 检查 /app/data 目录
+        data_dir = Path("/app/data")
+        if data_dir.exists():
+            files = [f.name for f in data_dir.iterdir()]
+            logger.info(f"🔍 [DEBUG] /app/data 目录内容：{files}")
+        else:
+            logger.warning(f"🔍 [DEBUG] /app/data 目录不存在")
+    logger.info("")
+
     parser = argparse.ArgumentParser(
         description="数据库初始化脚本",
         formatter_class=argparse.RawDescriptionHelpFormatter,
