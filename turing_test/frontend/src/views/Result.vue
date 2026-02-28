@@ -16,6 +16,7 @@
           v-if="resultData"
           :final-score="resultData.finalScore"
           :is-correct="resultData.isCorrect"
+          :score-breakdown="resultData.scoreBreakdown"
         />
 
         <!-- 你的问卷回顾 -->
@@ -59,7 +60,7 @@ import {
   ScoreCard,
   SurveyCard
 } from '@/components/Result'
-import type { SurveyData } from '@/types/result'
+import type { SurveyData, ScoreBreakdown } from '@/types/result'
 
 const { error: showError } = useToast()
 const router = useRouter()
@@ -72,6 +73,7 @@ const resultData = ref<{
   finalScore: number
   isCorrect: boolean
   opponentType: 'human' | 'ai' | 'honeypot' | 'unknown'
+  scoreBreakdown?: ScoreBreakdown
 } | null>(null)
 
 // 辅助函数：获取用户判断文本
@@ -137,7 +139,8 @@ onMounted(async () => {
       surveyData: processedSurveyData,
       finalScore: result.final_score,
       isCorrect: result.is_correct,
-      opponentType: result.opponent_type as 'human' | 'ai' | 'honeypot' | 'unknown'
+      opponentType: result.opponent_type as 'human' | 'ai' | 'honeypot' | 'unknown',
+      scoreBreakdown: result.score_breakdown
     }
 
     // 更新用户积分

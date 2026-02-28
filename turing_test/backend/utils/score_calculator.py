@@ -67,6 +67,12 @@ class ScoreBreakdown:
     is_correct: bool  # 判断是否正确
     opponent_type: str  # 对手类型
     user_guess: str  # 用户判断
+    # 对方猜错奖励字段
+    opponent_guess: Optional[str] = None  # 对方对用户的判断 ('human' | 'ai')
+    opponent_confidence: Optional[str] = None  # 对方的信心等级
+    opponent_is_correct: bool = False  # 对方是否猜对
+    opponent_score_if_correct: float = 0.0  # 对方若猜对应得的分
+    bonus_from_opponent_wrong: float = 0.0  # 从对方猜错获得的 bonus
 
 
 # =============================================================================
@@ -161,6 +167,10 @@ def calculate_final_score(
     turn: int,
     meta_count: int,
     is_mid_game: bool = False,
+    # 新增参数：对方猜错奖励相关
+    opponent_guess: Optional[str] = None,      # 对方对用户的判断 ('human' | 'ai')
+    opponent_confidence: Optional[str] = None, # 对方的信心等级
+    user_actual_type: str = "ai",              # 用户的真实类型（用于计算对方是否猜对）
 ) -> Tuple[float, ScoreBreakdown]:
     """
     计算最终积分
@@ -172,11 +182,14 @@ def calculate_final_score(
         turn: 总轮数
         meta_count: 元对话次数
         is_mid_game: 是否为场中判断
+        opponent_guess: 对方对用户的判断 ('human' | 'ai')
+        opponent_confidence: 对方的信心等级 ('low' | 'mid' | 'high')
+        user_actual_type: 用户的真实类型 ('human' | 'ai')
 
     Returns:
         (最终得分，积分明细)
     """
-    # 判断是否正确
+    # 判断用户是否正确
     is_correct = (user_guess == opponent_type) or (
         user_guess == "human" and opponent_type == "honeypot"
     )
@@ -198,13 +211,48 @@ def calculate_final_score(
     penalty_mult = calculate_penalty_multiplier(meta_count)
     turn_penalty = calculate_turn_penalty(turn)
 
-    # 计算最终得分
+    # 计算用户判断的最终得分
     if is_correct:
         base_score = base_reward
-        final_score = (base_score * confidence_mult * meta_mult) - ENTRY_FEE - turn_penalty
+        user_final_score = (base_score * confidence_mult * meta_mult) - ENTRY_FEE - turn_penalty
     else:
         base_score = base_penalty
-        final_score = (base_score * confidence_mult * penalty_mult) - ENTRY_FEE - turn_penalty
+        user_final_score = (base_score * confidence_mult * penalty_mult) - ENTRY_FEE - turn_penalty
+
+    # === 新增逻辑：计算对方猜错奖励 ===
+    bonus_from_opponent = 0.0
+    opponent_score_if_correct = 0.0
+    opponent_is_correct = False
+
+    if opponent_guess and opponent_confidence:
+        # 判断对方是否正确
+        opponent_is_correct = (opponent_guess == user_actual_type)
+        
+        # 计算对方若猜对应得的分（使用对方的信心等级）
+        opp_confidence_mult = CONFIDENCE_MULTIPLIERS.get(opponent_confidence, 1.0)
+        # 对方的元对话乘数和轮数惩罚与用户相同
+        opp_meta_mult = meta_mult
+        opp_penalty_mult = penalty_mult
+        opp_turn_penalty = turn_penalty
+        
+        # 对方猜的是用户，所以基础分使用识别 AI/人类的分数
+        if user_actual_type == "ai":
+            opp_base_reward = BASE_REWARD_IDENTIFY_AI
+            opp_base_penalty = BASE_PENALTY_MISIDENTIFY_AI
+        else:
+            opp_base_reward = BASE_REWARD_IDENTIFY_HUMAN
+            opp_base_penalty = BASE_PENALTY_MISIDENTIFY_HUMAN
+        
+        if opponent_is_correct:
+            # 对方猜对了，计算对方应得的分
+            opponent_score_if_correct = (opp_base_reward * opp_confidence_mult * opp_meta_mult) - ENTRY_FEE - opp_turn_penalty
+        else:
+            # 对方猜错了，用户获得等同于对方若猜对应得收益的分
+            opponent_score_if_correct = (opp_base_reward * opp_confidence_mult * opp_meta_mult) - ENTRY_FEE - opp_turn_penalty
+            bonus_from_opponent = abs(opponent_score_if_correct)
+
+    # 用户最终得分 = 用户自己判断的得分 + 对方猜错 bonus
+    total_final_score = user_final_score + bonus_from_opponent
 
     breakdown = ScoreBreakdown(
         base_score=base_score,
@@ -212,25 +260,44 @@ def calculate_final_score(
         meta_multiplier=meta_mult,
         turn_penalty=turn_penalty,
         entry_fee=ENTRY_FEE,
-        final_score=final_score,
+        final_score=total_final_score,
         is_correct=is_correct,
         opponent_type=opponent_type,
         user_guess=user_guess,
+        opponent_guess=opponent_guess,
+        opponent_confidence=opponent_confidence,
+        opponent_is_correct=opponent_is_correct,
+        opponent_score_if_correct=opponent_score_if_correct,
+        bonus_from_opponent_wrong=bonus_from_opponent,
     )
 
-    return final_score, breakdown
+    return total_final_score, breakdown
 
 
 def get_score_breakdown_dict(breakdown: ScoreBreakdown) -> Dict:
     """
     将积分明细转换为字典（用于 JSON 序列化）
-    
+
     注意：仅返回必要字段，不暴露计算细节
     """
-    return {
+    result = {
         "final_score": int(breakdown.final_score),
         "is_correct": breakdown.is_correct,
     }
+    
+    # 添加对方猜错奖励字段
+    if breakdown.opponent_guess:
+        result["opponent_guess"] = breakdown.opponent_guess
+    if breakdown.opponent_confidence:
+        result["opponent_confidence"] = breakdown.opponent_confidence
+    if breakdown.opponent_is_correct is not None:
+        result["opponent_is_correct"] = breakdown.opponent_is_correct
+    if breakdown.opponent_score_if_correct:
+        result["opponent_score_if_correct"] = breakdown.opponent_score_if_correct
+    if breakdown.bonus_from_opponent_wrong:
+        result["bonus_from_opponent_wrong"] = breakdown.bonus_from_opponent_wrong
+    
+    return result
 
 
 # =============================================================================

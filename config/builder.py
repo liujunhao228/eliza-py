@@ -27,6 +27,7 @@ from .types import (
     DatabaseConfig,
     AuthConfig,
     MatchConfig,
+    MatchHoneypotConfig,
     AiBotConfig,
     HoneypotConfig,
     SessionConfig,
@@ -405,6 +406,39 @@ class ConfigBuilder:
             ],
         )
 
+        # 安全提示：secret_key 必须从环境变量读取，YAML 中不应存储
+        import os
+        secret_key_from_env = os.environ.get("CONFIG_TURING_AUTH_SECRET_KEY")
+        if not secret_key_from_env:
+            # 尝试从配置读取（仅用于向后兼容，不推荐）
+            secret_key = self._get_optional(auth_cfg, "secret_key", str, None, "turing.auth")
+            if secret_key is None:
+                logger = logging.getLogger(__name__)
+                logger.error(
+                    "❌ CONFIG_TURING_AUTH_SECRET_KEY 环境变量未设置！\n"
+                    "   生成安全密钥：python -c \"import secrets; print(secrets.token_urlsafe(32))\"\n"
+                    "   或在 .env 文件中设置：CONFIG_TURING_AUTH_SECRET_KEY=your-secret-key"
+                )
+                raise ValueError("CONFIG_TURING_AUTH_SECRET_KEY 未设置")
+        else:
+            secret_key = secret_key_from_env
+
+        # 构建匹配配置（概率分流版）
+        match = MatchConfig(
+            human_probability=self._get_optional(match_cfg, "human_probability", float, 0.30, "turing.match"),
+            bot_probability=self._get_optional(match_cfg, "bot_probability", float, 0.70, "turing.match"),
+            timeout_seconds=self._get_optional(match_cfg, "timeout_seconds", int, 10, "turing.match"),
+            fake_delay_min_ms=self._get_optional(match_cfg, "fake_delay_min_ms", int, 1000, "turing.match"),
+            fake_delay_max_ms=self._get_optional(match_cfg, "fake_delay_max_ms", int, 3000, "turing.match"),
+            # 兼容旧字段
+            timeout=self._get_optional(match_cfg, "timeout", int, 10, "turing.match"),
+            fixed_wait_time=self._get_optional(match_cfg, "fixed_wait_time", int, 3, "turing.match"),
+            ai_control_group_rate=self._get_optional(match_cfg, "ai_control_group_rate", float, 0.2, "turing.match"),
+            honeypot_probability=self._get_optional(match_cfg, "honeypot_probability", float, 0.15, "turing.match"),
+            honeypot_high_meta_probability=self._get_optional(match_cfg, "honeypot_high_meta_probability", float, 0.30, "turing.match"),
+            time_distribution=match_cfg.get("time_distribution", {}),
+        )
+
         # 构建 Bot 池配置
         bot_pool = BotPoolConfig(
             min_instances=self._get_required(bot_pool_cfg, "min_instances", int, "turing.bot_pool"),
@@ -444,7 +478,7 @@ class ConfigBuilder:
                 invite_code_length=self._get_required(auth_cfg, "invite_code_length", int, "turing.auth"),
                 access_token_expire_minutes=self._get_optional(auth_cfg, "access_token_expire_minutes", int, 10080, "turing.auth"),
                 algorithm=self._get_optional(auth_cfg, "algorithm", str, "HS256", "turing.auth"),
-                secret_key=self._get_optional(auth_cfg, "secret_key", str, "your-secret-key-change-in-production", "turing.auth"),
+                secret_key=secret_key,  # 从环境变量读取
                 initial_score=self._get_optional(auth_cfg, "initial_score", int, 100, "turing.auth"),
             ),
             match=MatchConfig(

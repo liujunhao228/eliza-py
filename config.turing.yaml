@@ -23,21 +23,49 @@ auth:
   invite_code_length: 6
   access_token_expire_minutes: 10080        # 7 天 (60 * 24 * 7)
   algorithm: HS256
-  # ⚠️ 安全提示：生产环境必须通过环境变量 CONFIG_TURING_AUTH_SECRET_KEY 设置密钥
-  # 可使用以下命令生成随机密钥：
+  # ⚠️ 安全提示：密钥必须通过环境变量 CONFIG_TURING_AUTH_SECRET_KEY 设置
+  # YAML 中不存储密钥，防止泄露
+  #
+  # 生成安全密钥的方法：
   #   - Linux/Mac: openssl rand -base64 32
   #   - Python: import secrets; print(secrets.token_urlsafe(32))
-  secret_key: "${CONFIG_TURING_AUTH_SECRET_KEY:CHANGE_ME_IN_PRODUCTION}"
+  #   - PowerShell: [System.Web.Security.Membership]::GeneratePassword(32, 4)
+  #
+  # 安全要求:
+  #   - 长度至少 32 字符
+  #   - 包含大小写字母、数字、特殊字符中的至少 3 种
+  #   - 每个生产环境使用不同的密钥
+  #
+  # ⚠️ 警告：不要提交包含真实密钥的 .env 文件到版本控制！
+  # secret_key:  # 已从 YAML 移除，必须通过环境变量 CONFIG_TURING_AUTH_SECRET_KEY 设置
   initial_score: 100
 
 # -----------------------------------------------------------------------------
-# 匹配配置（简化版）
+# 匹配配置（概率分流版）
 # -----------------------------------------------------------------------------
 match:
-  timeout: 30                         # 保留字段（兼容配置验证）
-  fixed_wait_time: 3                  # 前端固定等待时间（秒）
-  ai_control_group_rate: 0.2          # 20% AI 对照组
-  honeypot_probability: 0.15          # 15% 的 AI 匹配是钓鱼机器人
+  # === 核心概率配置 ===
+  human_probability: 0.30           # 30% 概率匹配真人
+  bot_probability: 0.70             # 70% 概率匹配 Bot
+  
+  # === 钓鱼 Bot 配置 ===
+  honeypot:
+    enabled: true
+    probability_in_bot_matches: 0.15  # Bot 局中 15% 是钓鱼 Bot
+  
+  # === 超时配置 ===
+  timeout_seconds: 10               # 真人匹配超时时间（秒）
+  
+  # === 假装延迟配置（模拟匹配耗时） ===
+  fake_delay_min_ms: 1000           # 最小假装延迟（毫秒）
+  fake_delay_max_ms: 3000           # 最大假装延迟（毫秒）
+  
+  # === 保留字段（兼容旧配置） ===
+  # 以下字段已废弃，但保留以避免配置验证失败
+  timeout: 30
+  fixed_wait_time: 3
+  ai_control_group_rate: 0.2
+  honeypot_probability: 0.15
 
 # -----------------------------------------------------------------------------
 # 元对话关键词配置（统一用于元对话检测和场中判断触发）

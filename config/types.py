@@ -270,14 +270,75 @@ class TimeDistributionConfig:
 
 
 @dataclass
+class BotPoolBotConfig:
+    """Bot 池中的 Bot 配置"""
+    id: str
+    weight: float
+    description: str = ""
+    name_prefix: Optional[str] = None
+
+
+@dataclass
+class BotPoolConfig:
+    """Bot 池配置"""
+    enabled: bool = True
+    bots: List[Dict[str, Any]] = field(default_factory=list)
+    # 兼容旧字段
+    min_instances: int = 3
+    max_instances: int = 10
+    idle_timeout: int = 300
+    max_concurrent: int = 5
+    default_template: str = "default"
+
+
+@dataclass
+class HoneypotBotConfig:
+    """钓鱼 Bot 配置"""
+    id: str
+    weight: float
+    description: str = ""
+
+
+@dataclass
+class MatchHoneypotConfig:
+    """匹配中的钓鱼 Bot 配置"""
+    enabled: bool = True
+    probability_in_bot_matches: float = 0.15  # Bot 局中 15% 是钓鱼
+    bots: List[Dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
 class MatchConfig:
-    """匹配配置（简化版）"""
-    timeout: int  # 保留字段（兼容验证）
-    fixed_wait_time: int = 3  # 前端固定等待时间（秒）
-    ai_control_group_rate: float = 0.2  # 20% AI 对照组
-    honeypot_probability: float = 0.15  # 15% 钓鱼机器人
-    honeypot_high_meta_probability: float = 0.30  # 保留字段
-    time_distribution: Dict[str, Dict[str, float]] = field(default_factory=dict)  # 保留字段
+    """匹配配置（概率分流版）"""
+    # 核心概率配置
+    human_probability: float = 0.30  # 30% 真人
+    bot_probability: float = 0.70    # 70% Bot
+    
+    # 超时配置
+    timeout_seconds: int = 10        # 真人等待超时 (秒)
+    fake_delay_min_ms: int = 1000    # 假装延迟最小值 (毫秒)
+    fake_delay_max_ms: int = 3000    # 假装延迟最大值 (毫秒)
+    
+    # 钓鱼 Bot 配置
+    honeypot: Optional[MatchHoneypotConfig] = None
+    
+    # Bot 池配置
+    bot_pool: Optional[BotPoolConfig] = None
+    
+    # 保留字段（兼容旧配置验证）
+    timeout: int = 10  # 兼容旧字段
+    fixed_wait_time: int = 3
+    ai_control_group_rate: float = 0.2
+    honeypot_probability: float = 0.15
+    honeypot_high_meta_probability: float = 0.30
+    time_distribution: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        """后处理：设置默认值"""
+        if self.honeypot is None:
+            self.honeypot = MatchHoneypotConfig()
+        if self.bot_pool is None:
+            self.bot_pool = BotPoolConfig()
 
 
 @dataclass
@@ -352,14 +413,8 @@ class MetaConversationConfig:
     keywords: List[str] = field(default_factory=list)
 
 
-@dataclass
-class BotPoolConfig:
-    """Bot 池配置"""
-    min_instances: int
-    max_instances: int
-    idle_timeout: int
-    max_concurrent: int
-    default_template: str = "default"
+# 注意：BotPoolConfig 已在上面定义为匹配配置的一部分
+# 这里保留一个简化的引用配置用于 TuringConfig
 
 
 @dataclass

@@ -28,19 +28,51 @@ auth:
   initial_score: 100
 
 # -----------------------------------------------------------------------------
-# 匹配配置
+# 匹配配置（概率分流）
 # -----------------------------------------------------------------------------
 match:
-  timeout: 30                         # 秒，等待真人超时后匹配 AI
-  # 匹配时间分布（真人/AI 使用相同分布，消除时间线索）
-  time_distribution:
-    fast: { min: 0, max: 3, probability: 0.5 }      # 50%: 0-3 秒
-    normal: { min: 3, max: 8, probability: 0.3 }    # 30%: 3-8 秒
-    slow: { min: 8, max: 15, probability: 0.15 }    # 15%: 8-15 秒
-    very_slow: { min: 15, max: 30, probability: 0.05 }  # 5%: 15-30 秒
-  # 钓鱼机器人配置
-  honeypot_probability: 0.15          # 15% 的 AI 匹配是钓鱼机器人
-  honeypot_high_meta_probability: 0.30  # 高频元对话时钓鱼机器人概率
+  # === 核心概率配置 ===
+  human_probability: 0.30           # 30% 概率匹配真人
+  bot_probability: 0.70             # 70% 概率匹配 Bot
+  
+  # === 超时配置 ===
+  timeout_seconds: 10               # 真人等待超时 (秒)
+  fake_delay_min_ms: 1000           # 假装延迟最小值 (毫秒)
+  fake_delay_max_ms: 3000           # 假装延迟最大值 (毫秒)
+  
+  # === 钓鱼 Bot 配置 ===
+  honeypot:
+    enabled: true
+    probability_in_bot_matches: 0.15  # Bot 局中 15% 是钓鱼 Bot
+    bots:
+      - id: aggressive
+        weight: 0.4
+        description: "攻击型：容易激动，会骂人"
+      - id: sus
+        weight: 0.6
+        description: "可疑型：说话像 AI，故意露破绽"
+  
+  # === Bot 池配置 ===
+  bot_pool:
+    enabled: true
+    bots:
+      - id: lv1_newbie
+        weight: 0.35
+        description: "新手 Bot：回复慢，用词简单"
+      - id: lv2_typical
+        weight: 0.45
+        description: "典型 AI：语气温和，逻辑严密"
+      - id: lv3_logic
+        weight: 0.20
+        description: "逻辑机器：擅长数学/代码"
+  
+  # === 保留字段（兼容旧配置）===
+  timeout: 30
+  fixed_wait_time: 3
+  ai_control_group_rate: 0.2
+  honeypot_probability: 0.15
+  honeypot_high_meta_probability: 0.30
+  time_distribution: {}
 
 # -----------------------------------------------------------------------------
 # 元对话关键词配置

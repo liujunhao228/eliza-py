@@ -63,11 +63,13 @@ class User(Base):
         "Session",
         back_populates="user",
         cascade="all, delete-orphan",
+        foreign_keys="Session.user_id",
     )
     score_history: Mapped[list["ScoreHistory"]] = relationship(
         "ScoreHistory",
         back_populates="user",
         cascade="all, delete-orphan",
+        foreign_keys="ScoreHistory.user_id",
     )
     stats: Mapped[Optional["UserStats"]] = relationship(
         "UserStats",
@@ -110,7 +112,39 @@ class Session(Base):
     opponent_type: Mapped[str] = mapped_column(
         String(20),
         index=True,
-        comment="'human', 'ai', 'honeypot'"
+        comment="'human', 'ai', 'honeypot', 'opponent'"
+    )
+
+    # === 后台机密字段 (绝不返回前端) ===
+    # 真实身份：用于研究分析
+    true_identity: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        index=True,
+        comment="真实身份：'Human', 'Bot_Lv1', 'Bot_Lv2', 'Bot_Lv3', 'Honeypot_Aggressive', 'Honeypot_Sus'"
+    )
+    
+    # Bot 等级 (仅 Bot 局有值)
+    bot_level: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Bot 等级：'lv1_newbie', 'lv2_typical', 'lv3_logic'"
+    )
+
+    # 真人对战关联字段
+    opponent_user_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="真人对战时的对手用户 ID"
+    )
+    opponent_session_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("sessions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="真人对战时的对手会话 ID"
     )
 
     # 博弈字段
@@ -155,6 +189,23 @@ class Session(Base):
         comment="积分明细 JSON"
     )
 
+    # 对方猜错奖励字段
+    opponent_guess: Mapped[Optional[str]] = mapped_column(
+        String(10),
+        nullable=True,
+        comment="对方对用户的判断：'human' | 'ai'"
+    )
+    opponent_confidence: Mapped[Optional[str]] = mapped_column(
+        String(10),
+        nullable=True,
+        comment="对方的信心等级：'low' | 'mid' | 'high'"
+    )
+    bonus_from_opponent: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="对方猜错时用户获得的奖励分"
+    )
+
     # 聊天统计
     turn_count: Mapped[int] = mapped_column(
         Integer,
@@ -177,11 +228,16 @@ class Session(Base):
     )
 
     # 关系
-    user: Mapped["User"] = relationship("User", back_populates="sessions")
+    user: Mapped["User"] = relationship(
+        "User",
+        back_populates="sessions",
+        foreign_keys="Session.user_id",
+    )
     messages: Mapped[list["Message"]] = relationship(
         "Message",
         back_populates="session",
         cascade="all, delete-orphan",
+        foreign_keys="Message.session_id",
     )
     survey: Mapped[Optional["Survey"]] = relationship(
         "Survey",
@@ -289,6 +345,28 @@ class ScoreHistory(Base):
         String(50),
         index=True,
         comment="'session_end', 'daily_bonus', 'relief' 等"
+    )
+
+    # 对方猜错奖励字段
+    bonus_from_opponent: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="对方猜错时用户获得的奖励分"
+    )
+    opponent_guess: Mapped[Optional[str]] = mapped_column(
+        String(10),
+        nullable=True,
+        comment="对方对用户的判断：'human' | 'ai'"
+    )
+    opponent_confidence: Mapped[Optional[str]] = mapped_column(
+        String(10),
+        nullable=True,
+        comment="对方的信心等级：'low' | 'mid' | 'high'"
+    )
+    opponent_is_correct: Mapped[Optional[bool]] = mapped_column(
+        Boolean,
+        nullable=True,
+        comment="对方是否猜对"
     )
 
     # 时间戳
@@ -542,6 +620,7 @@ class InviteCode(Base):
     used_by_user: Mapped[Optional["User"]] = relationship(
         "User",
         back_populates="invite_code_usage",
+        foreign_keys="InviteCode.used_by_user_id",
     )
 
     def __repr__(self) -> str:
@@ -685,7 +764,7 @@ User.invite_code_usage: Mapped[Optional["InviteCode"]] = relationship(
     "InviteCode",
     back_populates="used_by_user",
     uselist=False,
-    foreign_keys=[InviteCode.used_by_user_id],
+    foreign_keys="InviteCode.used_by_user_id",
 )
 
 

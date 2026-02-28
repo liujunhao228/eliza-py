@@ -24,6 +24,12 @@ export interface SurveyData {
 export interface ScoreBreakdownDisplay {
   final_score: number
   is_correct: boolean
+  // 对方猜错奖励字段
+  opponent_guess?: string
+  opponent_confidence?: string
+  opponent_is_correct?: boolean
+  opponent_score_if_correct?: number
+  bonus_from_opponent_wrong?: number
 }
 
 /**

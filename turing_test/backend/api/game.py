@@ -374,6 +374,24 @@ async def submit_survey(
         turn = session.turn_count
         meta_count = session.meta_conversation_count
 
+        # 获取对方判断信息
+        opponent_guess = None
+        opponent_confidence = None
+        
+        # 真人对战：从对手会话读取对方判断
+        if session.opponent_type == "human" and session.opponent_session_id:
+            opponent_session_result = await db.execute(
+                select(Session).where(Session.id == session.opponent_session_id)
+            )
+            opponent_session = opponent_session_result.scalar_one_or_none()
+            if opponent_session:
+                # 对手的 user_guess 就是当前用户的 opponent_guess
+                opponent_guess = opponent_session.user_guess
+                opponent_confidence = opponent_session.confidence_level
+
+        # 确定用户真实类型（Alice 是 AI，人类对手是 human）
+        user_actual_type = "ai" if session.opponent_type == "ai" or session.is_honeypot else "human"
+
         final_score, breakdown = calculate_final_score(
             user_guess=user_guess,
             opponent_type=session.opponent_type,
@@ -381,6 +399,9 @@ async def submit_survey(
             turn=turn,
             meta_count=meta_count,
             is_mid_game=False,
+            opponent_guess=opponent_guess,
+            opponent_confidence=opponent_confidence,
+            user_actual_type=user_actual_type,
         )
 
         # 更新会话积分字段
@@ -388,6 +409,10 @@ async def submit_survey(
         session.is_correct = breakdown.is_correct
         session.final_score = int(final_score)
         session.score_breakdown = get_score_breakdown_dict(breakdown)
+        # 更新对方猜错奖励字段
+        session.opponent_guess = opponent_guess
+        session.opponent_confidence = opponent_confidence
+        session.bonus_from_opponent = int(breakdown.bonus_from_opponent_wrong) if breakdown.bonus_from_opponent_wrong else None
         breakdown_is_correct = breakdown.is_correct
 
     # 更新用户积分（场中判断后已计算过，跳过）
@@ -414,6 +439,10 @@ async def submit_survey(
             score_before=score_before,
             score_after=user.score,
             reason="session_end",
+            bonus_from_opponent=session.bonus_from_opponent,
+            opponent_guess=session.opponent_guess,
+            opponent_confidence=session.opponent_confidence,
+            opponent_is_correct=not (opponent_guess == user_actual_type) if opponent_guess else None,
         )
         db.add(score_history)
 

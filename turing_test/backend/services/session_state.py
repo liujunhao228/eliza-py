@@ -27,6 +27,10 @@ class SessionState:
     opponent_type: str = "ai"
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_active: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    # 对方猜错奖励字段
+    opponent_guess: Optional[str] = None  # AI 对用户的判断 ('human' | 'ai')
+    opponent_confidence: Optional[str] = None  # AI 判断的信心等级 ('low' | 'mid' | 'high')
+    opponent_guess_confidence_score: float = 0.5  # AI 判断的置信度 (0-1)
 
 
 class SessionStateManager:

@@ -153,9 +153,9 @@ def cmd_check_config(args):
         if turing_config:
             print("[OK] Turing 模块配置已加载")
 
-            # 检查密钥配置
-            auth_config = turing_config.get('auth', {})
-            secret_key = auth_config.get('secret_key', '')
+            # 检查密钥配置（从环境变量读取，YAML 中已移除）
+            import os
+            secret_key = os.environ.get('CONFIG_TURING_AUTH_SECRET_KEY', '')
 
             is_strong, message = is_strong_secret_key(secret_key)
 

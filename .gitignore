@@ -75,4 +75,76 @@ target/
 
 # End of https://www.gitignore.io/api/python
 
+# =============================================================================
+# 敏感文件和安全配置
+# =============================================================================
+
+# 环境变量文件（包含密钥和凭证）
+.env
+.env.local
+.env.*.local
+*.env
+
+# 邀请码文件（包含有效邀请码）
+invite_codes_*.txt
+invite_codes.csv
+invite_codes.json
+**/invite_codes_*.txt
+**/invite_codes.csv
+**/invite_codes.json
+
+# 数据库文件（包含用户数据）
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+*.db
+*.sqlite
+*.sqlite3
+
+# 数据库备份
+data/backups/
+**/backups/
+*.db.backup
+*.db.bak
+
+# 日志文件（可能包含敏感信息）
+logs/
+*.log
+!requirements.log
+
+# 密钥和证书
+*.pem
+*.key
+*.crt
+*.cer
+*.pfx
+*.p12
+secrets.json
+credentials.json
+
+# Sentry DSN 配置
+.sentry_dsn
+
+# JWT 密钥文件
+jwt_secret.txt
+secret_key.txt
+
+# =============================================================================
+# 项目特定配置
+# =============================================================================
+
+# 数据库
 data/turing.db
+
+# 临时文件
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# IDE 配置
+.idea/
+.vscode/
+*.iml

@@ -23,7 +23,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useGameStore } from '@/stores/game'
 import { useToast } from '@/composables/useToast'
-import { startMatching } from '@/api/game/match'
+import { startMatching, getMatchResult } from '@/api/game/match'
 import RulesSection from '@/components/Lobby/RulesSection.vue'
 import MatchingSection from '@/components/Lobby/MatchingSection.vue'
 
@@ -36,6 +36,7 @@ const gameStore = useGameStore()
 const isMatching = ref(false)
 const matchingSectionRef = ref<InstanceType<typeof MatchingSection>>()
 const isCompleting = ref(false)  // 防止重复请求
+const matchTimeoutTimer = ref<number | null>(null)
 
 // 开始匹配
 async function handleStartMatch() {
@@ -49,24 +50,34 @@ async function handleStartMatch() {
     // 切换到匹配界面
     isMatching.value = true
 
-    // 调用 HTTP API 加入匹配队列
-    await startMatching(userStore.userId)
+    // 调用 HTTP API 加入匹配队列（混合模式：优先真人，超时 AI）
+    const matchResponse = await startMatching(userStore.userId)
 
     // 保存游戏状态
     gameStore.setSession({
-      id: 0,
+      id: matchResponse.session_id || 0,
       user_id: userStore.userId || 0,
-      opponent_type: 'unknown',
+      opponent_type: matchResponse.opponent_type || 'unknown',
       opponent_id: 0,
-      status: 'matching',
-      is_honeypot: false,
+      status: matchResponse.opponent_type === 'waiting' ? 'matching' : 'active',
+      is_honeypot: matchResponse.is_honeypot || false,
       triggered_mid_game: false,
       meta_conversation_count: 0,
       match_duration: 0,
-      started_at: undefined,
+      started_at: new Date().toISOString(),
       ended_at: undefined,
       created_at: new Date().toISOString()
     })
+
+    // 如果直接匹配成功（真人或 AI），直接跳转
+    if (matchResponse.opponent_type && matchResponse.opponent_type !== 'waiting') {
+      showSuccess(matchResponse.message || '匹配成功！')
+      router.push('/chat')
+      return
+    }
+
+    // 否则等待用户点击"完成"按钮获取结果
+    // MatchingSection 会显示等待界面
 
   } catch (error: any) {
     showError(error.message || '匹配失败，请重试')
@@ -75,7 +86,7 @@ async function handleStartMatch() {
 }
 
 /**
- * 匹配完成（固定等待 3 秒后获取结果）
+ * 匹配完成（获取最终匹配结果）
  */
 async function handleComplete() {
   // 防止重复请求
@@ -89,10 +100,7 @@ async function handleComplete() {
     // 标记为正在处理
     isCompleting.value = true
 
-    // 导入获取结果的 API
-    const { getMatchResult } = await import('@/api/game/match')
-
-    // 获取匹配结果
+    // 获取匹配结果（可能返回真人或 AI）
     const result = await getMatchResult(userStore.userId)
 
     // 更新游戏状态
@@ -112,12 +120,12 @@ async function handleComplete() {
     })
 
     // 跳转到聊天页面
-    showSuccess('匹配成功！')
+    showSuccess(result.message || '匹配成功！')
     router.push('/chat')
 
   } catch (error: any) {
     console.error('[Lobby] 获取匹配结果失败:', error)
-    showError('获取匹配结果失败，请重试')
+    showError(error.message || '获取匹配结果失败，请重试')
   } finally {
     isCompleting.value = false
   }
@@ -127,6 +135,12 @@ async function handleComplete() {
 function handleCancel() {
   isMatching.value = false
   gameStore.reset()
+
+  // 清除定时器
+  if (matchTimeoutTimer.value) {
+    window.clearTimeout(matchTimeoutTimer.value)
+    matchTimeoutTimer.value = null
+  }
 
   if (matchingSectionRef.value) {
     matchingSectionRef.value.resetMatching()

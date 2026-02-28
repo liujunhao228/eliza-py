@@ -33,7 +33,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from loguru import logger
-from sqlalchemy import text
+from sqlalchemy import text, select, func
 
 from turing_test.backend.database import engine, async_session_maker, Base, init_db
 from turing_test.backend.models import InviteCode, User, UserStats
@@ -98,12 +98,22 @@ async def reset_database():
 
 async def check_existing_data() -> bool:
     """检查数据库是否已有数据"""
+    from sqlalchemy.exc import OperationalError
+    
     async with async_session_maker() as db:
-        result = await db.execute(text("SELECT COUNT(*) FROM users"))
-        user_count = result.scalar()
+        try:
+            result = await db.execute(text("SELECT COUNT(*) FROM users"))
+            user_count = result.scalar()
+        except OperationalError:
+            # 表不存在，说明数据库是空的
+            logger.info("数据库表结构不存在，将是空数据库初始化")
+            return False
 
-        result = await db.execute(text("SELECT COUNT(*) FROM invite_codes"))
-        invite_code_count = result.scalar()
+        try:
+            result = await db.execute(text("SELECT COUNT(*) FROM invite_codes"))
+            invite_code_count = result.scalar()
+        except OperationalError:
+            invite_code_count = 0
 
         if user_count > 0 or invite_code_count > 0:
             logger.warning(f"数据库中已有数据：{user_count} 个用户，{invite_code_count} 个邀请码")
@@ -168,6 +178,9 @@ async def generate_initial_invite_codes(
         batch_id = invite_codes[0].batch_id if invite_codes else None
         codes = [code.code for code in invite_codes]
 
+        # 提交事务
+        await db.commit()
+
         logger.info(f"✅ 成功生成 {len(codes)} 个邀请码，批次 ID: {batch_id}")
 
         return batch_id, codes
@@ -197,8 +210,6 @@ async def export_invite_codes(codes: list[str], output_file: str = None):
 
 async def print_stats():
     """打印数据库统计信息"""
-    from sqlalchemy import func
-
     async with async_session_maker() as db:
         logger.info("\n📊 数据库统计信息:")
 
@@ -211,10 +222,14 @@ async def print_stats():
         result = await db.execute(select(func.count(InviteCode.id)))
         total_codes = result.scalar()
 
+        # 可用邀请码：is_active=True AND is_used=False
         result = await db.execute(
-            select(func.count(InviteCode.id)).where(InviteCode.is_active == True)
+            select(func.count(InviteCode.id)).where(
+                InviteCode.is_active == True,
+                InviteCode.is_used == False
+            )
         )
-        active_codes = result.scalar()
+        available_codes = result.scalar()
 
         result = await db.execute(
             select(func.count(InviteCode.id)).where(InviteCode.is_used == True)
@@ -222,7 +237,7 @@ async def print_stats():
         used_codes = result.scalar()
 
         logger.info(f"  - 邀请码总数：{total_codes}")
-        logger.info(f"  - 可用邀请码：{active_codes - used_codes}")
+        logger.info(f"  - 可用邀请码：{available_codes}")
         logger.info(f"  - 已使用：{used_codes}")
 
 
@@ -365,7 +380,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    # 导入 select
-    from sqlalchemy import select
-
     asyncio.run(main())

@@ -263,11 +263,14 @@ def build_default_validator() -> ConfigValidator:
         lambda v: isinstance(v, int) and 4 <= v <= 16,
         message="turing.auth.invite_code_length 必须在 4-16 之间"
     )
-    validator.add_rule(
-        'turing.auth.secret_key',
-        lambda v: isinstance(v, str) and len(v) >= 16 and v not in ['your-secret-key-change-in-production', 'CHANGE_ME_IN_PRODUCTION'],
-        message="turing.auth.secret_key 长度必须至少 16 字符且不能使用默认值 (生产环境请通过环境变量 CONFIG_TURING_AUTH_SECRET_KEY 设置)"
-    )
+    # secret_key 验证：由于 secret_key 现在从环境变量读取，YAML 中可能不存在
+    # 验证将在 ConfigBuilder 中进行（检查环境变量）
+    # 这里跳过验证，避免误报
+    # validator.add_rule(
+    #     'turing.auth.secret_key',
+    #     lambda v: v is None or (isinstance(v, str) and len(v) >= 32 and v not in ['your-secret-key-change-in-production', 'CHANGE_ME_IN_PRODUCTION']),
+    #     message="turing.auth.secret_key 长度必须至少 32 字符且不能使用默认值 (建议通过环境变量 CONFIG_TURING_AUTH_SECRET_KEY 设置)"
+    # )
 
     # ----- 匹配配置验证 -----
     validator.add_rule(

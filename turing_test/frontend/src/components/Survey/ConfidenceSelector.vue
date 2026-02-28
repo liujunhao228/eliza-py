@@ -23,6 +23,9 @@
           <span class="score-correct">正确 +10</span>
           <span class="score-wrong">错误 -15</span>
         </div>
+        <div class="option-bonus">
+          <span class="bonus-tip">🎯 对方猜错（低信心）：我 +10</span>
+        </div>
       </div>
 
       <!-- 中信心 -->
@@ -42,6 +45,9 @@
           <span class="score-correct">正确 +25</span>
           <span class="score-wrong">错误 -37</span>
         </div>
+        <div class="option-bonus">
+          <span class="bonus-tip">🎯 对方猜错（中信心）：我 +25</span>
+        </div>
       </div>
 
       <!-- 高信心 -->
@@ -60,6 +66,9 @@
         <div class="option-scores">
           <span class="score-correct">正确 +50</span>
           <span class="score-wrong">错误 -75</span>
+        </div>
+        <div class="option-bonus">
+          <span class="bonus-tip">🎯 对方猜错（高信心）：我 +50</span>
         </div>
       </div>
     </div>
@@ -240,6 +249,20 @@ function selectConfidence(level: ConfidenceLevel) {
   font-size: 14px;
   color: var(--color-error);
   font-weight: 600;
+}
+
+.option-bonus {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-secondary);
+}
+
+.bonus-tip {
+  font-size: 12px;
+  color: var(--color-primary-600);
+  font-weight: 500;
 }
 
 .risk-warning {

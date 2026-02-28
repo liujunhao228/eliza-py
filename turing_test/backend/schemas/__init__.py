@@ -186,6 +186,12 @@ class ScoreBreakdownResponse(BaseModel):
     """积分明细响应 - 简化版，不暴露计算细节"""
     final_score: int
     is_correct: bool
+    # 对方猜错奖励字段
+    opponent_guess: Optional[str] = None
+    opponent_confidence: Optional[str] = None
+    opponent_is_correct: Optional[bool] = None
+    opponent_score_if_correct: Optional[int] = None
+    bonus_from_opponent_wrong: Optional[int] = None
 
 
 class GameResultResponse(BaseSchema):
@@ -213,6 +219,11 @@ class ScoreHistoryResponse(BaseSchema):
     score_after: int
     reason: str
     created_at: datetime
+    # 对方猜错奖励字段
+    bonus_from_opponent: Optional[int] = None
+    opponent_guess: Optional[str] = None
+    opponent_confidence: Optional[str] = None
+    opponent_is_correct: Optional[bool] = None
 
 
 # =============================================================================
@@ -220,17 +231,37 @@ class ScoreHistoryResponse(BaseSchema):
 # =============================================================================
 
 class MatchResponse(BaseSchema):
-    """匹配响应"""
+    """
+    匹配响应 - 安全版本
+    
+    ⚠️ 仅包含安全字段，前端无法得知对手真实身份
+    """
+    session_id: int
+    opponent_type: str = "opponent"  # 统一返回 "opponent"，不泄露
+    match_duration_ms: int = 0       # 匹配耗时 (前端用于模拟延迟)
+    message: str = "匹配成功"
+
+
+class AdminMatchResponse(BaseSchema):
+    """
+    管理员匹配响应 - 完整版本
+    
+    ✅ 包含完整信息，仅管理员可访问
+    """
     session_id: int
     opponent_type: str
-    is_honeypot: bool
+    true_identity: Optional[str] = None    # 真实身份 (仅管理员可见)
+    bot_level: Optional[str] = None        # Bot 等级 (仅管理员可见)
+    is_honeypot: bool = False              # 是否钓鱼 (仅管理员可见)
+    opponent_user_id: Optional[int] = None
+    match_duration_ms: int = 0
+    message: str = "匹配成功"
 
 
 class MatchingStatusResponse(BaseSchema):
     """匹配状态响应"""
-    in_queue: bool
-    queue_position: Optional[int]
-    estimated_wait_time: Optional[int]
+    waiting_count: int = 0
+    estimated_wait_time: Optional[int] = None
 
 
 # =============================================================================

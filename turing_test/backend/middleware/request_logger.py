@@ -82,17 +82,17 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
         call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         """处理请求"""
-        
+
         # 检查是否需要忽略
         if self._should_ignore(request):
             return await call_next(request)
-        
+
         # 记录请求开始时间
         start_time = time.time()
-        
+
         # 获取请求信息
         request_info = self._extract_request_info(request)
-        
+
         # 记录请求日志
         logger.info(
             f"📥 请求开始 | "
@@ -100,25 +100,26 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
             f"IP: {request_info['client_ip']} | "
             f"Request ID: {request_info['request_id']}"
         )
-        
-        # 记录请求体（如果启用）
+
+        # 记录请求体（如果启用）- 自动脱敏敏感信息
         if RequestLoggerConfig.LOG_REQUEST_BODY and request_info.get("body"):
-            logger.debug(f"请求体：{request_info['body']}")
-        
+            sanitized_body = sanitize_body(request_info['body'])
+            logger.debug(f"请求体：{sanitized_body}")
+
         try:
             # 处理请求
             response = await call_next(request)
-            
+
             # 计算处理时间
             process_time = (time.time() - start_time) * 1000  # 毫秒
-            
+
             # 提取响应信息
             response_info = {
                 "status_code": response.status_code,
                 "process_time_ms": round(process_time, 2),
                 "content_length": int(response.headers.get("content-length", 0)),
             }
-            
+
             # 记录响应日志
             log_level = self._get_log_level(response.status_code, process_time)
             log_message = (
@@ -128,7 +129,7 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
                 f"Time: {response_info['process_time_ms']}ms | "
                 f"Size: {response_info['content_length']}B"
             )
-            
+
             # 根据状态码和处理时间选择日志级别
             if log_level == "warning":
                 logger.warning(log_message)
@@ -136,7 +137,7 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
                 logger.error(log_message)
             else:
                 logger.info(log_message)
-            
+
             # 记录慢请求
             if process_time > RequestLoggerConfig.SLOW_REQUEST_THRESHOLD:
                 logger.warning(
@@ -144,13 +145,13 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
                     f"{request_info['method']} {request_info['path']} | "
                     f"耗时：{process_time:.2f}ms"
                 )
-            
+
             # 添加响应头（用于调试）
             response.headers["X-Process-Time"] = str(round(process_time, 2))
             response.headers["X-Request-ID"] = request_info["request_id"]
-            
+
             return response
-            
+
         except Exception as e:
             # 记录异常
             process_time = (time.time() - start_time) * 1000

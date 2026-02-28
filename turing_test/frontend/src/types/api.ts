@@ -78,14 +78,21 @@ export interface SurveyData {
 
 // 积分明细类型
 export interface ScoreBreakdown {
-  base_reward: number
-  confidence_multiplier: number
-  meta_multiplier: number
-  penalty_multiplier: number
-  effective_multiplier: number
-  entry_fee: number
-  turn_penalty: number
+  base_reward?: number
+  confidence_multiplier?: number
+  meta_multiplier?: number
+  penalty_multiplier?: number
+  effective_multiplier?: number
+  entry_fee?: number
+  turn_penalty?: number
   final_score: number
+  is_correct: boolean
+  // 对方猜错奖励字段
+  opponent_guess?: string
+  opponent_confidence?: string
+  opponent_is_correct?: boolean
+  opponent_score_if_correct?: number
+  bonus_from_opponent_wrong?: number
 }
 
 // 场中判断响应类型
@@ -94,8 +101,6 @@ export interface MidGameJudgmentResponse {
   opponent_type: 'human' | 'ai' | 'honeypot' | 'unknown'
   final_score: number
   score_breakdown: ScoreBreakdown
-  opponent_guess?: string
-  opponent_reason?: string
 }
 
 // 问卷提交响应类型
@@ -104,8 +109,6 @@ export interface SurveyResponse {
   opponent_type: 'human' | 'ai' | 'honeypot' | 'unknown'
   final_score: number
   score_breakdown: ScoreBreakdown
-  opponent_guess?: string
-  opponent_reason?: string
 }
 
 // 用户统计类型
@@ -159,4 +162,26 @@ export interface ScoreHistory {
   score_after: number
   reason: string
   created_at: string
+  // 对方猜错奖励字段
+  bonus_from_opponent?: number
+  opponent_guess?: string
+  opponent_confidence?: string
+  opponent_is_correct?: boolean
+}
+
+// 匹配响应类型
+export interface MatchResponse {
+  status?: 'found' | 'waiting' | 'timeout'
+  session_id?: number
+  opponent_type?: 'human' | 'ai' | 'unknown'
+  is_honeypot?: boolean
+  message?: string
+}
+
+// 匹配状态类型
+export interface MatchingStatusResponse {
+  in_queue?: boolean
+  queue_position?: number | null
+  estimated_wait_time?: number | null
+  waiting_count?: number
 }
