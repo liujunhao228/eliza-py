@@ -50,8 +50,9 @@
         <el-collapse-item title="2. 判断身份" name="2">
           <div class="rule-content">
             <p>- 在问卷中填写你的判断</p>
-            <p>- 成功：获得积分</p>
-            <p>- 错误：扣除积分</p>
+            <p>- 判断成功：获得积分</p>
+            <p>- 判断错误：扣除积分</p>
+            <p>- 对方错误：你<strong>获得</strong>积分</p>
             <p>- 至少对话 3 轮后才能结束对话</p>
           </div>
         </el-collapse-item>

@@ -22,4 +22,4 @@
     keywords: ["刷", "？", "?"]
     max_turns: 3
   templates:
-    - ""
+    - "就是触发元对话"

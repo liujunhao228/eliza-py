@@ -1,5 +1,5 @@
 <template>
-  <div :class="['base-progress', `base-progress--${size}`, `base-progress--${type}`]">
+  <div :class="['base-progress', `base-progress--${size}`, `base-progress--${type}`, { 'base-progress--no-text': !showText }]">
     <!-- 进度条 -->
     <div class="base-progress__track" role="progressbar" :aria-valuenow="percentage" aria-valuemin="0" aria-valuemax="100">
       <div
@@ -54,6 +54,11 @@ const clampedPercentage = Math.max(0, Math.min(100, props.percentage))
   width: 100%;
 }
 
+/* 当不显示文本时，移除 gap 并确保进度条占满宽度 */
+.base-progress--no-text {
+  gap: 0;
+}
+
 /* 进度条轨道 */
 .base-progress__track {
   flex: 1;
@@ -71,6 +76,7 @@ const clampedPercentage = Math.max(0, Math.min(100, props.percentage))
   transition: width 0.3s ease;
   position: relative;
   overflow: hidden;
+  min-width: 2px; /* 确保即使进度为 0 也能看到一点进度条 */
 }
 
 /* 类型 */

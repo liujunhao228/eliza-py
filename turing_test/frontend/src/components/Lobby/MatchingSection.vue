@@ -14,7 +14,7 @@
 
     <!-- 进度条 -->
     <div class="progress-container">
-      <BaseProgress :percentage="progress" :show-text="false" />
+      <BaseProgress :percentage="progress" :show-text="false" size="large" type="primary" striped animated />
       <div class="progress-text">{{ waitTime }} 秒 / {{ fixedWaitTime }} 秒</div>
     </div>
 

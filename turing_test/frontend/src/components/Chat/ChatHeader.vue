@@ -1,18 +1,7 @@
 <template>
   <div class="chat-header">
-    <!-- 左侧：返回按钮 + 博弈状态信息 -->
+    <!-- 左侧：博弈状态信息 -->
     <div class="header-left">
-      <div class="nav-buttons">
-        <BaseButton
-          type="info"
-          size="small"
-          @click="handleBack"
-          class="back-btn"
-        >
-          ← 返回
-        </BaseButton>
-      </div>
-
       <GameInfo :turn="turn" :meta-count="metaConversationCount" />
 
       <!-- 正在输入提示 -->
@@ -68,8 +57,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { BaseButton } from '@/components/common'
 import { useGameStore } from '@/stores/game'
 import type { WSConnectionState } from '@/types'
 import GameInfo from './Header/GameInfo.vue'
@@ -95,18 +82,12 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
-const router = useRouter()
 const gameStore = useGameStore()
 
 // 计算属性
 const turn = computed(() => gameStore.gameState.turn)
 const metaConversationCount = computed(() => gameStore.metaConversationCount)
 const triggeredMidGame = computed(() => gameStore.triggeredMidGame)
-
-// 返回大厅
-function handleBack() {
-  router.push('/lobby')
-}
 </script>
 
 <style scoped>
@@ -131,16 +112,6 @@ function handleBack() {
   gap: 16px;
   flex: 1;
   min-width: 0;
-}
-
-.nav-buttons {
-  display: flex;
-  align-items: center;
-}
-
-.back-btn {
-  height: 32px;
-  padding: 0 12px;
 }
 
 /* 右侧区域 */
