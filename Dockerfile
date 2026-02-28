@@ -32,26 +32,29 @@ RUN npm run build
 FROM python:3.12.12-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# 安装构建依赖
+# 安装构建依赖和 uv
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     python3-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 uv 工具
-RUN pip install --no-cache-dir uv
+# 安装 uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
 
 # 仅复制依赖文件（利用层缓存：依赖文件变化频率低）
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock ./
 
-# 安装依赖到指定目录
-RUN uv pip install --prefix=/install .
+# 创建虚拟环境并同步依赖
+RUN uv venv /opt/venv
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
+RUN uv sync --frozen --no-dev
 
 # =============================================================================
 # 阶段 3: 运行阶段
@@ -59,11 +62,7 @@ RUN uv pip install --prefix=/install .
 FROM python:3.12.12-slim AS runner
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PATH="/install/bin:$PATH" \
-    PYTHONPATH="/install/lib/python3.12/site-packages"
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
@@ -74,8 +73,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# 从构建阶段复制已安装的依赖
-COPY --from=builder /install /install
+# 从构建阶段复制虚拟环境
+COPY --from=builder /opt/venv /opt/venv
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
 # 从前端构建阶段复制已构建的静态文件
 COPY --from=frontend-builder /app/turing_test/backend/static /app/turing_test/backend/static

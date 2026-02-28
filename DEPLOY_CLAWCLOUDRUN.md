@@ -32,6 +32,7 @@ docker push ccr.ccl.net/eliza-py:latest
 | `TURING_ADMIN_API_KEY` | 随机字符串 | 数据导出密钥 |
 | `CONFIG_TURING_AUTH_SECRET_KEY` | 随机字符串 | JWT 密钥 |
 | `DEBUG` | `false` | 生产环境关闭调试 |
+| `CONFIG_TURING_FRONTEND_URL` | (可选) | 前端 URL，不设置则自动使用请求域名 ✅ |
 
 生成密钥：
 ```bash
@@ -64,6 +65,38 @@ FastAPI 应用 (通过 PORT 环境变量监听 3001)
 ```
 
 **本项目已支持 `PORT` 环境变量**，自动适配云平台要求。
+
+---
+
+## 🎉 分享链接自动适配动态域名
+
+**问题**：ClawCloud Run 部署后分配随机域名，分享链接如何生成？
+
+**解决方案**：项目已支持自动从 HTTP 请求中获取域名，无需手动配置！
+
+```
+用户访问：https://abc123.ap-northeast-1.clawcloudrun.com
+                │
+                ▼
+创建分享时自动使用：https://abc123.ap-northeast-1.clawcloudrun.com/share/xxx
+```
+
+### 工作原理
+
+```python
+# 优先级：
+# 1. 环境变量 CONFIG_TURING_FRONTEND_URL（如果设置）
+# 2. 从请求中动态获取（自动适配 ClawCloud Run）
+# 3. 配置文件默认值 (http://localhost:5173)
+```
+
+### 可选：固定域名
+
+如果你后续绑定了自定义域名，可以设置环境变量：
+
+```bash
+CONFIG_TURING_FRONTEND_URL=https://your-custom-domain.com
+```
 
 ---
 

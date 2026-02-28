@@ -4,6 +4,7 @@
 提供创建、管理和访问会话分享链接的功能。
 """
 
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
@@ -32,7 +33,31 @@ from loguru import logger
 from fastapi import Request
 
 router = APIRouter()
-FRONTEND_URL = settings.frontend_url
+
+
+def get_frontend_url(request: Optional[Request] = None) -> str:
+    """
+    获取前端 URL
+    
+    优先级：
+    1. 环境变量 CONFIG_TURING_FRONTEND_URL（如果设置）
+    2. 从请求中动态获取（如果有 request 对象）
+    3. 配置文件中的 frontend_url（默认 http://localhost:5173）
+    """
+    # 1. 优先使用环境变量
+    env_url = os.getenv("CONFIG_TURING_FRONTEND_URL")
+    if env_url:
+        return env_url.rstrip("/")
+    
+    # 2. 从请求中动态获取（适用于 ClawCloud Run 等动态域名场景）
+    if request:
+        scheme = request.url.scheme  # http 或 https
+        host = request.headers.get("host", "")
+        if host:
+            return f"{scheme}://{host}"
+    
+    # 3. 使用配置文件中的默认值
+    return settings.frontend_url.rstrip("/")
 
 
 def _normalize_opponent_type(opponent_type: str) -> str:
@@ -120,6 +145,7 @@ async def create_session_share(
     session_id: int, request: CreateShareRequest,
     current_user_id: int = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
+    http_request: Request = None,  # 自动注入请求对象
 ):
     result = await db.execute(select(Session).where(Session.id == session_id))
     session = result.scalar_one_or_none()
@@ -127,7 +153,7 @@ async def create_session_share(
         raise HTTPException(status_code=404, detail="会话不存在")
     if session.user_id != current_user_id:
         raise HTTPException(status_code=403, detail="仅会话所有者可创建分享")
-    
+
     existing_result = await db.execute(
         select(SessionShare).where(
             SessionShare.session_id == session_id,
@@ -137,11 +163,11 @@ async def create_session_share(
     )
     if existing_result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="该会话已有有效分享链接")
-    
+
     share_token = generate_share_token()
     expires_at = now_utc() + timedelta(days=request.expires_days) if request.expires_days else None
     password_hash = hash_password(request.password) if request.password else None
-    
+
     share = SessionShare(
         session_id=session_id, user_id=current_user_id, share_token=share_token,
         is_public=request.is_public, expires_at=expires_at, password_hash=password_hash,
@@ -149,11 +175,14 @@ async def create_session_share(
     db.add(share)
     await db.commit()
     await db.refresh(share)
+
+    # 动态获取前端 URL（支持 ClawCloud Run 随机域名）
+    frontend_url = get_frontend_url(http_request)
     
     logger.info(f"创建分享：user_id={current_user_id}, session_id={session_id}, token={share_token}")
     return CreateShareResponse(
         share_id=share.id, share_token=share_token,
-        share_url=f"{FRONTEND_URL}/share/{share_token}",
+        share_url=f"{frontend_url}/share/{share_token}",
         expires_at=share.expires_at, has_password=share.password_hash is not None,
     )
 
@@ -258,6 +287,7 @@ async def get_session_shares(
     session_id: int,
     current_user_id: int = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
+    http_request: Request = None,  # 自动注入请求对象
 ):
     """
     获取会话的所有分享链接
@@ -283,11 +313,14 @@ async def get_session_shares(
     )
     shares = shares_result.scalars().all()
 
+    # 动态获取前端 URL（支持 ClawCloud Run 随机域名）
+    frontend_url = get_frontend_url(http_request)
+
     return [
         CreateShareResponse(
             share_id=share.id,
             share_token=share.share_token,
-            share_url=f"{FRONTEND_URL}/share/{share.share_token}",
+            share_url=f"{frontend_url}/share/{share.share_token}",
             expires_at=share.expires_at,
             has_password=share.password_hash is not None,
         )
@@ -300,6 +333,7 @@ async def update_share(
     share_id: int, request: UpdateShareRequest,
     current_user_id: int = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
+    http_request: Request = None,  # 自动注入请求对象
 ):
     result = await db.execute(select(SessionShare).where(SessionShare.id == share_id))
     share = result.scalar_one_or_none()
@@ -307,19 +341,23 @@ async def update_share(
         raise HTTPException(status_code=404, detail="分享不存在")
     if share.user_id != current_user_id:
         raise HTTPException(status_code=403, detail="仅分享所有者可更新")
-    
+
     if request.is_public is not None:
         share.is_public = request.is_public
     if request.expires_days is not None:
         share.expires_at = now_utc() + timedelta(days=request.expires_days)
     if request.password is not None:
         share.password_hash = hash_password(request.password) if request.password else None
-    
+
     await db.commit()
     await db.refresh(share)
+    
+    # 动态获取前端 URL（支持 ClawCloud Run 随机域名）
+    frontend_url = get_frontend_url(http_request)
+    
     return CreateShareResponse(
         share_id=share.id, share_token=share.share_token,
-        share_url=f"{FRONTEND_URL}/share/{share.share_token}",
+        share_url=f"{frontend_url}/share/{share.share_token}",
         expires_at=share.expires_at, has_password=share.password_hash is not None,
     )
 
