@@ -1,4 +1,43 @@
-# Eliza-Py 部署指南（免费服务器版）
+# Eliza-Py 部署指南
+
+本文档介绍两种部署方案：
+1. **单服务器部署**（推荐）：前后端合并，只暴露一个端口
+2. **免费云服务器部署**：针对 ClawCloudRun 等免费容器服务
+
+## 方案选择
+
+| 场景 | 推荐方案 | 文档 |
+|------|---------|------|
+| 自有服务器/VPS | 单服务器部署 | [DEPLOY_SINGLE_SERVER.md](DEPLOY_SINGLE_SERVER.md) |
+| 免费云服务器 | Docker 容器部署 | 本文档 |
+| 生产环境 | 前后端分离 + Nginx | 联系作者获取 |
+
+---
+
+# 方案一：单服务器部署
+
+适用于自有服务器、VPS 或本地测试环境。
+
+**特点：**
+- ✅ 前后端合并部署
+- ✅ 只暴露一个端口（8000）
+- ✅ 无需 Nginx 反向代理
+- ✅ 节省资源
+
+**详细步骤请查看：** [DEPLOY_SINGLE_SERVER.md](DEPLOY_SINGLE_SERVER.md)
+
+**快速开始：**
+```bash
+# Linux/Mac
+bash scripts/deploy.sh
+
+# Windows
+scripts\deploy.bat
+```
+
+---
+
+# 方案二：免费云服务器部署（Docker 单容器）
 
 本文档介绍如何在免费云服务器上部署 Eliza-Py 项目，并在实验结束后获取数据库文件。
 
@@ -9,6 +48,28 @@
 - ✅ 无 SSH/文件管理器访问权限
 - ✅ 服务器提供域名映射（如 `https://xxx.clawcloudrun.com`）
 - ✅ 容器可能随时被重启/删除
+
+## 架构说明
+
+```
+┌────────────────────────────────────────────┐
+│         Docker 容器 (单容器)                │
+│                                            │
+│  ┌──────────────┐    ┌─────────────────┐  │
+│  │  前端静态文件 │    │   FastAPI 后端  │  │
+│  │  (Vue 构建)   │    │   :8000         │  │
+│  │              │    │                 │  │
+│  │  /           │───▶│  /api/*         │  │
+│  │  /assets/*   │    │  /ws/*          │  │
+│  └──────────────┘    └─────────────────┘  │
+│                                            │
+│  数据卷：/app/data (持久化数据库)           │
+└────────────────────────────────────────────┘
+           │
+           ▼
+    云服务商域名
+    https://xxx.clawcloudrun.com
+```
 
 ## 数据持久化方案
 
@@ -55,7 +116,9 @@
 
 ## 部署步骤
 
-### 1. 构建 Docker 镜像
+### 方式一：本地构建并推送（推荐）
+
+#### 1. 构建 Docker 镜像
 
 在本地项目根目录执行：
 
@@ -63,7 +126,7 @@
 docker build -t eliza-py .
 ```
 
-### 2. 推送镜像到仓库
+#### 2. 推送镜像到仓库
 
 根据你的云服务商要求推送镜像，例如：
 
@@ -78,7 +141,7 @@ docker login registry.example.com
 docker push registry.example.com/your-namespace/eliza-py:latest
 ```
 
-### 3. 配置环境变量（可选但推荐）
+#### 3. 配置环境变量（可选但推荐）
 
 为了保护数据导出端点，建议设置管理密钥：
 
@@ -89,16 +152,58 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
 在云服务商控制台设置环境变量：
-- `TURING_ADMIN_API_KEY` = `你的随机密钥`
 
-### 4. 部署到云服务商
+| 变量名 | 说明 | 必填 |
+|--------|------|------|
+| `TURING_ADMIN_API_KEY` | 数据导出 API 密钥 | 推荐 |
+| `CONFIG_TURING_AUTH_SECRET_KEY` | JWT 认证密钥 | 生产环境必填 |
+| `LOG_LEVEL` | 日志级别 (INFO/WARNING/ERROR) | 可选 |
+| `DEBUG` | 调试模式 (true/false) | 可选，生产环境设为 false |
+
+#### 4. 部署到云服务商
 
 在云服务商控制台：
 1. 选择 Docker 镜像部署
 2. 填写镜像地址
-3. 设置环境变量（如果有）
+3. 设置环境变量
 4. 设置挂载点：`/app/data`（确保数据持久化）
 5. 设置端口映射：`8000` → 分配的域名
+6. 启动容器
+
+#### ClawCloudRun 特定配置
+
+ ClawCloudRun 要求容器监听 **3001** 端口：
+
+1. 在容器配置中设置：
+   - **端口**: `3001`
+   - **环境变量**: `PORT=3001`
+
+2. 构建镜像时指定：
+   ```bash
+   docker build -t eliza-py .
+   docker tag eliza-py ccr.ccl.net/eliza-py:latest
+   docker push ccr.ccl.net/eliza-py:latest
+   ```
+
+3. 部署后访问分配的域名：
+   ```
+   https://hosktqwopusa.ap-northeast-1.clawcloudrun.com
+   ```
+
+### 方式二：云服务商直接构建
+
+如果云服务商支持 Git 直接部署：
+
+1. 设置 Git 仓库地址
+2. 设置构建命令：
+   ```bash
+   docker build -t $IMAGE_NAME .
+   ```
+3. 设置启动命令：
+   ```bash
+   python main.py turing
+   ```
+4. 设置环境变量和挂载点（同上）
 
 ## 获取数据库（实验结束后）
 

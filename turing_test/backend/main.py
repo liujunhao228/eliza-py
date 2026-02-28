@@ -10,6 +10,8 @@ from contextlib import asynccontextmanager
 from typing import List
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from loguru import logger
 
 # =============================================================================
@@ -458,6 +460,42 @@ app.include_router(chat_ws_router, prefix="/ws", tags=["WebSocket"])
 # 聊天路由（待实现）
 # from api.chat import router as chat_router
 # app.include_router(chat_router, prefix="/api/chat", tags=["聊天"])
+
+
+# =============================================================================
+# 静态文件服务（生产环境）
+# =============================================================================
+
+# 挂载前端静态文件目录
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    # 挂载静态文件目录
+    app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="static:assets")
+
+    # SPA 回退路由：所有未匹配的路由返回 index.html
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """
+        SPA 回退路由
+        所有未匹配的 API 路由都返回 index.html，由前端路由处理
+        """
+        # 排除 API 路由和静态资源
+        if full_path.startswith(("api", "ws", "docs", "redoc", "openapi")):
+            raise HTTPException(status_code=404, detail="API 端点不存在")
+        
+        # 处理 favicon.ico
+        if full_path == "favicon.ico":
+            favicon_path = static_dir / "favicon.ico"
+            if favicon_path.exists():
+                return FileResponse(favicon_path)
+            raise HTTPException(status_code=404, detail="favicon 不存在")
+
+        index_html = static_dir / "index.html"
+        if index_html.exists():
+            return FileResponse(index_html)
+        raise HTTPException(status_code=404, detail="前端页面不存在")
+else:
+    logger.warning(f"静态文件目录不存在：{static_dir}，生产环境请先构建前端")
 
 
 # =============================================================================

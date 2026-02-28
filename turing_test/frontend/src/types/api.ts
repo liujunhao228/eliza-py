@@ -143,15 +143,6 @@ export interface MatchStatus {
   active_sessions: number
 }
 
-// 匹配响应类型
-export interface MatchResponse {
-  status: 'found' | 'waiting' | 'timeout'
-  session_id?: number
-  opponent_type?: 'human' | 'ai' | 'unknown'
-  is_honeypot?: boolean
-  message?: string
-}
-
 // 积分历史记录类型
 export interface ScoreHistory {
   id: number
@@ -173,7 +164,7 @@ export interface ScoreHistory {
 export interface MatchResponse {
   status?: 'found' | 'waiting' | 'timeout'
   session_id?: number
-  opponent_type?: 'human' | 'ai' | 'unknown'
+  opponent_type?: 'human' | 'ai' | 'unknown' | 'waiting'
   is_honeypot?: boolean
   message?: string
 }

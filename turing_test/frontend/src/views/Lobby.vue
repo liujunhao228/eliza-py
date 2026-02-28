@@ -57,7 +57,7 @@ async function handleStartMatch() {
     gameStore.setSession({
       id: matchResponse.session_id || 0,
       user_id: userStore.userId || 0,
-      opponent_type: matchResponse.opponent_type || 'unknown',
+      opponent_type: matchResponse.opponent_type === 'waiting' ? 'unknown' : (matchResponse.opponent_type || 'unknown'),
       opponent_id: 0,
       status: matchResponse.opponent_type === 'waiting' ? 'matching' : 'active',
       is_honeypot: matchResponse.is_honeypot || false,

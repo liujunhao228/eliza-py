@@ -23,5 +23,10 @@ export default defineConfig({
         ws: true
       }
     }
+  },
+  build: {
+    // 生产环境构建输出目录
+    outDir: resolve(__dirname, '../backend/static'),
+    emptyOutDir: true
   }
 })

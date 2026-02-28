@@ -34,8 +34,13 @@ export function useProfileData() {
       scoreHistory.value = data.scoreHistory
       return data
     } catch (err: any) {
-      const message = err.response?.data?.detail || err.message || '加载失败，请重试'
-      error.value = message
+      // 404 错误：用户不存在
+      if (err.response?.status === 404) {
+        error.value = '用户不存在，请重新登录'
+      } else {
+        const message = err.response?.data?.detail || err.message || '加载失败，请重试'
+        error.value = message
+      }
       throw err
     } finally {
       loading.value = false

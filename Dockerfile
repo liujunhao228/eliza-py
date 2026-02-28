@@ -1,9 +1,33 @@
 # Eliza-Py Dockerfile
 # 支持 Alice 聊天机器人和 Turing 测试后端
 # 使用多阶段构建优化镜像大小
+# 包含前端构建，单容器部署
 
 # =============================================================================
-# 阶段 1: 构建阶段 - 安装依赖
+# 阶段 1: 前端构建 - 构建 Vue 前端
+# =============================================================================
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app/turing_test/frontend
+
+# 复制 package.json 和 package-lock.json（利用层缓存）
+COPY turing_test/frontend/package*.json ./
+
+# 安装依赖
+RUN npm ci --silent
+
+# 复制前端源代码
+COPY turing_test/frontend/ ./
+
+# 创建生产环境配置
+RUN echo "VITE_API_BASE_URL=/api" > .env.production && \
+    echo "VITE_WS_BASE_URL=ws://localhost/ws" >> .env.production
+
+# 构建前端（输出到后端 static 目录）
+RUN npm run build
+
+# =============================================================================
+# 阶段 2: Python 依赖构建
 # =============================================================================
 FROM python:3.12.12-slim AS builder
 
@@ -30,7 +54,7 @@ COPY pyproject.toml uv.lock* ./
 RUN uv pip install --prefix=/install .
 
 # =============================================================================
-# 阶段 2: 运行阶段
+# 阶段 3: 运行阶段
 # =============================================================================
 FROM python:3.12.12-slim AS runner
 
@@ -53,6 +77,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 从构建阶段复制已安装的依赖
 COPY --from=builder /install /install
 
+# 从前端构建阶段复制已构建的静态文件
+COPY --from=frontend-builder /app/turing_test/backend/static /app/turing_test/backend/static
+
 # 复制应用代码（代码变化不会使依赖层缓存失效）
 COPY . .
 
@@ -69,12 +96,13 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     chown -R appuser:appuser /app
 USER appuser
 
-# 暴露端口
+# 暴露端口（支持 PORT 环境变量覆盖）
+# 默认 8000，可通过环境变量 PORT 修改
 EXPOSE 8000
 
-# 健康检查 - 检查端口是否可连接
+# 健康检查 - 检查端口是否可连接（支持 PORT 环境变量）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD python -c "import socket; s=socket.socket(); s.settimeout(5); result=s.connect_ex(('127.0.0.1', 8000)); s.close(); exit(0 if result==0 else 1)" || exit 1
+    CMD python -c "import os, socket; port=int(os.getenv('PORT', 8000)); s=socket.socket(); s.settimeout(5); result=s.connect_ex(('127.0.0.1', port)); s.close(); exit(0 if result==0 else 1)" || exit 1
 
 # =============================================================================
 # 环境变量说明

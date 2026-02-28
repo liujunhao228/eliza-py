@@ -60,7 +60,8 @@ import {
   ScoreCard,
   SurveyCard
 } from '@/components/Result'
-import type { SurveyData, ScoreBreakdown } from '@/types/result'
+import type { SurveyData } from '@/types/result'
+import type { ScoreBreakdown } from '@/types/api'
 
 const { error: showError } = useToast()
 const router = useRouter()

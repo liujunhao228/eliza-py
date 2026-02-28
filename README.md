@@ -17,6 +17,37 @@
 ![Python](https://img.shields.io/badge/python-3.7+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
+## 🚀 部署
+
+### 单服务器部署（推荐）
+前后端合并部署，只暴露一个端口。
+
+```bash
+# 一键部署脚本
+bash scripts/deploy.sh          # Linux/Mac
+scripts\deploy.bat              # Windows
+
+# 启动服务
+uv run uvicorn turing_test.backend.main:app --host 0.0.0.0 --port 8000
+```
+
+详细文档：[DEPLOY_SINGLE_SERVER.md](DEPLOY_SINGLE_SERVER.md)
+
+### Docker 部署（免费云服务器）
+支持 ClawCloudRun 等免费云服务器，单容器部署。
+
+```bash
+# 构建镜像
+docker build -t eliza-py .
+
+# 运行
+docker run -p 8000:8000 -v ./data:/app/data eliza-py
+```
+
+详细文档：[DEPLOYMENT.md](DEPLOYMENT.md) | [QUICK_DEPLOY.md](QUICK_DEPLOY.md)
+
+---
+
 ## ✨ 特点
 
 - 🎯 **轻量化设计**: 仅需 jieba 分词，无需大型 NLP 模型
@@ -26,6 +57,7 @@
 - 📦 **开箱即用**: 安装依赖即可运行
 - 🆕 **NLP 工厂模式**: 统一管理分词、实体识别引擎
 - 🤖 **Bot 池架构**: 共享 NLP 服务，支持多用户并发对话
+- 🌐 **单容器部署**: 前后端合并，Docker 一键部署
 
 ## 🚀 快速开始
 

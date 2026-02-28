@@ -108,6 +108,14 @@ const loadData = async () => {
   } catch (err: any) {
     console.error('加载用户数据失败:', err)
     // error 已由 composable 设置
+    
+    // 如果错误是 404（用户不存在），清除本地存储并重定向到登录页
+    if (err.response?.status === 404 || err.code === 'SESSION_NOT_FOUND') {
+      console.warn('用户不存在，清除本地存储并重定向到登录页')
+      userStore.logout()
+      router.push('/login')
+      showToast('用户信息已过期，请重新登录', 'warning')
+    }
   }
 }
 

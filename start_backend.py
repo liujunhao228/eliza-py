@@ -14,8 +14,12 @@ import sys
 import os
 
 # 添加项目根目录到 Python 路径
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
+
+# 加载 .env 文件
+from dotenv import load_dotenv
+load_dotenv(os.path.join(project_root, ".env"))
 
 import uvicorn
 

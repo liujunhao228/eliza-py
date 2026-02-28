@@ -1,0 +1,1 @@
+import{a}from"./index-BZ_kfQNt.js";async function e(t){return a.post(`/match/join?user_id=${t}`)}async function n(t){return a.get(`/match/result?user_id=${t}`)}async function r(t){return a.post(`/match/leave?user_id=${t}`)}async function c(t){return a.get(`/match/status?user_id=${t}`)}export{c as a,n as g,r as l,e as s};

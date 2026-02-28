@@ -76,6 +76,8 @@ docker-compose*.yml
 # Documentation
 *.md
 !README.md
+!DEPLOYMENT.md
+!DEPLOY_SINGLE_SERVER.md
 
 # Git
 .git/
@@ -83,3 +85,8 @@ docker-compose*.yml
 
 # Qwen Code
 .qwen/
+
+# Node.js (前端构建在 Docker 内进行)
+node_modules/
+turing_test/frontend/node_modules/
+turing_test/backend/static/
