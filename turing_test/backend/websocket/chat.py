@@ -268,10 +268,11 @@ async def handle_mid_game_judgment(
     db: AsyncSession,
 ):
     """处理场中判断"""
-    from turing_test.backend.models import User, ScoreHistory
+    from turing_test.backend.models import User
     from turing_test.backend.utils.score_calculator import (
         calculate_final_score,
         get_score_breakdown_dict,
+        apply_score_change,
     )
 
     user_guess = data.get("data", {}).get("user_guess")
@@ -325,31 +326,14 @@ async def handle_mid_game_judgment(
     session.score_breakdown = get_score_breakdown_dict(breakdown)
     # 注意：场中判断不结束会话，仅记录积分，end_reason 由用户后续点击"结束对话"时设置
 
-    # 更新用户积分
-    score_before = user.score
-    user.score += int(final_score)
-
-    if final_score > 0:
-        user.total_score_earned += int(final_score)
-    else:
-        user.total_score_lost += abs(int(final_score))
-
-    # 更新最高/最低分
-    if user.score > user.highest_score:
-        user.highest_score = user.score
-    if user.score < user.lowest_score:
-        user.lowest_score = user.score
-
-    # 记录积分历史
-    score_history = ScoreHistory(
-        user_id=user.id,
-        session_id=session.id,
+    # 使用统一函数更新用户积分
+    apply_score_change(
+        user=user,
+        session=session,
         score_change=int(final_score),
-        score_before=score_before,
-        score_after=user.score,
         reason="mid_game_judgment",
+        db=db,
     )
-    db.add(score_history)
 
     # 提交事务
     await db.commit()

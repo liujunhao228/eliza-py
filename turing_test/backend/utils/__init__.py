@@ -9,6 +9,7 @@ from .score_calculator import (
     get_recommended_confidence,
     is_high_frequency_meta,
     format_score_change,
+    apply_score_change,
     # 常量
     ENTRY_FEE,
     TURN_PENALTY_RATE,
@@ -27,6 +28,7 @@ __all__ = [
     "get_recommended_confidence",
     "is_high_frequency_meta",
     "format_score_change",
+    "apply_score_change",
     "ENTRY_FEE",
     "TURN_PENALTY_RATE",
     "MIN_FREE_TURNS",

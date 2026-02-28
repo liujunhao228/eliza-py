@@ -371,8 +371,77 @@ def format_score_change(score: float) -> str:
 
 
 # =============================================================================
-# 测试
+# 统一积分变更函数
 # =============================================================================
+
+def apply_score_change(
+    user,
+    session,
+    score_change: int,
+    reason: str,
+    db,
+    bonus_from_opponent: int = None,
+    opponent_guess: str = None,
+    opponent_confidence: str = None,
+    opponent_is_correct: bool = None,
+) -> None:
+    """
+    统一应用积分变更
+
+    所有积分变更都应通过此函数，确保逻辑一致性和可追溯性。
+
+    Args:
+        user: 用户对象 (User model)
+        session: 会话对象 (Session model)
+        score_change: 积分变化值（可正可负）
+        reason: 变更原因 ("mid_game_judgment" | "session_end")
+        db: 数据库会话
+        bonus_from_opponent: 从对方猜错获得的奖励积分（可选）
+        opponent_guess: 对方对用户的判断（可选）
+        opponent_confidence: 对方的信心等级（可选）
+        opponent_is_correct: 对方是否猜对（可选）
+
+    更新内容:
+        - user.score: 用户当前积分
+        - user.total_score_earned: 累计获得积分
+        - user.total_score_lost: 累计损失积分
+        - user.highest_score: 历史最高积分
+        - user.lowest_score: 历史最低积分
+        - ScoreHistory: 新增积分历史记录
+    """
+    from turing_test.backend.models import ScoreHistory
+
+    score_before = user.score
+
+    # 应用积分变化（增量操作）
+    user.score += score_change
+
+    # 更新累计获得/损失积分
+    if score_change > 0:
+        user.total_score_earned += score_change
+    else:
+        user.total_score_lost += abs(score_change)
+
+    # 更新最高/最低分
+    if user.score > user.highest_score:
+        user.highest_score = user.score
+    if user.score < user.lowest_score:
+        user.lowest_score = user.score
+
+    # 记录积分历史
+    score_history = ScoreHistory(
+        user_id=user.id,
+        session_id=session.id,
+        score_change=score_change,
+        score_before=score_before,
+        score_after=user.score,
+        reason=reason,
+        bonus_from_opponent=bonus_from_opponent,
+        opponent_guess=opponent_guess,
+        opponent_confidence=opponent_confidence,
+        opponent_is_correct=opponent_is_correct,
+    )
+    db.add(score_history)
 
 if __name__ == "__main__":
     # 测试积分计算

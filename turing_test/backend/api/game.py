@@ -34,6 +34,7 @@ from turing_test.backend.utils.score_calculator import (
     get_score_breakdown_dict,
     calculate_score_prediction,
     get_recommended_confidence,
+    apply_score_change,
     ScoreBreakdown,
 )
 
@@ -447,34 +448,18 @@ async def submit_survey(
 
     # 更新用户积分（场中判断后已计算过，跳过）
     if not session.triggered_mid_game:
-        score_before = user.score
-        user.score += int(final_score)
-
-        if final_score > 0:
-            user.total_score_earned += int(final_score)
-        else:
-            user.total_score_lost += abs(int(final_score))
-
-        # 更新最高/最低分
-        if user.score > user.highest_score:
-            user.highest_score = user.score
-        if user.score < user.lowest_score:
-            user.lowest_score = user.score
-
-        # 记录积分历史
-        score_history = ScoreHistory(
-            user_id=user.id,
-            session_id=session.id,
+        # 使用统一函数更新用户积分
+        apply_score_change(
+            user=user,
+            session=session,
             score_change=int(final_score),
-            score_before=score_before,
-            score_after=user.score,
             reason="session_end",
+            db=db,
             bonus_from_opponent=session.bonus_from_opponent,
             opponent_guess=session.opponent_guess,
             opponent_confidence=session.opponent_confidence,
             opponent_is_correct=not (opponent_guess == user_actual_type) if opponent_guess else None,
         )
-        db.add(score_history)
 
     # 设置结束时间
     session.ended_at = datetime.now(timezone.utc)
