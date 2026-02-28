@@ -40,11 +40,22 @@ from turing_test.backend.utils.score_calculator import (
 
 def _normalize_opponent_type(opponent_type: str) -> str:
     """
-    规范化对手类型，将 honeypot 隐藏为 ai
+    规范化对手类型，将 honeypot 隐藏为 ai，将 opponent 转换为实际类型
 
     这是为了向用户隐藏钓鱼机器人的存在，用户只需知道对手是"AI"或"真人"即可
+
+    Args:
+        opponent_type: 原始对手类型
+
+    Returns:
+        脱敏后的类型：'human' 或 'ai'
     """
     if opponent_type == "honeypot":
+        return "ai"
+    if opponent_type == "opponent":
+        # "opponent" 是匹配时的临时掩码，需要根据其他字段还原真实类型
+        # 这个情况不应该发生，因为调用此函数时应该传入真实类型
+        # 这里做防御性处理，默认返回 "ai"
         return "ai"
     return opponent_type
 
@@ -381,7 +392,12 @@ async def submit_survey(
         opponent_confidence = None
 
         # 真人对战：从对手会话读取对方判断
-        if session.opponent_type == "human" and session.opponent_session_id:
+        # 注意：opponent_type 可能是 "opponent"（真人对战时），需要结合 opponent_user_id 判断
+        is_human_opponent = session.opponent_type == "human" or (
+            session.opponent_type == "opponent" and session.opponent_user_id is not None
+        )
+        
+        if is_human_opponent and session.opponent_session_id:
             opponent_session_result = await db.execute(
                 select(Session).where(Session.id == session.opponent_session_id)
             )
@@ -392,7 +408,11 @@ async def submit_survey(
                 opponent_confidence = opponent_session.confidence_level
 
         # 确定用户真实类型（Alice 是 AI，人类对手是 human）
-        user_actual_type = "ai" if session.opponent_type == "ai" or session.is_honeypot else "human"
+        # 注意：honeypot 也属于 AI 类型
+        is_ai = session.is_honeypot or session.opponent_type == "ai" or (
+            session.opponent_type == "opponent" and session.opponent_user_id is None
+        )
+        user_actual_type = "ai" if is_ai else "human"
 
         final_score, breakdown = calculate_final_score(
             user_guess=user_guess,
@@ -639,11 +659,19 @@ async def update_user_stats(
         db.add(stats)
 
     # 更新会话统计
+    # 注意：需要处理 opponent_type="opponent" 的情况（真人对战时的临时掩码）
     stats.total_sessions += 1
-    if session.opponent_type in ["ai", "honeypot"]:
+    is_ai = session.is_honeypot or session.opponent_type == "ai" or (
+        session.opponent_type == "opponent" and session.opponent_user_id is None
+    )
+    is_human = session.opponent_type == "human" or (
+        session.opponent_type == "opponent" and session.opponent_user_id is not None
+    )
+    
+    if is_ai:
         # 将 honeypot 合并到 AI 统计中，向用户隐藏钓鱼机器人的存在
         stats.ai_sessions += 1
-    elif session.opponent_type == "human":
+    elif is_human:
         stats.human_sessions += 1
 
     # 更新判断统计

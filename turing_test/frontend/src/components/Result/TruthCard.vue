@@ -36,7 +36,8 @@ const opponentTypeConfigs: Record<OpponentType, { text: string; avatar: string; 
   human: { text: '👤 真人', avatar: '👤', class: 'opponent-human' },
   ai: { text: '🤖 AI', avatar: '🤖', class: 'opponent-ai' },
   honeypot: { text: '🤖 AI', avatar: '🤖', class: 'opponent-ai' }, // 钓鱼机器人隐藏为 AI
-  unknown: { text: '未知', avatar: '❓', class: 'opponent-unknown' }
+  unknown: { text: '未知', avatar: '❓', class: 'opponent-unknown' },
+  opponent: { text: '👤 真人', avatar: '👤', class: 'opponent-human' }  // 兼容旧数据
 }
 
 const config = computed(() => {

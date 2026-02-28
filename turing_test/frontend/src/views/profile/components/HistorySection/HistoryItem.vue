@@ -3,11 +3,11 @@
     <div class="history-header">
       <span class="history-date">{{ formatDate(session.started_at) }}</span>
       <div class="header-actions">
-        <span class="history-type" :class="getTypeClass(session.opponent_type)">
-          {{ getTypeLabel(session.opponent_type) }}
+        <span class="history-type" :class="getTypeClass(actualOpponentType)">
+          {{ getTypeLabel(actualOpponentType) }}
         </span>
-        <button 
-          class="share-icon-btn" 
+        <button
+          class="share-icon-btn"
           @click.stop="handleShare"
           title="分享此对话"
         >
@@ -47,6 +47,20 @@ const emit = defineEmits<{
 const props = defineProps<{
   session: Session
 }>()
+
+// 计算实际对手类型（用于显示）
+// 当 opponent_type 为 "opponent" 时，根据 opponent_id 判断是真人还是 AI
+const actualOpponentType = computed(() => {
+  const { opponent_type, opponent_id } = props.session
+  if (opponent_type === 'opponent') {
+    // 真人对战时，opponent_type 为 "opponent"，需要根据 opponent_id 判断
+    return opponent_id ? 'human' : 'ai'
+  }
+  if (opponent_type === 'honeypot') {
+    return 'ai'  // 钓鱼机器人显示为 AI
+  }
+  return opponent_type
+})
 
 // 计算会话时长（秒）
 const duration = computed(() => {

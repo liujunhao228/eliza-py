@@ -106,8 +106,8 @@ export type ConfidenceLevel = 'low' | 'mid' | 'high'
 // 用户猜测类型
 export type UserGuess = 'human' | 'ai' | 'unsure'
 
-// 对手类型（包含 unknown 以支持匿名机制）
-export type OpponentType = 'human' | 'ai' | 'honeypot' | 'unknown'
+// 对手类型（包含 unknown 和 opponent 以支持匿名机制）
+export type OpponentType = 'human' | 'ai' | 'honeypot' | 'unknown' | 'opponent'
 
 // 结束原因
 export type EndReason =

@@ -51,7 +51,8 @@ export const getTypeLabel = (type: string): string => {
   const labels: Record<string, string> = {
     'human': '👤 真人',
     'ai': '🤖 AI',
-    'honeypot': '🤖 AI' // 钓鱼机器人隐藏为 AI
+    'honeypot': '🤖 AI',  // 钓鱼机器人隐藏为 AI
+    'opponent': '👤 真人'  // 兼容旧数据：opponent 默认为真人（真人对战时）
   }
   return labels[type] || type
 }
@@ -60,5 +61,8 @@ export const getTypeLabel = (type: string): string => {
  * 获取对手类型 CSS 类名
  */
 export const getTypeClass = (type: string): string => {
-  return type === 'honeypot' ? 'ai' : type
+  // honeypot 和 opponent 都使用对应的 CSS 类
+  if (type === 'honeypot') return 'ai'
+  if (type === 'opponent') return 'human'  // 默认使用 human 样式
+  return type
 }

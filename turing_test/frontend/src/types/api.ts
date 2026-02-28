@@ -37,7 +37,10 @@ export interface LoginResponse {
 export interface Session {
   id: number
   user_id: number
-  opponent_type: 'human' | 'ai' | 'honeypot' | 'unknown'
+  // opponent_type: 真人对战时为 "opponent"，但显示时需要根据 opponent_id 判断
+  // - 有 opponent_id → 真人
+  // - 无 opponent_id → AI
+  opponent_type: 'human' | 'ai' | 'honeypot' | 'opponent' | 'unknown'
   opponent_id?: number
   status: 'matching' | 'active' | 'completed'
   is_honeypot?: boolean

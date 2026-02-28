@@ -515,16 +515,16 @@ class MatchService:
         """分配 Bot 对手"""
         from turing_test.backend.database import async_session_maker
         from turing_test.backend.models import Session
-        
+
         bot_pool, _ = self.get_bot_pools()
         bot_config = bot_pool.get_bot()
         session_id: Optional[int] = None
-        
+
         try:
             async with async_session_maker() as db:
                 session = Session(
                     user_id=user_id,
-                    opponent_type="opponent",
+                    opponent_type="ai",  # 使用真实类型 "ai"
                     true_identity=f"Bot_{bot_config.id}",
                     bot_level=bot_config.id,
                     is_honeypot=False,
@@ -539,13 +539,13 @@ class MatchService:
             # 暂存结果（使用锁保护）
             result = MatchResultData(
                 session_id=session_id,
-                opponent_type="opponent",
+                opponent_type="ai",  # 使用真实类型 "ai"
                 true_identity=f"Bot_{bot_config.id}",
                 bot_level=bot_config.id,
                 is_honeypot=False,
                 match_duration_ms=self._generate_match_duration(),
             )
-            
+
             async with self._results_lock:
                 self._match_results[user_id] = result
 
@@ -556,7 +556,7 @@ class MatchService:
             session_state_manager.register_opening_task(session_id, opening_task)
 
             logger.info(f"为用户 {user_id} 分配 Bot 对手：{bot_config.id}, 会话 ID: {session_id}")
-            
+
         except Exception as e:
             logger.error(f"分配 Bot 失败：{e}", exc_info=True)
             if session_id:
@@ -572,16 +572,16 @@ class MatchService:
         """分配钓鱼 Bot"""
         from turing_test.backend.database import async_session_maker
         from turing_test.backend.models import Session
-        
+
         _, honeypot_pool = self.get_bot_pools()
         honeypot_config = honeypot_pool.get_bot()
         session_id: Optional[int] = None
-        
+
         try:
             async with async_session_maker() as db:
                 session = Session(
                     user_id=user_id,
-                    opponent_type="opponent",
+                    opponent_type="honeypot",  # 使用真实类型 "honeypot"
                     true_identity=f"Honeypot_{honeypot_config.id}",
                     bot_level=None,
                     is_honeypot=True,
@@ -596,13 +596,13 @@ class MatchService:
             # 暂存结果（使用锁保护）
             result = MatchResultData(
                 session_id=session_id,
-                opponent_type="opponent",
+                opponent_type="honeypot",  # 使用真实类型 "honeypot"
                 true_identity=f"Honeypot_{honeypot_config.id}",
                 bot_level=None,
                 is_honeypot=True,
                 match_duration_ms=self._generate_match_duration(),
             )
-            
+
             async with self._results_lock:
                 self._match_results[user_id] = result
 
@@ -613,7 +613,7 @@ class MatchService:
             session_state_manager.register_opening_task(session_id, opening_task)
 
             logger.info(f"为用户 {user_id} 分配钓鱼 Bot: {honeypot_config.id}, 会话 ID: {session_id}")
-            
+
         except Exception as e:
             logger.error(f"分配钓鱼 Bot 失败：{e}", exc_info=True)
             if session_id:

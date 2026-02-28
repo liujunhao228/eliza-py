@@ -177,7 +177,7 @@ def calculate_final_score(
 
     Args:
         user_guess: 用户判断 ('human' | 'ai')
-        opponent_type: 对手类型 ('human' | 'ai' | 'honeypot')
+        opponent_type: 对手类型 ('human' | 'ai' | 'honeypot' | 'opponent')
         confidence_level: 信心等级 ('low' | 'mid' | 'high')
         turn: 总轮数
         meta_count: 元对话次数
@@ -189,13 +189,20 @@ def calculate_final_score(
     Returns:
         (最终得分，积分明细)
     """
+    # 处理 opponent_type="opponent" 的情况（需要根据 user_actual_type 推断）
+    # 如果 user_actual_type 是 "human"，说明对手是真人；否则对手是 AI
+    effective_opponent_type = opponent_type
+    if opponent_type == "opponent":
+        # 根据用户真实类型推断对手类型（真人对战时双方互为对手）
+        effective_opponent_type = "human" if user_actual_type == "human" else "ai"
+
     # 判断用户是否正确
-    is_correct = (user_guess == opponent_type) or (
-        user_guess == "human" and opponent_type == "honeypot"
+    is_correct = (user_guess == effective_opponent_type) or (
+        user_guess == "human" and effective_opponent_type == "honeypot"
     )
 
     # 基础分
-    if opponent_type in ["ai", "honeypot"]:
+    if effective_opponent_type in ["ai", "honeypot"]:
         base_reward = BASE_REWARD_IDENTIFY_AI
         base_penalty = BASE_PENALTY_MISIDENTIFY_AI
     else:
@@ -262,7 +269,7 @@ def calculate_final_score(
         entry_fee=ENTRY_FEE,
         final_score=total_final_score,
         is_correct=is_correct,
-        opponent_type=opponent_type,
+        opponent_type=effective_opponent_type,  # 使用有效类型，而非 "opponent"
         user_guess=user_guess,
         opponent_guess=opponent_guess,
         opponent_confidence=opponent_confidence,

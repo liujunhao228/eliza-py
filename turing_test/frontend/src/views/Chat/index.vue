@@ -242,19 +242,20 @@ onUnmounted(() => {
 
 <style scoped>
 /* ==============================================
-   Chat 视图样式 - 新的 flex 布局
+   Chat 视图样式 - 类微信/QQ 固定布局
    ============================================== */
 
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
+  min-height: -webkit-fill-available;
   background: var(--bg-primary);
   overflow: hidden;
 }
 
 /* ==============================================
-   主内容区域
+   主内容区域 - flex 布局固定高度
    ============================================== */
 .chat-content {
   flex: 1;
@@ -262,22 +263,27 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  min-height: 0;
 }
 
-/* 主容器：消息列表容器 */
+/* 主容器：固定大小，消息在此容器内滚动 */
 .main-container {
-  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  width: 100%;
+  min-height: 0;
 }
 
-/* 消息列表容器 */
+/* 消息列表容器 - 可滚动区域 */
 .message-list-container {
-  width: 100%;
-  height: 100%;
+  flex: 1;
   overflow-y: auto;
-  padding: 20px;
-  position: relative;
+  overflow-x: hidden;
+  padding: 16px 20px;
   scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
   background: var(--bg-surface);
   border-radius: var(--rounded-lg);
   box-shadow: var(--shadow-md);
@@ -298,20 +304,21 @@ onUnmounted(() => {
 .message-list-container::-webkit-scrollbar-thumb {
   background: var(--color-gray-400);
   border-radius: 3px;
+  transition: background 0.2s ease;
 }
 
 .message-list-container::-webkit-scrollbar-thumb:hover {
   background: var(--color-gray-500);
 }
 
-/* 底部输入区域 */
+/* 底部输入区域 - 固定位置 */
 .chat-input-section {
+  flex-shrink: 0;
   background: var(--bg-surface);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--border-primary);
-  padding: 20px;
+  padding: 16px 20px;
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
-  border-radius: 0 0 var(--rounded-lg) var(--rounded-lg);
 }
 
 /* ==============================================
@@ -359,14 +366,14 @@ onUnmounted(() => {
 }
 
 /* ==============================================
-   滚动到底部按钮
+   滚动到底部按钮 - 微交互动效
    ============================================== */
 .scroll-to-bottom {
   position: absolute;
   bottom: 80px;
   right: 20px;
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border-radius: var(--rounded-full);
   background: var(--bg-surface);
   box-shadow: var(--shadow-lg);
@@ -374,17 +381,23 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 10;
   border: 1px solid var(--border-primary);
+  touch-action: manipulation;
 }
 
 .scroll-to-bottom:hover {
   background: var(--color-primary);
   color: white;
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.05);
   box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3);
   border-color: var(--color-primary);
+}
+
+.scroll-to-bottom:active {
+  transform: translateY(0) scale(0.95);
+  transition-duration: 0.1s;
 }
 
 .scroll-to-bottom:focus {
@@ -392,9 +405,15 @@ onUnmounted(() => {
   outline-offset: 2px;
 }
 
+.scroll-to-bottom:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .scroll-to-bottom .el-icon {
   font-size: 20px;
   color: var(--color-primary);
+  transition: color 0.2s ease;
 }
 
 .scroll-to-bottom:hover .el-icon,
@@ -403,131 +422,126 @@ onUnmounted(() => {
 }
 
 /* ==============================================
-   响应式设计
+   响应式设计 - 移动优先
    ============================================== */
 
-/* 超小屏 - 手机竖屏 (< 360px) */
+/* 手机竖屏 (< 360px) */
 @media (max-width: 359px) {
   .chat-container {
     font-size: 14px;
   }
 
   .message-list-container {
-    padding: var(--spacing-sm);
+    padding: 12px;
     border-radius: 0;
   }
 
   .chat-input-section {
-    padding: var(--spacing-sm);
+    padding: 12px;
     border-radius: 0;
   }
 
   .scroll-to-bottom {
-    bottom: 90px;
-    right: var(--spacing-sm);
-    width: 36px;
-    height: 36px;
-  }
-}
-
-/* 小屏 - 手机横屏 (360px - 479px) */
-@media (max-width: 479px) {
-  .message-list-container {
-    padding: var(--spacing-sm);
-  }
-
-  .chat-input-section {
-    padding: var(--spacing-md);
-  }
-}
-
-/* 中屏 - 小平板 (480px - 639px) */
-@media (max-width: 639px) {
-  .main-container {
-    flex-direction: column;
-  }
-
-  .message-list-container {
-    border-radius: 0;
-    margin: 0;
-    max-width: 100%;
-    padding: var(--spacing-md);
-  }
-
-  .chat-input-section {
-    padding: var(--spacing-md);
-    border-radius: 0;
-  }
-
-  .scroll-to-bottom {
-    bottom: 100px;
-    right: var(--spacing-md);
+    bottom: 70px;
+    right: 12px;
     width: 40px;
     height: 40px;
   }
 }
 
-/* 平板 - 竖屏平板 (640px - 767px) */
-@media (max-width: 767px) {
+/* 手机横屏 (360px - 479px) */
+@media (min-width: 360px) and (max-width: 479px) {
+  .message-list-container {
+    padding: 14px;
+  }
+
+  .chat-input-section {
+    padding: 14px;
+  }
+
+  .scroll-to-bottom {
+    bottom: 75px;
+    right: 14px;
+  }
+}
+
+/* 小平板 (480px - 639px) */
+@media (min-width: 480px) and (max-width: 639px) {
+  .message-list-container {
+    padding: 16px;
+  }
+
+  .chat-input-section {
+    padding: 16px;
+  }
+
+  .scroll-to-bottom {
+    bottom: 80px;
+    right: 16px;
+  }
+}
+
+/* 平板竖屏 (640px - 767px) */
+@media (min-width: 640px) and (max-width: 767px) {
   .chat-container {
     font-size: 15px;
   }
 
-  .main-container {
-    flex-direction: column;
-  }
-
   .message-list-container {
-    border-radius: 0;
-    margin: 0;
-    padding: var(--spacing-lg);
+    padding: 16px;
   }
 
   .chat-input-section {
-    padding: var(--spacing-lg);
+    padding: 16px;
   }
 }
 
-/* 平板大屏 - 横屏平板 (768px - 1023px) */
-@media (max-width: 1023px) {
+/* 平板横屏/小桌面 (768px - 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
   .main-container {
-    flex-direction: column;
+    max-width: 90%;
+    margin: 0 auto;
   }
 
   .message-list-container {
-    border-radius: 0;
-    margin: 0;
-    padding: var(--spacing-lg);
-  }
-
-  .chat-input-section {
-    padding: var(--spacing-lg);
+    max-width: 95%;
+    margin: 0 auto;
   }
 }
 
-/* 大屏 - 小桌面 (1024px - 1279px) */
+/* 桌面 (1024px - 1279px) */
 @media (min-width: 1024px) and (max-width: 1279px) {
+  .main-container {
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+
+  .message-list-container {
+    max-width: 700px;
+  }
+}
+
+/* 大桌面 (1280px - 1439px) */
+@media (min-width: 1280px) and (max-width: 1439px) {
+  .main-container {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .message-list-container {
+    max-width: 800px;
+  }
+}
+
+/* 超大桌面 (1440px - 1919px) */
+@media (min-width: 1440px) and (max-width: 1919px) {
   .main-container {
     max-width: 1200px;
     margin: 0 auto;
   }
 
   .message-list-container {
-    max-width: 800px;
-    border-radius: var(--rounded-lg) 0 0 0;
-  }
-}
-
-/* 超大屏 - 大桌面 (1440px - 1919px) */
-@media (min-width: 1440px) and (max-width: 1919px) {
-  .main-container {
-    max-width: 1400px;
-    margin: 0 auto;
-  }
-
-  .message-list-container {
-    max-width: 1000px;
-    border-radius: var(--rounded-lg) 0 0 0;
+    max-width: 900px;
   }
 }
 
@@ -538,21 +552,32 @@ onUnmounted(() => {
   }
 
   .main-container {
-    max-width: 1600px;
+    max-width: 1400px;
     margin: 0 auto;
   }
 
   .message-list-container {
-    max-width: 1200px;
-    border-radius: var(--rounded-lg) 0 0 0;
+    max-width: 1000px;
+    padding: 24px;
   }
 
   .chat-input-section {
-    padding: var(--spacing-xl);
+    padding: 20px;
   }
+}
 
-  .message-list-container {
-    padding: var(--spacing-xl);
+/* ==============================================
+   移动端安全区域适配 (iPhone 刘海屏等)
+   ============================================== */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .chat-input-section {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+}
+
+@supports (padding-top: env(safe-area-inset-top)) {
+  .chat-header {
+    padding-top: calc(16px + env(safe-area-inset-top));
   }
 }
 </style>
