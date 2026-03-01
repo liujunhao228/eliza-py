@@ -122,8 +122,15 @@ class MatchCoordinator:
 
             # 等待结果（增加重试逻辑，处理超时清理的竞态）
             result = await self._wait_for_result_with_retry(user_id)
+            
+            # 如果超时未获取到结果，进行 Bot 降级
             if result is None:
-                raise RuntimeError("匹配超时")
+                logger.info(f"用户 {user_id} 匹配超时，降级为 Bot 匹配")
+                await self._match_bot(user_id, websocket_ref, user_score)
+                # 等待 Bot 匹配结果
+                result = await self.result_manager.get_safe(user_id)
+                if result is None:
+                    raise RuntimeError("匹配超时且 Bot 降级失败")
 
             return result
 
@@ -144,7 +151,7 @@ class MatchCoordinator:
             retry_delay: 重试间隔（秒）
 
         Returns:
-            安全匹配结果，超时则返回 None
+            安全匹配结果，如果返回 None 则会在上层进行 Bot 降级
         """
         if timeout is None:
             timeout = float(self.config.timeout_seconds)
@@ -172,6 +179,7 @@ class MatchCoordinator:
             logger.info(f"用户 {user_id} 在最终检查获取到匹配结果")
             return result
 
+        # 超时未获取到结果，返回 None 让上层处理
         logger.warning(f"用户 {user_id} 匹配超时，未获取到结果")
         return None
 

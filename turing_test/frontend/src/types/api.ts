@@ -165,17 +165,15 @@ export interface ScoreHistory {
 
 // 匹配响应类型
 export interface MatchResponse {
-  status?: 'found' | 'waiting' | 'timeout'
-  session_id?: number
-  opponent_type?: 'human' | 'ai' | 'unknown' | 'waiting'
-  is_honeypot?: boolean
+  session_id: number
+  opponent_type: 'opponent' | 'waiting'
+  match_duration_ms: number
   message?: string
+  is_honeypot?: boolean
 }
 
 // 匹配状态类型
 export interface MatchingStatusResponse {
-  in_queue?: boolean
-  queue_position?: number | null
-  estimated_wait_time?: number | null
-  waiting_count?: number
+  waiting_count: number
+  estimated_wait_time: number
 }

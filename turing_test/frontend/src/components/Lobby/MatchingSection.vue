@@ -12,10 +12,23 @@
     <!-- 状态信息 -->
     <p class="status-message">正在为您寻找合适的对话者</p>
 
+    <!-- 连接状态提示 -->
+    <div v-if="isConnecting" class="connecting-tip">
+      <span class="tip-icon">📡</span>
+      <span class="tip-text">正在连接服务器...</span>
+    </div>
+
     <!-- 进度条 -->
     <div class="progress-container">
-      <BaseProgress :percentage="progress" :show-text="false" size="large" type="primary" striped animated />
-      <div class="progress-text">{{ waitTime }} 秒 / {{ fixedWaitTime }} 秒</div>
+      <BaseProgress
+        :percentage="progress"
+        :show-text="false"
+        size="large"
+        type="primary"
+        striped
+        animated
+      />
+      <div class="progress-text">{{ waitTime }} 秒 / {{ timeoutSeconds }} 秒</div>
     </div>
 
     <!-- 匹配提示 -->
@@ -36,7 +49,7 @@
 
     <!-- 取消按钮 -->
     <BaseButton
-      @click="handleCancel"
+      @click="$emit('cancel')"
       class="btn-cancel"
       size="large"
       type="info"
@@ -47,68 +60,39 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { BaseCard, BaseProgress, BaseButton } from '@/components/common'
-import { MATCH_TIMEOUT } from '@/utils/constants'
+import { MATCH_CONFIG } from '@/stores/match'
 
-const emit = defineEmits<{
-  (e: 'cancel'): void
-  (e: 'complete'): void
-}>()
-
-// 固定等待时间（秒）- 与后端配置保持一致
-const fixedWaitTime = MATCH_TIMEOUT
-
-// 状态
-const waitTime = ref(0)
-const progress = ref(0)
-const hasEmittedComplete = ref(false)  // 防止重复触发 complete 事件
-let timer: number | null = null
-
-// 开始计时
-onMounted(() => {
-  timer = window.setInterval(() => {
-    waitTime.value++
-    progress.value = Math.min(100, (waitTime.value / fixedWaitTime) * 100)
-
-    // 达到固定等待时间后，通知父组件获取结果（仅触发一次）
-    if (waitTime.value >= fixedWaitTime && !hasEmittedComplete.value) {
-      hasEmittedComplete.value = true
-      emit('complete')
-    }
-  }, 1000)
-})
-
-// 清理计时器
-onUnmounted(() => {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
-  }
-})
-
-// 取消匹配
-function handleCancel() {
-  emit('cancel')
+interface Props {
+  /** 等待时间（秒） */
+  waitTime: number
+  /** 是否正在连接 WebSocket */
+  isConnecting?: boolean
 }
 
-// 暴露方法给父组件
-defineExpose({
-  resetMatching: () => {
-    if (timer) {
-      clearInterval(timer)
-      timer = null
-    }
-    waitTime.value = 0
-    progress.value = 0
-    hasEmittedComplete.value = false
-  }
+const props = withDefaults(defineProps<Props>(), {
+  waitTime: 0,
+  isConnecting: false
+})
+
+defineEmits<{
+  (e: 'cancel'): void
+}>()
+
+// 超时时间（秒）- 从配置读取
+const timeoutSeconds = MATCH_CONFIG.TIMEOUT_SECONDS
+
+// 进度百分比
+const progress = computed(() => {
+  return Math.min(100, (props.waitTime / timeoutSeconds) * 100)
 })
 </script>
 
 <style scoped>
 .matching-section {
   max-width: 800px;
+  width: 100%;
   margin: 0 auto;
   padding: 60px 20px;
   text-align: center;
@@ -177,7 +161,30 @@ defineExpose({
 .status-message {
   font-size: 16px;
   color: var(--text-secondary);
-  margin-bottom: 40px;
+  margin-bottom: 24px;
+}
+
+.connecting-tip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--bg-tertiary);
+  border-radius: var(--rounded-lg);
+  margin-bottom: 24px;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.connecting-tip .tip-icon {
+  font-size: 18px;
+}
+
+.connecting-tip .tip-text {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .progress-container {
