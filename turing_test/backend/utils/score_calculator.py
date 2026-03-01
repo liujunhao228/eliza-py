@@ -118,6 +118,117 @@ def calculate_penalty_multiplier(meta_count: int) -> float:
     return 1.0 + (meta_count * 0.3)
 
 
+def calculate_base_score(
+    user_guess: str,
+    opponent_type: str,
+    confidence_level: str,
+    turn: int,
+    meta_count: int,
+    is_mid_game: bool = False,
+) -> Tuple[float, ScoreBreakdown]:
+    """
+    计算基础积分（不含对方猜错奖励）
+
+    用于两次结算机制的第一次结算。
+
+    Args:
+        user_guess: 用户判断 ('human' | 'ai')
+        opponent_type: 对手类型 ('human' | 'ai' | 'honeypot' | 'opponent')
+        confidence_level: 信心等级 ('low' | 'mid' | 'high')
+        turn: 总轮数
+        meta_count: 元对话次数
+        is_mid_game: 是否为场中判断
+
+    Returns:
+        (基础得分，积分明细)
+    """
+    # 处理 opponent_type="opponent" 的情况
+    effective_opponent_type = opponent_type
+    if opponent_type == "opponent":
+        effective_opponent_type = "ai"  # 默认按 AI 处理，实际类型由后端判断
+
+    # 判断用户是否正确
+    is_correct = (user_guess == effective_opponent_type) or (
+        user_guess == "human" and effective_opponent_type == "honeypot"
+    )
+
+    # 基础分
+    if effective_opponent_type in ["ai", "honeypot"]:
+        base_reward = BASE_REWARD_IDENTIFY_AI
+        base_penalty = BASE_PENALTY_MISIDENTIFY_AI
+    else:
+        base_reward = BASE_REWARD_IDENTIFY_HUMAN
+        base_penalty = BASE_PENALTY_MISIDENTIFY_HUMAN
+
+    # 乘数
+    confidence_mult = CONFIDENCE_MULTIPLIERS.get(confidence_level, 1.0)
+    if is_mid_game:
+        confidence_mult *= MID_GAME_MULTIPLIER
+
+    meta_mult = calculate_meta_multiplier(meta_count)
+    penalty_mult = calculate_penalty_multiplier(meta_count)
+    turn_penalty = calculate_turn_penalty(turn)
+
+    # 计算用户判断的最终得分
+    if is_correct:
+        base_score = base_reward
+        user_final_score = (base_score * confidence_mult * meta_mult) - ENTRY_FEE - turn_penalty
+    else:
+        base_score = base_penalty
+        user_final_score = (base_score * confidence_mult * penalty_mult) - ENTRY_FEE - turn_penalty
+
+    breakdown = ScoreBreakdown(
+        base_score=base_score,
+        confidence_multiplier=confidence_mult,
+        meta_multiplier=meta_mult,
+        turn_penalty=turn_penalty,
+        entry_fee=ENTRY_FEE,
+        final_score=user_final_score,
+        is_correct=is_correct,
+        opponent_type=effective_opponent_type,
+        user_guess=user_guess,
+    )
+
+    return user_final_score, breakdown
+
+
+def calculate_opponent_bonus(
+    opponent_confidence: str,
+    user_actual_type: str,
+    meta_count: int = 0,
+    turn: int = 0,
+) -> float:
+    """
+    计算对方猜错奖励
+
+    用于两次结算机制的第二次结算。
+
+    Args:
+        opponent_confidence: 对方的信心等级 ('low' | 'mid' | 'high')
+        user_actual_type: 用户的真实类型 ('human' | 'ai')
+        meta_count: 元对话次数
+        turn: 总轮数
+
+    Returns:
+        对方猜错奖励积分
+    """
+    opp_confidence_mult = CONFIDENCE_MULTIPLIERS.get(opponent_confidence, 1.0)
+    opp_meta_mult = calculate_meta_multiplier(meta_count)
+    opp_turn_penalty = calculate_turn_penalty(turn)
+
+    # 对方猜的是用户，所以基础分使用识别 AI/人类的分数
+    if user_actual_type == "ai":
+        opp_base_reward = BASE_REWARD_IDENTIFY_AI
+    else:
+        opp_base_reward = BASE_REWARD_IDENTIFY_HUMAN
+
+    # 对方若猜对应得的分
+    opponent_score_if_correct = (opp_base_reward * opp_confidence_mult * opp_meta_mult) - ENTRY_FEE - opp_turn_penalty
+    
+    # 对方猜错，用户获得等同于对方若猜对应得收益的分
+    return abs(opponent_score_if_correct)
+
+
 def calculate_score_prediction(
     turn: int,
     meta_count: int,

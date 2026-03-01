@@ -107,9 +107,10 @@ class SessionStateManager:
                 logger.error(f"清理超时会话失败：session_id={session_id}, error={e}")
 
     async def _mark_session_timeout(self, session_id: int) -> None:
-        """标记会话为超时结束"""
+        """标记会话为超时结束并通知用户"""
         from turing_test.backend.database import async_session_maker
         from turing_test.backend.models import Session
+        from turing_test.backend.websocket.manager import manager
 
         try:
             async with async_session_maker() as db:
@@ -122,10 +123,23 @@ class SessionStateManager:
                     session.ended_at = datetime.now(timezone.utc)
                     session.end_reason = "sys_timeout"
                     await db.commit()
-                    logger.info(
-                        f"会话超时结束：session_id={session_id}, "
-                        f"user_id={session.user_id}"
-                    )
+                    
+                    # 通知用户会话已超时
+                    try:
+                        await manager.send_personal_message(session.user_id, {
+                            "type": "session_timeout",
+                            "data": {
+                                "session_id": session_id,
+                                "message": "会话因超时自动结束，请提交问卷结算积分",
+                                "redirect_to_survey": True,
+                            }
+                        })
+                        logger.info(
+                            f"会话超时结束并通知用户：session_id={session_id}, "
+                            f"user_id={session.user_id}"
+                        )
+                    except Exception as e:
+                        logger.warning(f"发送超时通知失败：{e}")
         except Exception as e:
             logger.error(f"标记会话超时失败：session_id={session_id}, error={e}")
 

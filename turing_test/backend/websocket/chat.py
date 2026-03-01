@@ -269,7 +269,7 @@ async def handle_mid_game_judgment(
     data: dict,
     db: AsyncSession,
 ):
-    """处理场中判断"""
+    """处理场中判断（记录判断时的轮次和元对话次数）"""
     from turing_test.backend.models import User
     from turing_test.backend.utils.score_calculator import (
         calculate_final_score,
@@ -306,16 +306,17 @@ async def handle_mid_game_judgment(
         })
         return
 
-    # 计算积分（场中判断双倍乘数）
-    turn = session.turn_count
-    meta_count = session.meta_conversation_count
+    # === 关键：记录场中判断时的轮次和元对话次数 ===
+    mid_game_turn = session.turn_count
+    mid_game_meta_count = session.meta_conversation_count
 
+    # 计算积分（使用场中判断时的数据）
     final_score, breakdown = calculate_final_score(
         user_guess=user_guess,
         opponent_type=session.opponent_type,
         confidence_level="high",  # 场中判断固定为高信心
-        turn=turn,
-        meta_count=meta_count,
+        turn=mid_game_turn,  # 使用场中判断时的轮次
+        meta_count=mid_game_meta_count,  # 使用场中判断时的元对话次数
         is_mid_game=True,  # 场中判断双倍乘数
     )
 
@@ -326,6 +327,9 @@ async def handle_mid_game_judgment(
     session.is_correct = breakdown.is_correct
     session.final_score = int(final_score)
     session.score_breakdown = get_score_breakdown_dict(breakdown)
+    # === 新增：记录场中判断时的状态 ===
+    session.mid_game_turn = mid_game_turn
+    session.mid_game_meta_count = mid_game_meta_count
     # 注意：场中判断不结束会话，仅记录积分，end_reason 由用户后续点击"结束对话"时设置
 
     # 使用统一函数更新用户积分
@@ -343,7 +347,8 @@ async def handle_mid_game_judgment(
 
     logger.info(
         f"场中判断：user_id={user_id}, session_id={session.id}, "
-        f"guess={user_guess}, opponent={session.opponent_type}, "
+        f"guess={user_guess}, turn={mid_game_turn}, "
+        f"meta_count={mid_game_meta_count}, "
         f"correct={breakdown.is_correct}, score={final_score}"
     )
 
@@ -353,6 +358,8 @@ async def handle_mid_game_judgment(
         "type": "mid_game_submitted",
         "data": {
             "session_id": session.id,
+            "turn": mid_game_turn,
+            "meta_count": mid_game_meta_count,
             "message": "场中判断已记录，结果将在最终问卷提交时揭晓",
         }
     })
@@ -365,7 +372,7 @@ async def handle_end_session(
     end_reason: str = "user_gave_up",
 ):
     """
-    处理结束会话
+    处理结束会话（支持真人对战同步）
 
     注意：此函数仅标记会话结束，不进行积分结算。
     积分结算需在问卷提交时进行。
@@ -380,12 +387,41 @@ async def handle_end_session(
             - "sys_timeout": 系统超时
     """
     from turing_test.backend.models import User
+    from turing_test.backend.websocket.manager import manager
 
     # 1. 设置结束时间和原因
     session.ended_at = datetime.now(timezone.utc)
     session.end_reason = end_reason
 
-    # 2. 提交事务
+    # 2. 如果是真人对战，通知对方（对方是后离开的一方）
+    if session.opponent_session_id and session.opponent_user_id:
+        # 获取对方会话
+        opponent_result = await db.execute(
+            select(Session).where(Session.id == session.opponent_session_id)
+        )
+        opponent_session = opponent_result.scalar_one_or_none()
+        
+        if opponent_session and not opponent_session.ended_at:
+            # 标记对方会话的"先离开一方"时间（当前用户是先离开者）
+            opponent_session.first_left_at = datetime.now(timezone.utc)
+            opponent_session.first_leaver_notified = True
+            
+            # 通过 WebSocket 通知对方
+            await manager.send_personal_message(session.opponent_user_id, {
+                "type": "opponent_ended",
+                "data": {
+                    "session_id": opponent_session.id,
+                    "opponent_session_id": session.id,
+                    "message": "对方已结束对话，您可以继续停留 10 秒后填写问卷，或立即结束",
+                    "can_continue_seconds": 10,
+                }
+            })
+            logger.info(
+                f"通知对方离开：user_id={session.opponent_user_id}, "
+                f"session_id={opponent_session.id}"
+            )
+
+    # 3. 提交事务
     await db.commit()
 
     logger.info(
@@ -393,14 +429,14 @@ async def handle_end_session(
         f"reason={end_reason}"
     )
 
-    # 3. 发送通知（告知前端会话已结束，需提交问卷）
-    from turing_test.backend.websocket.manager import manager
+    # 4. 发送通知给主动结束方（告知可以跳转问卷）
     await manager.send_personal_message(user_id, {
         "type": "session_ended",
         "data": {
             "session_id": session.id,
             "end_reason": end_reason,
             "turn_count": session.turn_count,
+            "redirect_to_survey": True,  # 主动结束方直接跳转
             "message": "会话已结束，请提交问卷以结算积分",
         }
     })

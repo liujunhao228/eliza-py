@@ -11,6 +11,7 @@
     <MatchingSection
       v-else
       :wait-time="waitTime"
+      :timeout-seconds="MATCH_TIMEOUT"
       @cancel="handleCancel"
     />
   </div>
@@ -100,14 +101,18 @@ async function handleStartMatch() {
 
 /**
  * 开始轮询
- * 
+ *
  * 前端行为：
  * - 每 1 秒调用 GET /api/match/result
- * - 12 秒无结果 → 离开队列，返回大厅
+ * - 15 秒无结果 → 离开队列，返回大厅
  * - 有结果 → 跳转聊天
  */
 function startPolling() {
+  // waitTime 初始为 0，进度条从 0% 开始
+  waitTime.value = 0
+
   pollTimer = window.setInterval(async () => {
+    // 先递增等待时间
     waitTime.value++
 
     // 超时处理：离开队列，返回大厅

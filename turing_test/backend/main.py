@@ -107,7 +107,7 @@ async def lifespan(app: FastAPI):
                     # 获取内部结果（包含完整信息）
                     match_service_instance = get_match_service()
                     internal_result = await match_service_instance.get_result_internal(user_id)
-                    
+
                     if not internal_result:
                         logger.error(f"无法获取用户 {user_id} 的内部匹配结果")
                         return
@@ -149,8 +149,14 @@ async def lifespan(app: FastAPI):
                         # 更新内部结果中的 session_id
                         internal_result.session_id = db_session.id
 
+                        # ✅ 重要：将更新后的结果存回 result_manager
+                        # 这样前端轮询时才能获取到最新的 session_id
+                        await match_service_instance.coordinator.result_manager.store(
+                            user_id, internal_result
+                        )
+
                         logger.info(f"创建会话：session_id={db_session.id}, user_id={user_id}")
-                        
+
                 except Exception as e:
                     logger.error(f"创建会话失败：user_id={user_id}, error={e}", exc_info=True)
 

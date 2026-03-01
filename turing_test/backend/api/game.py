@@ -10,11 +10,12 @@
 """
 
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import IntegrityError
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 
@@ -107,13 +108,14 @@ async def end_session(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    结束会话 API
+    结束会话 API（支持真人对战同步）
 
     用户主动结束当前会话，仅标记会话结束时间，不进行积分结算。
     积分结算需在问卷提交时进行。
     支持传递 end_reason 字段指定结束原因。
     """
     from turing_test.backend.models import Session
+    from turing_test.backend.websocket.manager import manager
 
     # 获取会话信息
     result = await db.execute(
@@ -141,7 +143,37 @@ async def end_session(
     # 设置结束时间和原因
     session.ended_at = datetime.now(timezone.utc)
     session.end_reason = end_reason
-    await db.commit()
+
+    # 如果是真人对战，通知对方（对方是后离开的一方）
+    if session.opponent_session_id and session.opponent_user_id:
+        # 获取对方会话
+        opponent_result = await db.execute(
+            select(Session).where(Session.id == session.opponent_session_id)
+        )
+        opponent_session = opponent_result.scalar_one_or_none()
+        
+        if opponent_session and not opponent_session.ended_at:
+            # 标记对方会话的"先离开一方"时间（当前用户是先离开者）
+            opponent_session.first_left_at = datetime.now(timezone.utc)
+            opponent_session.first_leaver_notified = True
+            
+            # 通过 WebSocket 通知对方
+            try:
+                await manager.send_personal_message(session.opponent_user_id, {
+                    "type": "opponent_ended",
+                    "data": {
+                        "session_id": opponent_session.id,
+                        "opponent_session_id": session.id,
+                        "message": "对方已结束对话，您可以继续停留 10 秒后填写问卷，或立即结束",
+                        "can_continue_seconds": 10,
+                    }
+                })
+                logger.info(
+                    f"通知对方离开：user_id={session.opponent_user_id}, "
+                    f"session_id={opponent_session.id}"
+                )
+            except Exception as e:
+                logger.warning(f"通知对方离开失败：{e}")
 
     # 清理匹配结果缓存（允许用户重新匹配）
     from turing_test.backend.services.match_service import get_match_service
@@ -152,6 +184,8 @@ async def end_session(
             await match_service.clear_result(session.opponent_user_id)
     except RuntimeError:
         pass  # 服务未初始化时忽略
+
+    await db.commit()
 
     logger.info(f"用户主动结束会话：session_id={session_id}, reason={end_reason}")
 
@@ -315,27 +349,33 @@ async def get_session_result(
     response_model=GameResultResponse,
     tags=["游戏"],
     summary="提交问卷",
-    description="提交问卷和最终判断，结算积分并保存问卷数据",
+    description="提交问卷和最终判断，结算积分并保存问卷数据（两次结算机制）",
 )
 async def submit_survey(
     request: SurveyRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """
-    问卷提交 API
+    问卷提交 API（两次结算机制）
 
     完整流程：
     1. 验证会话存在且未结束
-    2. 计算积分（后端独占逻辑，不返回计算细节）
-    3. 保存问卷数据到数据库
-    4. 更新会话状态
-    5. 更新用户积分
-    6. 返回简化结果
+    2. 第一次结算：计算基础积分（不含对方猜错奖励）
+    3. 第二次结算：如果对方已提交，补发对方猜错奖励
+    4. 保存问卷数据到数据库
+    5. 更新会话状态
+    6. 更新用户积分
+    7. 返回简化结果
     """
+    from turing_test.backend.utils.score_calculator import (
+        calculate_base_score,
+        calculate_opponent_bonus,
+    )
+    
     # 从请求体中获取 session_id
     session_id = request.session_id
-    
-    # 如果有 session_id，更新会话
+
+    # 获取会话
     session = None
     user = None
 
@@ -369,7 +409,27 @@ async def submit_survey(
             detail="该会话的问卷已提交过，无法重复提交",
         )
 
-    # 检查是否已进行场中判断
+    # 判断是否为真人对战
+    is_human_opponent = session.opponent_type == "human" or (
+        session.opponent_type == "opponent" and session.opponent_user_id is not None
+    )
+
+    # 获取对方会话（如果是真人对战）
+    opponent_session = None
+    opponent_guess = None
+    opponent_confidence = None
+    opponent_is_correct = None
+
+    if is_human_opponent and session.opponent_session_id:
+        opponent_result = await db.execute(
+            select(Session).where(Session.id == session.opponent_session_id)
+        )
+        opponent_session = opponent_result.scalar_one_or_none()
+        if opponent_session:
+            opponent_guess = opponent_session.user_guess
+            opponent_confidence = opponent_session.confidence_level
+
+    # === 第一次结算：基于用户自己的判断 ===
     if session.triggered_mid_game:
         # 场中判断后，使用 Session 中存储的值
         if not session.user_guess or not session.confidence_level:
@@ -378,14 +438,14 @@ async def submit_survey(
                 detail="场中判断数据不完整，无法提交问卷",
             )
         user_guess = session.user_guess
-        confidence_level = session.confidence_level  # 'high'
+        confidence_level = session.confidence_level
         # 场中判断后积分已结算，无需重复计算
         final_score = session.final_score
         breakdown_is_correct = session.is_correct
-        # 获取元对话次数用于统计更新
-        meta_count = session.meta_conversation_count
+        # 使用场中判断时的元对话次数
+        meta_count = session.mid_game_meta_count or session.meta_conversation_count
     else:
-        # 正常问卷提交，使用请求体中的值
+        # 正常问卷提交
         if not request.user_guess or not request.confidence_level:
             raise HTTPException(
                 status_code=400,
@@ -393,78 +453,81 @@ async def submit_survey(
             )
         user_guess = request.user_guess
         confidence_level = request.confidence_level
-
-        # 计算积分
         turn = session.turn_count
         meta_count = session.meta_conversation_count
-
-        # 获取对方判断信息
-        opponent_guess = None
-        opponent_confidence = None
-
-        # 真人对战：从对手会话读取对方判断
-        # 注意：opponent_type 可能是 "opponent"（真人对战时），需要结合 opponent_user_id 判断
-        is_human_opponent = session.opponent_type == "human" or (
-            session.opponent_type == "opponent" and session.opponent_user_id is not None
-        )
         
-        if is_human_opponent and session.opponent_session_id:
-            opponent_session_result = await db.execute(
-                select(Session).where(Session.id == session.opponent_session_id)
-            )
-            opponent_session = opponent_session_result.scalar_one_or_none()
-            if opponent_session:
-                # 对手的 user_guess 就是当前用户的 opponent_guess
-                opponent_guess = opponent_session.user_guess
-                opponent_confidence = opponent_session.confidence_level
-
-        # 确定用户真实类型（Alice 是 AI，人类对手是 human）
-        # 注意：honeypot 也属于 AI 类型
-        is_ai = session.is_honeypot or session.opponent_type == "ai" or (
-            session.opponent_type == "opponent" and session.opponent_user_id is None
-        )
-        user_actual_type = "ai" if is_ai else "human"
-
-        final_score, breakdown = calculate_final_score(
+        # 计算基础积分（不含对方猜错奖励）
+        base_score, breakdown = calculate_base_score(
             user_guess=user_guess,
             opponent_type=session.opponent_type,
             confidence_level=confidence_level,
             turn=turn,
             meta_count=meta_count,
             is_mid_game=False,
-            opponent_guess=opponent_guess,
-            opponent_confidence=opponent_confidence,
-            user_actual_type=user_actual_type,
         )
-
-        # 更新会话积分字段
+        
+        # 更新会话基础积分
         session.confidence_level = confidence_level
         session.is_correct = breakdown.is_correct
-        session.final_score = int(final_score)
-        session.score_breakdown = get_score_breakdown_dict(breakdown)
-        # 更新对方猜错奖励字段
-        session.opponent_guess = opponent_guess
-        session.opponent_confidence = opponent_confidence
-        session.bonus_from_opponent = int(breakdown.bonus_from_opponent_wrong) if breakdown.bonus_from_opponent_wrong else None
+        session.base_score_settled = int(base_score)
+        final_score = int(base_score)
         breakdown_is_correct = breakdown.is_correct
 
-    # 更新用户积分（场中判断后已计算过，跳过）
+    # === 第二次结算：检查是否可以发放对方猜错奖励 ===
+    bonus_from_opponent = 0
+    opponent_bonus_paid = False
+    
+    if is_human_opponent and opponent_guess:
+        # 对方已提交问卷，可以计算奖励
+        # 确定用户真实类型
+        is_ai = session.is_honeypot or session.opponent_type == "ai" or (
+            session.opponent_type == "opponent" and session.opponent_user_id is None
+        )
+        user_actual_type = "ai" if is_ai else "human"
+        
+        # 判断对方是否猜对
+        opponent_is_correct = (opponent_guess == user_actual_type)
+        
+        if not opponent_is_correct:
+            # 对方猜错，计算奖励
+            bonus_from_opponent = calculate_opponent_bonus(
+                opponent_confidence=opponent_confidence,
+                user_actual_type=user_actual_type,
+                meta_count=meta_count,
+                turn=session.turn_count,
+            )
+            final_score += int(bonus_from_opponent)
+            opponent_bonus_paid = True
+            logger.info(
+                f"发放对方猜错奖励：user_id={user.id}, "
+                f"bonus={bonus_from_opponent}"
+            )
+    elif is_human_opponent and not opponent_guess:
+        # 对方尚未提交，标记为待结算
+        session.pending_opponent_bonus = True
+        logger.info(
+            f"等待对方结算：user_id={user.id}, session_id={session_id}"
+        )
+
+    # === 更新用户积分 ===
     if not session.triggered_mid_game:
         # 使用统一函数更新用户积分
         apply_score_change(
             user=user,
             session=session,
-            score_change=int(final_score),
+            score_change=final_score,
             reason="session_end",
             db=db,
-            bonus_from_opponent=session.bonus_from_opponent,
-            opponent_guess=session.opponent_guess,
-            opponent_confidence=session.opponent_confidence,
-            opponent_is_correct=not (opponent_guess == user_actual_type) if opponent_guess else None,
+            bonus_from_opponent=bonus_from_opponent if opponent_bonus_paid else None,
+            opponent_guess=opponent_guess,
+            opponent_confidence=opponent_confidence,
+            opponent_is_correct=opponent_is_correct,
         )
 
     # 设置结束时间
     session.ended_at = datetime.now(timezone.utc)
+    session.final_score = final_score
+    session.opponent_bonus_paid = opponent_bonus_paid
 
     # 保存问卷数据
     survey_record = Survey(
@@ -482,21 +545,28 @@ async def submit_survey(
     # 更新用户统计
     await update_user_stats(db, user, session, breakdown_is_correct, meta_count)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # 唯一约束冲突，说明已提交过
+        await db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="该会话的问卷已提交过，无法重复提交"
+        )
 
     logger.info(
-        f"问卷提交：user_id={user.id}, session_id={session.id}, "
-        f"guess={user_guess}, confidence={confidence_level}, "
-        f"correct={breakdown_is_correct}, score={final_score}"
+        f"问卷提交（两次结算）：user_id={user.id}, session_id={session.id}, "
+        f"guess={user_guess}, base_score={session.base_score_settled}, "
+        f"bonus={bonus_from_opponent}, final_score={final_score}"
     )
 
-    # 构建简化的积分明细
+    # 构建响应
     score_breakdown = ScoreBreakdownResponse(
-        final_score=int(final_score),
+        final_score=final_score,
         is_correct=breakdown_is_correct,
     )
 
-    # 构建问卷响应
     survey_response = SurveyResponse(
         session_id=session.id,
         user_guess=user_guess,
@@ -512,10 +582,143 @@ async def submit_survey(
         opponent_type=_normalize_opponent_type(session.opponent_type),
         user_guess=user_guess,
         is_correct=breakdown_is_correct,
-        final_score=int(final_score),
+        final_score=final_score,
         score_breakdown=score_breakdown,
         survey=survey_response,
     )
+
+
+# =============================================================================
+# 领取对方猜错奖励（第二次结算）
+# =============================================================================
+
+@router.post(
+    "/session/{session_id}/claim-opponent-bonus",
+    response_model=Dict[str, Any],
+    tags=["游戏"],
+    summary="领取对方猜错奖励",
+    description="当对方提交问卷后，领取之前未结算的猜错奖励",
+)
+async def claim_opponent_bonus(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    领取对方猜错奖励（第二次结算）
+
+    适用场景：
+    1. 用户 A 先提交问卷，当时对方 B 尚未提交
+    2. A 的 pending_opponent_bonus = True
+    3. B 提交后，A 调用此接口领取奖励
+    """
+    from turing_test.backend.utils.score_calculator import calculate_opponent_bonus
+
+    # 获取会话
+    result = await db.execute(select(Session).where(Session.id == session_id))
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    # 检查是否等待对方结算
+    if not session.pending_opponent_bonus:
+        raise HTTPException(
+            status_code=400,
+            detail="无需领取奖励，对方猜错奖励已结算"
+        )
+
+    # 获取对方会话
+    if not session.opponent_session_id:
+        raise HTTPException(status_code=400, detail="非真人对战")
+
+    opponent_result = await db.execute(
+        select(Session).where(Session.id == session.opponent_session_id)
+    )
+    opponent_session = opponent_result.scalar_one_or_none()
+
+    if not opponent_session or not opponent_session.user_guess:
+        raise HTTPException(
+            status_code=400,
+            detail="对方尚未提交问卷，请稍后再试"
+        )
+
+    # 获取用户
+    user_result = await db.execute(select(User).where(User.id == session.user_id))
+    user = user_result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 计算奖励
+    opponent_guess = opponent_session.user_guess
+    opponent_confidence = opponent_session.confidence_level
+    
+    # 确定用户真实类型
+    is_ai = session.is_honeypot or session.opponent_type == "ai" or (
+        session.opponent_type == "opponent" and session.opponent_user_id is None
+    )
+    user_actual_type = "ai" if is_ai else "human"
+    
+    # 判断对方是否猜对
+    opponent_is_correct = (opponent_guess == user_actual_type)
+
+    if opponent_is_correct:
+        # 对方猜对了，没有奖励
+        session.pending_opponent_bonus = False
+        session.opponent_bonus_paid = True
+        await db.commit()
+
+        return {
+            "bonus": 0,
+            "message": "对方猜对了，没有奖励",
+        }
+
+    # 对方猜错，计算并发放奖励
+    bonus = calculate_opponent_bonus(
+        opponent_confidence=opponent_confidence,
+        user_actual_type=user_actual_type,
+        meta_count=session.meta_conversation_count,
+        turn=session.turn_count,
+    )
+
+    # 更新用户积分
+    user.score += bonus
+    user.total_score_earned += bonus
+
+    # 记录积分历史
+    history = ScoreHistory(
+        user_id=user.id,
+        session_id=session.id,
+        score_change=bonus,
+        score_before=user.score - bonus,
+        score_after=user.score,
+        reason="opponent_bonus",
+        bonus_from_opponent=bonus,
+        opponent_guess=opponent_guess,
+        opponent_confidence=opponent_confidence,
+        opponent_is_correct=False,
+    )
+    db.add(history)
+
+    # 更新会话状态
+    session.final_score = (session.final_score or 0) + bonus
+    session.pending_opponent_bonus = False
+    session.opponent_bonus_paid = True
+    session.opponent_guess = opponent_guess
+    session.opponent_confidence = opponent_confidence
+
+    await db.commit()
+
+    logger.info(
+        f"补发对方猜错奖励：user_id={user.id}, session_id={session.id}, "
+        f"bonus={bonus}"
+    )
+
+    return {
+        "bonus": int(bonus),
+        "final_score": session.final_score,
+        "message": "奖励已发放",
+    }
 
 
 # =============================================================================

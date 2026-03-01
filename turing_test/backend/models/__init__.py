@@ -227,6 +227,55 @@ class Session(Base):
         comment="结束原因：'user_normal_end', 'user_gave_up', 'sys_timeout', 'sys_error'"
     )
 
+    # === 会话同步字段（真人对战） ===
+    # 先离开一方的离开时间
+    first_left_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+        comment="真人对战时，先离开一方的离开时间"
+    )
+    # 是否已通知先离开一方
+    first_leaver_notified: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        comment="是否已通知先离开一方"
+    )
+
+    # === 场中判断字段 ===
+    # 场中判断时的轮次
+    mid_game_turn: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="场中判断时的轮次"
+    )
+    # 场中判断时的元对话次数
+    mid_game_meta_count: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="场中判断时的元对话次数"
+    )
+
+    # === 两次结算字段 ===
+    # 是否等待对方结算（对方尚未提交问卷）
+    pending_opponent_bonus: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        comment="是否等待对方结算（对方尚未提交问卷）"
+    )
+    # 已结算的基础积分
+    base_score_settled: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="已结算的基础积分（不含对方猜错奖励）"
+    )
+    # 对方猜错奖励是否已发放
+    opponent_bonus_paid: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        comment="对方猜错奖励是否已发放"
+    )
+
     # 关系
     user: Mapped["User"] = relationship(
         "User",

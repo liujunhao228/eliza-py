@@ -21,6 +21,8 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 interface Props {
   percentage?: number
   type?: 'primary' | 'success' | 'warning' | 'danger' | 'info'
@@ -39,7 +41,10 @@ const props = withDefaults(defineProps<Props>(), {
   animated: false
 })
 
-const clampedPercentage = Math.max(0, Math.min(100, props.percentage))
+// 计算百分比 - 使用 computed 确保响应式更新
+const clampedPercentage = computed(() => {
+  return Math.max(0, Math.min(100, props.percentage))
+})
 </script>
 
 <style scoped>

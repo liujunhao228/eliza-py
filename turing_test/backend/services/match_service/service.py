@@ -133,7 +133,13 @@ class MatchService:
         queue = coordinator.queue
 
         async def on_expired(user_id: UserId, request: MatchRequest) -> None:
-            """超时回调：分配 Bot"""
+            """超时回调：分配 Bot（如果用户还没有结果）"""
+            # 检查用户是否已有匹配结果（避免重复分配）
+            existing_result = await coordinator.result_manager.get_safe(user_id)
+            if existing_result:
+                logger.info(f"用户 {user_id} 已有匹配结果，跳过超时回调")
+                return
+            
             await coordinator._match_bot(user_id, request.websocket_ref or 0, request.user_score)
             coordinator._stats['timeout_fallbacks'] += 1
 

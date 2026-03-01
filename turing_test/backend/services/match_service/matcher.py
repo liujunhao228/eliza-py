@@ -253,7 +253,7 @@ class MatchCoordinator:
             user_score: 用户积分
         """
         bot_config = self.bot_pool.draw()
-        
+
         # 使用 Bot 配置的响应延迟
         match_duration = random.randint(
             bot_config.response_delay_min_ms,
@@ -269,8 +269,12 @@ class MatchCoordinator:
             match_duration_ms=match_duration,
         )
 
-        # 存储结果（包含 Bot 配置供上层使用）
+        # 存储结果
         await self.result_manager.store(user_id, result)
+        
+        # 从队列中移除用户（防止清理任务重复触发）
+        await self.queue.remove(user_id)
+        
         logger.info(f"用户 {user_id} 匹配 Bot: {bot_config.id}")
 
     async def _match_honeypot(
@@ -304,7 +308,12 @@ class MatchCoordinator:
             match_duration_ms=match_duration,
         )
 
+        # 存储结果
         await self.result_manager.store(user_id, result)
+        
+        # 从队列中移除用户（防止清理任务重复触发）
+        await self.queue.remove(user_id)
+        
         logger.info(f"用户 {user_id} 匹配钓鱼 Bot: {honeypot_config.id}")
 
     async def _match_human_or_timeout(
@@ -358,31 +367,40 @@ class MatchCoordinator:
         Args:
             user_id: 用户 ID
             opponent_id: 对手用户 ID
+
+        Raises:
+            RuntimeError: 如果配对失败
         """
-        # 从队列中移除对手
-        await self.queue.remove(opponent_id)
+        try:
+            # 真人匹配不需要假装延迟
+            match_duration = 0
 
-        # 真人匹配不需要假装延迟
-        match_duration = 0
+            # 为双方创建相同的匹配结果
+            result = MatchResultData(
+                session_id=0,  # 由上层创建会话后更新
+                opponent_type="opponent",
+                true_identity="Human",
+                bot_level=None,
+                is_honeypot=False,
+                opponent_user_id=opponent_id,
+                match_duration_ms=match_duration,
+            )
 
-        # 为双方创建相同的匹配结果
-        result = MatchResultData(
-            session_id=0,  # 由上层创建会话后更新
-            opponent_type="opponent",
-            true_identity="Human",
-            bot_level=None,
-            is_honeypot=False,
-            opponent_user_id=opponent_id,
-            match_duration_ms=match_duration,
-        )
+            # 先存储双方结果（原子操作）
+            await self.result_manager.store_batch({
+                user_id: result,
+                opponent_id: result,
+            })
 
-        # 为双方存储结果
-        await self.result_manager.store_batch({
-            user_id: result,
-            opponent_id: result,
-        })
+            # 成功后再从队列中移除双方
+            await self.queue.remove(user_id)
+            await self.queue.remove(opponent_id)
 
-        logger.info(f"✅ 真人匹配：用户 {user_id} <-> 用户 {opponent_id}")
+            logger.info(f"✅ 真人匹配：用户 {user_id} <-> 用户 {opponent_id}")
+
+        except Exception as e:
+            logger.error(f"真人配对失败：user_id={user_id}, opponent_id={opponent_id}, error={e}", exc_info=True)
+            raise RuntimeError(f"真人配对失败：{e}")
 
     async def _wait_for_result(
         self,

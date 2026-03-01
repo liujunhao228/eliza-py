@@ -60,22 +60,25 @@ import { BaseCard, BaseProgress, BaseButton } from '@/components/common'
 interface Props {
   /** 等待时间（秒） */
   waitTime: number
+  /** 超时时间（秒）- 与 Lobby.vue 中的 MATCH_TIMEOUT 保持一致 */
+  timeoutSeconds?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  waitTime: 0
+  waitTime: 0,
+  timeoutSeconds: 15
 })
 
 defineEmits<{
   (e: 'cancel'): void
 }>()
 
-// 超时时间（秒）- 与前端配置保持一致
-const timeoutSeconds = 15
-
-// 进度百分比
+// 进度百分比 - 使用已用时间计算，确保进度条平滑递增
+// waitTime=0 时显示 0%，waitTime=timeoutSeconds 时显示 100%
 const progress = computed(() => {
-  return Math.min(100, (props.waitTime / timeoutSeconds) * 100)
+  if (props.waitTime <= 0) return 0
+  if (props.waitTime >= props.timeoutSeconds) return 100
+  return (props.waitTime / props.timeoutSeconds) * 100
 })
 </script>
 
