@@ -7,6 +7,7 @@
 """
 
 import asyncio
+import random
 from datetime import datetime, timezone
 from typing import Optional, Tuple, Dict
 from loguru import logger
@@ -252,7 +253,12 @@ class MatchCoordinator:
             user_score: 用户积分
         """
         bot_config = self.bot_pool.draw()
-        match_duration = self.algorithm.calculate_match_duration(self.config)
+        
+        # 使用 Bot 配置的响应延迟
+        match_duration = random.randint(
+            bot_config.response_delay_min_ms,
+            bot_config.response_delay_max_ms
+        )
 
         result = MatchResultData(
             session_id=0,  # 由上层创建会话后更新
@@ -282,7 +288,12 @@ class MatchCoordinator:
             user_score: 用户积分
         """
         honeypot_config = self.honeypot_pool.draw()
-        match_duration = self.algorithm.calculate_match_duration(self.config)
+        
+        # 使用钓鱼 Bot 配置的响应延迟
+        match_duration = random.randint(
+            honeypot_config.response_delay_min_ms,
+            honeypot_config.response_delay_max_ms
+        )
 
         result = MatchResultData(
             session_id=0,  # 由上层创建会话后更新
@@ -351,7 +362,8 @@ class MatchCoordinator:
         # 从队列中移除对手
         await self.queue.remove(opponent_id)
 
-        match_duration = self.algorithm.calculate_match_duration(self.config)
+        # 真人匹配不需要假装延迟
+        match_duration = 0
 
         # 为双方创建相同的匹配结果
         result = MatchResultData(

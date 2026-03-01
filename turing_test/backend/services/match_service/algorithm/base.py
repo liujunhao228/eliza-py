@@ -62,19 +62,3 @@ class MatchAlgorithm(ABC):
             对手用户 ID，如果没有合适的对手则返回 None
         """
         pass
-
-    def calculate_match_duration(self, config: "MatchConfig") -> int:
-        """
-        计算假装延迟（毫秒）
-
-        Args:
-            config: 匹配配置
-
-        Returns:
-            延迟时间（毫秒）
-        """
-        import random
-        return random.randint(
-            config.fake_delay_min_ms,
-            config.fake_delay_max_ms
-        )
