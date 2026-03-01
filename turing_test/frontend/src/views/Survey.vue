@@ -141,13 +141,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { type FormInstance, type FormRules } from 'element-plus'
 import { useGameStore } from '@/stores/game'
 import { useToast } from '@/composables/useToast'
 import type { SurveyData } from '@/types'
 import { submitSurvey as submitSurveyAPI } from '@/api/survey'
+import { claimOpponentBonus } from '@/api/game/session'
 import ConfidenceSelector from '@/components/Survey/ConfidenceSelector.vue'
 
 const { error: showError, success: showSuccess, warning: showWarning } = useToast()
@@ -212,6 +213,73 @@ const formRules = computed<FormRules<SurveyData>>(() => {
 // 提交状态
 const submitting = ref(false)
 
+// 轮询状态
+const isPolling = ref(false)
+const pollTimer = ref<number | null>(null)
+const pollAttempts = ref(0)
+const MAX_POLL_ATTEMPTS = 60  // 最多轮询 60 次（5 分钟，每 5 秒一次）
+const POLL_INTERVAL = 5000     // 每 5 秒轮询一次
+
+// 开始轮询对方结算奖励
+function startBonusPolling(sessionId: number) {
+  if (isPolling.value) return
+  
+  isPolling.value = true
+  pollAttempts.value = 0
+  
+  console.log('[Survey] 开始轮询对方结算奖励，session:', sessionId)
+  
+  pollTimer.value = window.setInterval(async () => {
+    pollAttempts.value++
+    
+    if (pollAttempts.value > MAX_POLL_ATTEMPTS) {
+      console.log('[Survey] 轮询超时，停止轮询')
+      stopBonusPolling()
+      return
+    }
+    
+    try {
+      const result = await claimOpponentBonus(sessionId)
+      
+      // 成功领取奖励
+      console.log('[Survey] 领取对方结算奖励成功:', result)
+      showSuccess(`获得对方结算奖励：+${result.bonus} 积分！`)
+      stopBonusPolling()
+      
+      // 更新 localStorage 中的结果
+      const surveyResult = localStorage.getItem('surveyResult')
+      if (surveyResult) {
+        try {
+          const parsed = JSON.parse(surveyResult)
+          parsed.bonus_from_opponent = result.bonus
+          parsed.final_score = result.final_score
+          localStorage.setItem('surveyResult', JSON.stringify(parsed))
+        } catch (e) {
+          console.error('[Survey] 更新结果失败:', e)
+        }
+      }
+    } catch (error: any) {
+      // 404 或 400 表示对方还未结算，继续轮询
+      if (error?.code === 'NOT_FOUND' || error?.response?.status === 404 ||
+          error?.code === 'BAD_REQUEST' || error?.response?.status === 400) {
+        console.log(`[Survey] 轮询中 (${pollAttempts.value}/${MAX_POLL_ATTEMPTS})...`)
+      } else {
+        // 其他错误也继续轮询
+        console.warn('[Survey] 轮询失败:', error)
+      }
+    }
+  }, POLL_INTERVAL)
+}
+
+// 停止轮询
+function stopBonusPolling() {
+  if (pollTimer.value) {
+    clearInterval(pollTimer.value)
+    pollTimer.value = null
+  }
+  isPolling.value = false
+}
+
 // 提交问卷
 async function submitSurvey() {
   if (!surveyFormRef.value) return
@@ -247,6 +315,15 @@ async function submitSurvey() {
 
     showSuccess('问卷提交成功！')
 
+    // 检查是否需要轮询对方结算奖励（真人对战且有待结算奖励）
+    const opponentType = gameStore.opponentType
+    const isHumanOpponent = opponentType === 'human' || opponentType === 'unknown' || opponentType === 'opponent'
+    
+    if (isHumanOpponent) {
+      console.log('[Survey] 真人对战，开始轮询对方结算奖励')
+      startBonusPolling(sessionId)
+    }
+
     // 跳转到结果页
     router.push({ name: 'Result' })
   } catch (error) {
@@ -263,6 +340,11 @@ onMounted(() => {
     showWarning('请先完成对话')
     router.push({ name: 'Lobby' })
   }
+})
+
+// 组件卸载时清理轮询定时器
+onUnmounted(() => {
+  stopBonusPolling()
 })
 </script>
 

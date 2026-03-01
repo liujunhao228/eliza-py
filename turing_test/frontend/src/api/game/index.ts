@@ -3,7 +3,8 @@
  */
 
 // 会话相关
-export { getSession, endSession, getSessionResult } from './session'
+export { getSession, endSession, getSessionResult, claimOpponentBonus } from './session'
+export type { ClaimOpponentBonusResponse } from './session'
 
 // 消息相关
 export { getSessionMessages } from './message'
@@ -29,5 +30,9 @@ export type {
   IWebSocketManager,
   ReconnectEvent,
   ReconnectSuccessEvent,
-  ReconnectFailedEvent
+  ReconnectFailedEvent,
+  OpponentEndedData,
+  OpponentEndedMessage,
+  SessionTimeoutData,
+  SessionTimeoutMessage
 } from '@/types'

@@ -24,7 +24,7 @@ export type WSConnectionState = 'connecting' | 'connected' | 'disconnected' | 'r
 
 // WebSocket 消息类型
 export interface WSMessage {
-  type: 'message' | 'chat' | 'typing' | 'stop_typing' | 'match_found' | 'match_timeout' | 'session_ended' | 'mid_game_available' | 'mid_game_submitted' | 'ping' | 'pong' | 'error' | 'connected' | 'status'
+  type: 'message' | 'chat' | 'typing' | 'stop_typing' | 'match_found' | 'match_timeout' | 'session_ended' | 'mid_game_available' | 'mid_game_submitted' | 'ping' | 'pong' | 'error' | 'connected' | 'status' | 'opponent_ended' | 'session_timeout' | 'conversation_end'
   data?: any
 }
 
@@ -260,6 +260,35 @@ export interface ErrorMessage {
   data: ErrorData
 }
 
+// =============================================================================
+// 后端修复新增消息类型
+// =============================================================================
+
+// 对方结束对话通知消息数据（被动方收到）
+export interface OpponentEndedData {
+  session_id: number
+  reason: string
+  remaining_seconds?: number  // 剩余停留时间（秒）
+}
+
+// 对方结束对话通知消息
+export interface OpponentEndedMessage {
+  type: 'opponent_ended'
+  data: OpponentEndedData
+}
+
+// 会话超时通知消息数据
+export interface SessionTimeoutData {
+  session_id: number
+  reason: string
+}
+
+// 会话超时通知消息
+export interface SessionTimeoutMessage {
+  type: 'session_timeout'
+  data: SessionTimeoutData
+}
+
 // 所有 WebSocket 消息类型的联合类型
 export type TypedWSMessage =
   | MatchFoundMessage
@@ -271,3 +300,5 @@ export type TypedWSMessage =
   | TypingMessage
   | StatusMessage
   | ErrorMessage
+  | OpponentEndedMessage
+  | SessionTimeoutMessage

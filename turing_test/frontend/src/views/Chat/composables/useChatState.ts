@@ -99,6 +99,31 @@ export function useChatState() {
       }
     })
 
+    // 注册 opponent_ended 消息处理器（对方结束对话通知）
+    on('opponent_ended', (data: any) => {
+      console.log('[Chat] 收到 opponent_ended 消息:', data)
+      // 显示 Toast 提示
+      showInfo('对方已结束对话，您可以继续停留 10 秒后填写问卷，或立即结束')
+      // 显示倒计时提示
+      if (showEndSessionToast) {
+        showEndSessionToast()
+      } else {
+        // 兜底：10 秒后自动跳转
+        setTimeout(() => {
+          router.push('/survey')
+        }, 10000)
+      }
+    })
+
+    // 注册 session_timeout 消息处理器（会话超时通知）
+    on('session_timeout', (data: any) => {
+      console.log('[Chat] 收到 session_timeout 消息:', data)
+      // 显示 Toast 提示
+      showInfo('会话因超时自动结束，请提交问卷结算积分')
+      // 自动跳转到 Survey 页面
+      router.push('/survey')
+    })
+
     // 注册 conversation_end 消息处理器（兜底机制）
     on('conversation_end', (data: any) => {
       console.log('[Chat] 收到 conversation_end 消息:', data)
@@ -158,6 +183,8 @@ export function useChatState() {
       case 'message':
       case 'mid_game_available':
       case 'session_ended':
+      case 'opponent_ended':  // 已有专用处理器，忽略
+      case 'session_timeout':  // 已有专用处理器，忽略
       case 'mid_game_submitted':
       case 'connected':
       case 'error':

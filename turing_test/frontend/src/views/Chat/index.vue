@@ -77,16 +77,43 @@
       redirect-url="/survey"
       @countdown-end="handleCountdownEnd"
     />
+
+    <!-- 对方已离开提示条 -->
+    <div v-if="opponentEnded" class="opponent-ended-banner">
+      <div class="banner-content">
+        <div class="banner-icon">
+          <el-icon :size="20"><UserFilled /></el-icon>
+        </div>
+        <div class="banner-text">
+          <h4 class="banner-title">对方已离开</h4>
+          <p class="banner-desc">
+            您可以继续停留 <strong>{{ countdown }}</strong> 秒后填写问卷，或立即结束
+          </p>
+        </div>
+        <el-button
+          type="primary"
+          size="small"
+          @click="handleImmediateSurvey"
+          class="immediate-btn"
+        >
+          立即填写问卷
+        </el-button>
+      </div>
+      <!-- 进度条 -->
+      <div class="banner-progress">
+        <div class="progress-bar" :style="{ width: progressPercent + '%' }"></div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '@/stores/game'
 import { useUserStore } from '@/stores/user'
 import { useToast } from '@/composables/useToast'
-import { Bottom } from '@element-plus/icons-vue'
+import { Bottom, UserFilled } from '@element-plus/icons-vue'
 import ChatHeader from '@/components/Chat/ChatHeader.vue'
 import MessageList from '@/components/Chat/MessageList.vue'
 import ChatInput from '@/components/Chat/ChatInput.vue'
@@ -98,7 +125,7 @@ import { useMessageHandler } from './composables/useMessageHandler'
 import { useScroll } from './composables/useScroll'
 import { MIN_CHAT_TURNS } from '@/utils/constants'
 
-const { error: showError, warning: showWarning } = useToast()
+const { error: showError, warning: showWarning, info: showInfo } = useToast()
 const router = useRouter()
 const gameStore = useGameStore()
 const userStore = useUserStore()
@@ -107,6 +134,18 @@ const userStore = useUserStore()
 const showEndSessionModal = ref(false)
 const isEndingSession = ref(false)
 const endSessionToastRef = ref<InstanceType<typeof EndSessionToast> | null>(null)
+
+// 对方离开状态
+const opponentEnded = ref(false)
+const countdown = ref(10)
+const elapsed = ref(0)
+let countdownTimer: number | null = null
+
+// 计算进度百分比
+const progressPercent = computed(() => {
+  const total = 10
+  return ((total - elapsed.value) / total) * 100
+})
 
 // 计算是否已做判断（根据 triggeredMidGame 判断）
 const hasMadeJudgment = computed(() => {
@@ -194,6 +233,45 @@ const handleCountdownEnd = () => {
   console.log('[Chat] 倒计时结束，即将跳转')
 }
 
+// 处理对方离开 - 开始倒计时
+const startOpponentEndedCountdown = () => {
+  // 清除之前的定时器
+  stopCountdown()
+  
+  // 重置状态
+  opponentEnded.value = true
+  countdown.value = 10
+  elapsed.value = 0
+  
+  // 启动倒计时
+  countdownTimer = window.setInterval(() => {
+    elapsed.value += 1
+    
+    if (elapsed.value >= 10) {
+      // 倒计时结束，自动跳转到 Survey
+      stopCountdown()
+      showInfo('即将跳转到问卷页面')
+      router.push('/survey')
+    } else {
+      countdown.value = 10 - elapsed.value
+    }
+  }, 1000)
+}
+
+// 停止倒计时
+const stopCountdown = () => {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+}
+
+// 立即填写问卷
+const handleImmediateSurvey = () => {
+  stopCountdown()
+  router.push('/survey')
+}
+
 // 导出显示倒计时提示的方法给 useChatState 使用
 const showEndSessionToast = () => {
   endSessionToastRef.value?.show()
@@ -221,6 +299,13 @@ onMounted(async () => {
   // 注册 WebSocket 消息处理器
   chatStateOnMounted(showEndSessionToast)
 
+  // 注册 opponent_ended 消息处理器（显示对方离开提示条）
+  const { on } = useChatState()
+  on('opponent_ended', () => {
+    console.log('[Chat] 收到 opponent_ended 消息，显示提示条')
+    startOpponentEndedCountdown()
+  })
+
   // 手动连接 WebSocket
   if (canConnect.value) {
     console.log('[Chat] 开始连接 WebSocket...')
@@ -237,6 +322,8 @@ onMounted(async () => {
 onUnmounted(() => {
   // 移除滚动事件监听
   cleanupScrollListener()
+  // 清理倒计时定时器
+  stopCountdown()
 })
 </script>
 
@@ -578,6 +665,133 @@ onUnmounted(() => {
 @supports (padding-top: env(safe-area-inset-top)) {
   .chat-header {
     padding-top: calc(16px + env(safe-area-inset-top));
+  }
+}
+
+/* ==============================================
+   对方已离开提示条
+   ============================================== */
+.opponent-ended-banner {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9998;
+  background: var(--bg-surface);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--border-primary);
+  overflow: hidden;
+  min-width: 360px;
+  max-width: 90vw;
+  animation: slide-down 0.3s ease-out;
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.banner-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+}
+
+.banner-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--rounded-full);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+  flex-shrink: 0;
+}
+
+.banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.banner-title {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.banner-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.banner-desc strong {
+  color: var(--color-primary-600);
+  font-weight: 600;
+}
+
+.immediate-btn {
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.banner-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--color-warning-gradient, var(--color-warning));
+  transition: width 0.1s linear;
+}
+
+/* 响应式设计 */
+@media (max-width: 639px) {
+  .opponent-ended-banner {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    transform: none;
+    min-width: auto;
+    max-width: none;
+  }
+
+  .banner-content {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+
+  .banner-title {
+    font-size: 15px;
+  }
+
+  .banner-desc {
+    font-size: 13px;
+  }
+
+  .immediate-btn {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 13px;
   }
 }
 </style>
