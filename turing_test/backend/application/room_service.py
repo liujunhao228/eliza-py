@@ -12,10 +12,13 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from loguru import logger
 
+from turing_test.backend.domain.services import (
+    RoomAggregate,
+)
 from turing_test.backend.domain.models import (
     RoomId, MatchId, UserId, MessageId,
     RoomType, RoomStatus, ParticipantRole,
-    RoomAggregate, ParticipantInfo,
+    ParticipantInfo,
 )
 from turing_test.backend.domain.repositories import (
     AbstractUnitOfWork,
@@ -178,8 +181,11 @@ class RoomApplicationService:
         
         # 更新对话统计
         room.add_message(
-            is_meta=is_meta,
+            sender_id=UserId(sender_id) if sender_id else None,
             sender_type=sender_type,
+            content=content,
+            is_meta=is_meta,
+            meta_keyword=meta_keyword,
         )
         
         await self._uow.rooms.update(room)

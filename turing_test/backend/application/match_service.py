@@ -9,13 +9,16 @@
 """
 
 from datetime import datetime, timezone
-from typing import Optional, List
+from typing import Optional, List, Any
 from loguru import logger
 
+from turing_test.backend.domain.services import (
+    MatchAggregate,
+)
 from turing_test.backend.domain.models import (
     MatchId, RoomId, SessionId, UserId,
     MatchStatus, OpponentType,
-    MatchAggregate, MatchRequestInfo,
+    MatchRequest,
 )
 from turing_test.backend.domain.repositories import (
     AbstractUnitOfWork,

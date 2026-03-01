@@ -12,13 +12,15 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from loguru import logger
 
+from turing_test.backend.domain.services import (
+    UserSessionAggregate,
+    ScoreAggregate,
+)
 from turing_test.backend.domain.models import (
     SessionId, RoomId, MatchId, UserId,
     SessionStatus,
-    UserSessionAggregate,
     TurnState,
     Judgment,
-    ScoreAggregate,
     ScoreBreakdown,
     ScoreSettlement,
 )
@@ -220,7 +222,7 @@ class SessionApplicationService:
             base_score * confidence_multiplier * meta_multiplier * mid_game_multiplier
             - entry_fee - turn_penalty + opponent_bonus
         )
-        
+
         # 创建积分聚合根
         score = ScoreAggregate.create(
             user_session_id=session.id,
@@ -233,21 +235,21 @@ class SessionApplicationService:
             entry_fee=entry_fee,
             turn_penalty=turn_penalty,
             opponent_bonus=opponent_bonus,
-            final_score=final_score,
             opponent_guess=opponent_guess,
             opponent_confidence=opponent_confidence,
             opponent_is_correct=opponent_is_correct,
         )
-        
+
         # 保存积分
         await self._uow.scores.add(score)
-        
+
         # 更新会话积分状态
         session.settle_score(
             final_score=final_score,
             bonus_pending=opponent_bonus > 0,
+            score=score,
         )
-        
+
         await self._uow.user_sessions.update(session)
         await self._uow.commit()
         
@@ -315,13 +317,13 @@ class SessionApplicationService:
         if not session:
             logger.warning(f"会话不存在：session_id={session_id}")
             return False
-        
+
         # 结束会话
-        session.end(end_reason=end_reason)
-        
+        session.end(reason=end_reason)
+
         await self._uow.user_sessions.update(session)
         await self._uow.commit()
-        
+
         logger.info(f"会话结束：session_id={session_id}, reason={end_reason}")
         return True
     

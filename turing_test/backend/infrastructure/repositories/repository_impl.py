@@ -26,9 +26,11 @@ from turing_test.backend.domain.models import (
     RoomType as DomainRoomType, RoomStatus as DomainRoomStatus,
     ParticipantRole as DomainParticipantRole,
     SessionStatus as DomainSessionStatus,
-    MatchAggregate, RoomAggregate, UserSessionAggregate, ScoreAggregate,
-    MatchRequestInfo, ParticipantInfo,
+    MatchRequest, ParticipantInfo,
     TurnState, Judgment, ScoreBreakdown, ScoreSettlement,
+)
+from turing_test.backend.domain.services import (
+    MatchAggregate, RoomAggregate, UserSessionAggregate, ScoreAggregate,
 )
 from turing_test.backend.domain.repositories import (
     MatchRepository,
@@ -165,14 +167,12 @@ class MatchRepositoryImpl(MatchRepository):
     
     def _to_domain(self, orm: MatchORM) -> MatchAggregate:
         """ORM 转领域模型"""
+        from turing_test.backend.domain.models import MatchRequest
+        
         match = MatchAggregate(
             id=MatchId(str(orm.id)),
             user_id=UserId(orm.user_id),
             room_id=RoomId(str(orm.room_id)) if orm.room_id else None,
-            request_info=MatchRequestInfo(
-                user_score_snapshot=orm.user_score_snapshot,
-                preferences=orm.preferences or {},
-            ),
             status=_match_status_from_orm(orm.status),
             opponent_type=_opponent_type_from_orm(orm.opponent_type),
             matched_opponent_id=UserId(orm.matched_opponent_id) if orm.matched_opponent_id else None,
@@ -183,16 +183,28 @@ class MatchRepositoryImpl(MatchRepository):
             matched_at=orm.matched_at,
             expired_at=orm.expired_at,
         )
+        
+        # 创建请求对象
+        match.request = MatchRequest(
+            user_id=UserId(orm.user_id),
+            user_score=orm.user_score_snapshot,
+            preferences=orm.preferences or {},
+            requested_at=orm.requested_at,
+        )
+        
         return match
     
     def _to_orm(self, match: MatchAggregate) -> MatchORM:
         """领域模型转 ORM"""
+        user_score_snapshot = match.request.user_score if match.request else 0
+        preferences = match.request.preferences if match.request else {}
+        
         orm = MatchORM(
             id=int(match.id.value),
             user_id=match.user_id.value,
             room_id=int(match.room_id.value) if match.room_id else None,
-            user_score_snapshot=match.request_info.user_score_snapshot,
-            preferences=match.request_info.preferences,
+            user_score_snapshot=user_score_snapshot,
+            preferences=preferences,
             status=_match_status_to_orm(match.status),
             opponent_type=_opponent_type_to_orm(match.opponent_type),
             matched_opponent_id=match.matched_opponent_id.value if match.matched_opponent_id else None,

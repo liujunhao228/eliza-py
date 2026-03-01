@@ -1,7 +1,7 @@
 # 三层分离架构重构进度报告
 
 **日期**: 2026 年 3 月 1 日  
-**状态**: 基础设施已完成，应用层待集成
+**状态**: ✅ 核心架构完成，待集成测试
 
 ---
 
@@ -47,7 +47,7 @@
 
 #### 文件
 - `turing_test/backend/domain/models.py` - 值对象、枚举、领域事件
-- `turing_test/backend/domain/services.py` - 聚合根业务逻辑
+- `turing_test/backend/domain/services.py` - 聚合根业务逻辑（含工厂方法）
 - `turing_test/backend/domain/repositories.py` - Repository 接口
 
 ### 3. Repository 实现层 (✅ 完成)
@@ -114,9 +114,52 @@
 - 基础设施服务（EventBus, MessageQueue, ConnectionManager）
 - Repository 接口到实现的映射
 - 应用服务类型注册
+- 添加 `register_async_factory()` 方法
 
 #### 文件
 - `turing_test/backend/infrastructure/di/container.py`
+
+### 7. WebSocket 层 (✅ 完成)
+
+#### 重构内容
+- `websocket/match.py` - 基于新领域模型的匹配 WebSocket
+  - 支持 `join`/`cancel` 操作
+  - 使用 `MatchApplicationService` 处理业务
+  - 通过领域事件推送结果
+
+#### 文件
+- `turing_test/backend/websocket/match.py`
+
+### 8. API 层 (✅ 完成)
+
+#### 新 API 端点
+- `POST /room/{room_id}/message` - 发送消息
+- `GET /room/{room_id}/messages` - 获取对话消息
+- `POST /session/{session_id}/end` - 结束会话
+- `POST /session/{session_id}/judgment` - 提交判断
+- `GET /session/{session_id}/result` - 获取会话结果
+
+#### 文件
+- `turing_test/backend/api/game_new.py`
+
+### 9. 消息服务 (✅ 完成)
+
+#### 新服务
+- `NewMessageService` - 基于领域模型的消息处理
+  - 使用 `Room.send_message()` 发送
+  - 使用 `UserSession` 管理回合
+
+#### 文件
+- `turing_test/backend/services/new_message_service.py`
+
+### 10. 测试 (✅ 完成)
+
+#### 端到端测试
+- 测试完整流程：匹配 → 对话 → 消息 → 判断 → 结算
+- 9 个测试用例覆盖各层功能
+
+#### 文件
+- `turing_test/backend/tests/integration/test_domain_flow.py`
 
 ---
 

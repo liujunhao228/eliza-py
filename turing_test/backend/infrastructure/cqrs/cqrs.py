@@ -11,6 +11,7 @@ CQRS 模式 - 命令和查询分离
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -20,7 +21,7 @@ import uuid
 # ============== 命令模型 ==============
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Command:
     """命令基类"""
     command_id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -29,7 +30,7 @@ class Command:
     causation_id: Optional[str] = None    # 前因命令 ID
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class RequestMatchCommand(Command):
     """请求匹配命令"""
     user_id: int
@@ -37,14 +38,14 @@ class RequestMatchCommand(Command):
     preferences: Dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class CancelMatchCommand(Command):
     """取消匹配命令"""
     user_id: int
     reason: str = "user_cancelled"
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class CreateSessionCommand(Command):
     """创建会话命令"""
     user_id: int
@@ -54,7 +55,7 @@ class CreateSessionCommand(Command):
     is_honeypot: bool = False
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class EndSessionCommand(Command):
     """结束会话命令"""
     session_id: int
@@ -63,7 +64,7 @@ class EndSessionCommand(Command):
     final_turn: Optional[int] = None
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class SubmitJudgmentCommand(Command):
     """提交判断命令 (场中/最终)"""
     session_id: int
@@ -74,7 +75,7 @@ class SubmitJudgmentCommand(Command):
     meta_keywords: List[str] = field(default_factory=list)
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class ClaimBonusCommand(Command):
     """领取奖励命令"""
     session_id: int
@@ -84,26 +85,26 @@ class ClaimBonusCommand(Command):
 # ============== 查询模型 ==============
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Query:
     """查询基类"""
     query_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = field(default_factory=datetime.utcnow)
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class GetMatchStatusQuery(Query):
     """获取匹配状态查询"""
     user_id: int
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class GetSessionQuery(Query):
     """获取会话查询"""
     session_id: int
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class GetUserSessionsQuery(Query):
     """获取用户会话列表查询"""
     user_id: int
@@ -111,7 +112,7 @@ class GetUserSessionsQuery(Query):
     offset: int = 0
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class GetSessionMessagesQuery(Query):
     """获取会话消息查询"""
     session_id: int
@@ -119,13 +120,13 @@ class GetSessionMessagesQuery(Query):
     before_id: Optional[int] = None
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class GetScoreQuery(Query):
     """获取积分查询"""
     user_id: int
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class GetScoreHistoryQuery(Query):
     """获取积分历史查询"""
     user_id: int

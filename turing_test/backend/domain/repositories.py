@@ -146,7 +146,7 @@ class MatchRepository:
     async def get_active_by_user_id(self, user_id: UserId) -> Optional[MatchAggregate]:
         """获取用户活跃的匹配"""
         from turing_test.backend.models.domain_models import Match
-        
+
         result = await self._session.execute(
             select(Match)
             .where(Match.user_id == user_id.value)
@@ -154,10 +154,27 @@ class MatchRepository:
             .order_by(Match.requested_at.desc())
         )
         match_orm = result.scalar_one_or_none()
-        
+
         if not match_orm:
             return None
-        
+
+        return self._to_domain(match_orm)
+
+    async def get_pending_by_user(self, user_id: UserId) -> Optional[MatchAggregate]:
+        """获取用户待处理的匹配"""
+        from turing_test.backend.models.domain_models import Match
+
+        result = await self._session.execute(
+            select(Match)
+            .where(Match.user_id == user_id.value)
+            .where(Match.status == "pending")
+            .order_by(Match.requested_at.desc())
+        )
+        match_orm = result.scalar_one_or_none()
+
+        if not match_orm:
+            return None
+
         return self._to_domain(match_orm)
     
     async def add(self, match: MatchAggregate):
@@ -211,11 +228,22 @@ class MatchRepository:
     
     def _to_domain(self, match_orm: Any) -> MatchAggregate:
         """ORM 转领域模型"""
+        from turing_test.backend.domain.models import MatchRequest
+        
+        # 重建 request 对象
+        request = MatchRequest(
+            user_id=UserId(match_orm.user_id),
+            user_score=match_orm.user_score_snapshot,
+            preferences=match_orm.preferences or {},
+            requested_at=match_orm.requested_at,
+        )
+        
         return MatchAggregate(
             id=MatchId(str(match_orm.id)),
             user_id=UserId(match_orm.user_id),
             status=MatchStatus(match_orm.status),
             room_id=RoomId(str(match_orm.room_id)) if match_orm.room_id else None,
+            request=request,
             requested_at=match_orm.requested_at,
             matched_at=match_orm.matched_at,
             expired_at=match_orm.expired_at,
@@ -296,22 +324,53 @@ class RoomRepository:
     
     async def update(self, room: RoomAggregate):
         """更新对话"""
-        from turing_test.backend.models.domain_models import Room
-        
+        from turing_test.backend.models.domain_models import Room, RoomParticipant
+
         result = await self._session.execute(
             select(Room).where(Room.id == int(room.id.value) if room.id.value.isdigit() else room.id.value)
         )
         room_orm = result.scalar_one_or_none()
-        
+
         if not room_orm:
             raise ValueError(f"Room not found: {room.id}")
-        
+
         room_orm.status = room.status.value
         room_orm.total_turns = room.total_turns
         room_orm.meta_count = room.meta_count
         room_orm.first_leaver_id = room.first_leaver_id.value if room.first_leaver_id else None
         room_orm.ended_at = room.ended_at
         room_orm.end_reason = room.end_reason
+
+        # 同步参与者
+        # 1. 删除不存在的参与者
+        existing_user_ids = {p.user_id for p in room_orm.participants if p.user_id is not None}
+        current_user_ids = {p.user_id.value for p in room.participants if p.user_id is not None}
+
+        for user_id in existing_user_ids - current_user_ids:
+            # 标记为离开而不是删除
+            for p in room_orm.participants:
+                if p.user_id == user_id:
+                    p.left_at = datetime.utcnow()
+                    p.left_reason = "removed"
+
+        # 2. 添加新的参与者
+        for participant in room.participants:
+            # 检查是否已存在
+            if participant.user_id and participant.user_id.value in existing_user_ids:
+                continue
+
+            participant_orm = RoomParticipant(
+                room_id=room_orm.id,
+                user_id=participant.user_id.value if participant.user_id else None,
+                role=participant.role.value,
+                bot_config_id=participant.bot_config_id,
+                bot_level=participant.bot_level,
+                is_honeypot=participant.is_honeypot,
+                joined_at=participant.joined_at,
+                left_at=participant.left_at,
+                left_reason=participant.left_reason,
+            )
+            self._session.add(participant_orm)
     
     def _to_domain(self, room_orm: Any) -> RoomAggregate:
         """ORM 转领域模型"""
@@ -360,17 +419,19 @@ class UserSessionRepository:
     async def get(self, session_id: SessionId) -> Optional[UserSessionAggregate]:
         """获取会话"""
         from turing_test.backend.models.domain_models import UserSession
-        
+
         result = await self._session.execute(
-            select(UserSession).where(
+            select(UserSession)
+            .options(selectinload(UserSession.score))
+            .where(
                 UserSession.id == int(session_id.value) if session_id.value.isdigit() else session_id.value
             )
         )
         session_orm = result.scalar_one_or_none()
-        
+
         if not session_orm:
             return None
-        
+
         return self._to_domain(session_orm)
     
     async def get_by_user_id(self, user_id: UserId) -> List[UserSessionAggregate]:
@@ -400,7 +461,7 @@ class UserSessionRepository:
     async def get_active_by_user_id(self, user_id: UserId) -> Optional[UserSessionAggregate]:
         """获取用户活跃的会话"""
         from turing_test.backend.models.domain_models import UserSession
-        
+
         result = await self._session.execute(
             select(UserSession)
             .where(UserSession.user_id == user_id.value)
@@ -408,12 +469,33 @@ class UserSessionRepository:
             .order_by(UserSession.created_at.desc())
         )
         session_orm = result.scalar_one_or_none()
-        
+
         if not session_orm:
             return None
-        
+
         return self._to_domain(session_orm)
-    
+
+    async def get_by_room_and_user(
+        self,
+        room_id: RoomId,
+        user_id: UserId,
+    ) -> Optional[UserSessionAggregate]:
+        """根据对话 ID 和用户 ID 获取会话"""
+        from turing_test.backend.models.domain_models import UserSession
+
+        result = await self._session.execute(
+            select(UserSession)
+            .where(UserSession.room_id == int(room_id.value) if room_id.value.isdigit() else room_id.value)
+            .where(UserSession.user_id == user_id.value)
+            .order_by(UserSession.created_at.desc())
+        )
+        session_orm = result.scalar_one_or_none()
+
+        if not session_orm:
+            return None
+
+        return self._to_domain(session_orm)
+
     async def add(self, session: UserSessionAggregate):
         """添加会话"""
         from turing_test.backend.models.domain_models import UserSession
@@ -501,7 +583,7 @@ class UserSessionRepository:
             bonus_pending=session_orm.bonus_pending,
             bonus_claimed=session_orm.bonus_claimed,
         )
-        
+
         if session_orm.user_guess:
             session.judgment = Judgment(
                 user_guess=session_orm.user_guess,
@@ -509,7 +591,35 @@ class UserSessionRepository:
                 is_mid_game=session_orm.is_mid_game,
                 submitted_at=session_orm.judgment_submitted_at,
             )
-        
+
+        # 加载关联的积分
+        if session_orm.score:
+            score_orm = session_orm.score
+            session.score = ScoreAggregate(
+                session_id=SessionId(str(score_orm.user_session_id)),
+                user_id=UserId(score_orm.user_id),
+                room_id=RoomId(str(score_orm.room_id)),
+                breakdown=ScoreBreakdown(
+                    base_score=score_orm.base_score,
+                    confidence_multiplier=score_orm.confidence_multiplier,
+                    meta_multiplier=score_orm.meta_multiplier,
+                    mid_game_multiplier=score_orm.mid_game_multiplier,
+                    entry_fee=score_orm.entry_fee,
+                    turn_penalty=score_orm.turn_penalty,
+                    opponent_bonus=score_orm.opponent_bonus,
+                ),
+                settlement=ScoreSettlement(
+                    base_settled=score_orm.base_settled,
+                    base_settled_at=score_orm.base_settled_at,
+                    bonus_pending=score_orm.bonus_pending,
+                    bonus_claimed=score_orm.bonus_claimed,
+                    bonus_claimed_at=score_orm.bonus_claimed_at,
+                ),
+                opponent_guess=score_orm.opponent_guess,
+                opponent_confidence=score_orm.opponent_confidence,
+                opponent_is_correct=score_orm.opponent_is_correct,
+            )
+
         return session
 
 

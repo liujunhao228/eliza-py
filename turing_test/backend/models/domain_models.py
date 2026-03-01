@@ -128,7 +128,7 @@ class Match(Base):
     
     room_id: Mapped[Optional[int]] = mapped_column(
         Integer,
-        ForeignKey("rooms.id", ondelete="SET NULL"),
+        ForeignKey("rooms.id", ondelete="SET NULL", use_alter=True),
         nullable=True,
         unique=True,
         index=True,
@@ -213,18 +213,19 @@ class Match(Base):
         back_populates="matches",
         foreign_keys="Match.user_id",
     )
-    
+
     room: Mapped[Optional["Room"]] = relationship(
         "Room",
         back_populates="match",
         foreign_keys="Match.room_id",
+        remote_side="Room.id",
     )
-    
+
     matched_opponent: Mapped[Optional["User"]] = relationship(
         "User",
         foreign_keys="Match.matched_opponent_id",
     )
-    
+
     bot_config: Mapped[Optional["BotConfig"]] = relationship(
         "BotConfig",
         back_populates="matches",
@@ -321,8 +322,9 @@ class Room(Base):
     # 关系
     match: Mapped[Optional["Match"]] = relationship(
         "Match",
-        back_populates="room",
         foreign_keys="Room.match_id",
+        remote_side="Match.id",
+        viewonly=True,
     )
     
     participants: Mapped[List["RoomParticipant"]] = relationship(
@@ -622,7 +624,13 @@ class UserSession(Base):
         DateTime(timezone=True),
         server_default=func.now(),
     )
-    
+
+    last_message_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="最后一条消息 ID",
+    )
+
     # 关系
     user: Mapped["User"] = relationship(
         "User",

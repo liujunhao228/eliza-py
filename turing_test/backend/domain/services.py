@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from turing_test.backend.domain.models import (
@@ -101,7 +101,7 @@ class MatchAggregate:
             user_id=user_id,
             status=MatchStatus.PENDING,
             request=request,
-            requested_at=datetime.utcnow(),
+            requested_at=datetime.now(timezone.utc),
         )
         match._events.append(MatchRequested(
             aggregate_id=str(match_id),
@@ -124,40 +124,62 @@ class MatchAggregate:
             user_score=request.user_score,
         ))
     
-    def complete(self, room_id: RoomId, result: MatchResult) -> MatchCompleted:
+    def complete(
+        self,
+        room_id: RoomId,
+        result: Optional[MatchResult] = None,
+        opponent_type: Optional[OpponentType] = None,
+        matched_opponent_id: Optional[UserId] = None,
+        bot_config_id: Optional[str] = None,
+        bot_level: Optional[str] = None,
+        is_honeypot: bool = False,
+    ) -> MatchCompleted:
         """
         完成匹配
-        
+
         Args:
             room_id: 创建的对话 ID
-            result: 匹配结果
-        
+            result: 匹配结果对象（可选，如果提供则从中提取其他参数）
+            opponent_type: 对手类型
+            matched_opponent_id: 匹配的对手 ID
+            bot_config_id: Bot 配置 ID
+            bot_level: Bot 等级
+            is_honeypot: 是否钓鱼 Bot
+
         Returns:
             MatchCompleted 事件
         """
         if self.status != MatchStatus.PENDING:
             raise MatchError(f"Cannot complete match in status {self.status}")
-        
+
+        # 如果提供了 result，从中提取参数
+        if result is not None:
+            opponent_type = result.opponent_type
+            matched_opponent_id = result.opponent_user_id
+            bot_config_id = result.bot_config_id
+            bot_level = result.bot_level
+            is_honeypot = result.is_honeypot
+            self.result = result
+
         self.status = MatchStatus.MATCHED
         self.room_id = room_id
-        self.result = result
-        self.matched_at = datetime.utcnow()
-        
-        self.opponent_type = result.opponent_type
-        self.matched_opponent_id = result.opponent_user_id
-        self.bot_config_id = result.bot_config_id
-        self.bot_level = result.bot_level
-        self.is_honeypot = result.is_honeypot
-        
+        self.matched_at = datetime.now(timezone.utc)
+
+        self.opponent_type = opponent_type
+        self.matched_opponent_id = matched_opponent_id
+        self.bot_config_id = bot_config_id
+        self.bot_level = bot_level
+        self.is_honeypot = is_honeypot
+
         event = MatchCompleted(
             aggregate_id=str(self.id),
             match_id=str(self.id),
             user_id=self.user_id.value,
             room_id=str(room_id),
-            opponent_type=result.opponent_type.value,
+            opponent_type=opponent_type.value if opponent_type else "",
         )
         self._events.append(event)
-        
+
         return event
     
     def fail(self, reason: str) -> MatchFailed:
@@ -174,7 +196,7 @@ class MatchAggregate:
             raise MatchError(f"Cannot fail match in status {self.status}")
         
         self.status = MatchStatus.FAILED
-        self.expired_at = datetime.utcnow()
+        self.expired_at = datetime.now(timezone.utc)
         
         event = MatchFailed(
             aggregate_id=str(self.id),
@@ -191,7 +213,7 @@ class MatchAggregate:
             raise MatchError(f"Cannot cancel match in status {self.status}")
         
         self.status = MatchStatus.CANCELLED
-        self.expired_at = datetime.utcnow()
+        self.expired_at = datetime.now(timezone.utc)
         
         event = MatchCompleted(
             aggregate_id=str(self.id),
@@ -210,7 +232,7 @@ class MatchAggregate:
             raise MatchError(f"Cannot timeout match in status {self.status}")
         
         self.status = MatchStatus.TIMEOUT
-        self.expired_at = datetime.utcnow()
+        self.expired_at = datetime.now(timezone.utc)
         
         event = MatchTimeout(
             aggregate_id=str(self.id),
@@ -256,6 +278,11 @@ class RoomAggregate:
     type: RoomType
     status: RoomStatus = RoomStatus.ACTIVE
 
+    @property
+    def room_type(self) -> RoomType:
+        """兼容属性：返回对话类型"""
+        return self.type
+
     participants: List[ParticipantInfo] = field(default_factory=list)
     total_turns: int = 0
     meta_count: int = 0
@@ -291,7 +318,7 @@ class RoomAggregate:
             id=room_id,
             type=room_type,
             status=RoomStatus.ACTIVE,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
         room._events.append(RoomCreated(
             aggregate_id=str(room_id),
@@ -303,10 +330,38 @@ class RoomAggregate:
     def add_participant_raw(self, participant: ParticipantInfo):
         """添加参与者（内部方法，用于 Repository 层）"""
         self.participants.append(participant)
-    
-    def add_participant(self, participant: ParticipantInfo):
-        """添加参与者"""
-        self.participants.append(participant)
+
+    def add_participant(
+        self,
+        participant: Optional[ParticipantInfo] = None,
+        user_id: Optional[UserId] = None,
+        role: Optional[ParticipantRole] = None,
+        bot_config_id: Optional[str] = None,
+        bot_level: Optional[str] = None,
+        is_honeypot: bool = False,
+    ):
+        """
+        添加参与者
+
+        Args:
+            participant: ParticipantInfo 对象（直接传入）
+            user_id: 用户 ID（可选，与 participant 互斥）
+            role: 参与者角色
+            bot_config_id: Bot 配置 ID
+            bot_level: Bot 等级
+            is_honeypot: 是否钓鱼 Bot
+        """
+        if participant is not None:
+            self.participants.append(participant)
+        else:
+            self.participants.append(ParticipantInfo(
+                user_id=user_id,
+                role=role,
+                bot_config_id=bot_config_id,
+                bot_level=bot_level,
+                is_honeypot=is_honeypot,
+                joined_at=datetime.now(timezone.utc),
+            ))
     
     def add_message(
         self,
@@ -326,12 +381,12 @@ class RoomAggregate:
             raise RoomError(f"Room is not active: {self.status}")
         
         self.total_turns += 1
-        
+
         if is_meta:
             self.meta_count += 1
-        
+
         if self.started_at is None:
-            self.started_at = datetime.utcnow()
+            self.started_at = datetime.now(timezone.utc)
         
         event = MessageAdded(
             aggregate_id=str(self.id),
@@ -369,7 +424,7 @@ class RoomAggregate:
                     bot_level=p.bot_level,
                     is_honeypot=p.is_honeypot,
                     joined_at=p.joined_at,
-                    left_at=datetime.utcnow(),
+                    left_at=datetime.now(timezone.utc),
                     left_reason=reason,
                 )
                 break
@@ -383,7 +438,7 @@ class RoomAggregate:
         active_count = sum(1 for p in self.participants if p.left_at is None)
         if active_count == 0:
             self.status = RoomStatus.ENDED
-            self.ended_at = datetime.utcnow()
+            self.ended_at = datetime.now(timezone.utc)
             self.end_reason = reason
         
         event = ParticipantLeft(
@@ -397,22 +452,38 @@ class RoomAggregate:
         
         return event
     
-    def end(self, reason: str) -> RoomEnded:
-        """结束对话"""
+    def end(
+        self,
+        reason: Optional[str] = None,
+        end_reason: Optional[str] = None,
+        first_leaver_id: Optional[UserId] = None,
+    ) -> RoomEnded:
+        """
+        结束对话
+
+        Args:
+            reason: 结束原因
+            end_reason: 结束原因（别名，为了兼容性）
+            first_leaver_id: 先离开者 ID（真人对战）
+        """
         if self.status != RoomStatus.ACTIVE:
             raise RoomError(f"Room is not active: {self.status}")
-        
+
+        # 使用 end_reason 如果传入了的话（为了与应用服务层的参数名兼容）
+        actual_reason = end_reason or reason
+
         self.status = RoomStatus.ENDED
-        self.ended_at = datetime.utcnow()
-        self.end_reason = reason
-        
+        self.ended_at = datetime.now(timezone.utc)
+        self.end_reason = actual_reason
+        self.first_leaver_id = first_leaver_id
+
         event = RoomEnded(
             aggregate_id=str(self.id),
             room_id=str(self.id),
-            reason=reason,
+            reason=actual_reason,
         )
         self._events.append(event)
-        
+
         return event
     
     def get_participant(self, user_id: UserId) -> Optional[ParticipantInfo]:
@@ -517,8 +588,8 @@ class UserSessionAggregate:
             room_id=room_id,
             match_id=match_id,
             status=SessionStatus.ACTIVE,
-            created_at=datetime.utcnow(),
-            last_active_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
+            last_active_at=datetime.now(timezone.utc),
         )
         session._events.append(UserSessionCreated(
             aggregate_id=str(session_id),
@@ -542,9 +613,55 @@ class UserSessionAggregate:
         # 人机：总是用户的回合
         if room.is_single_player():
             return True
-        
+
         # 真人：交替发言
         return room.total_turns % 2 == 0
+
+    def update_turn(
+        self,
+        is_user_turn: bool,
+        increment_turn: bool = True,
+    ):
+        """
+        更新回合状态
+
+        Args:
+            is_user_turn: 是否用户回合
+            increment_turn: 是否增加轮次
+        """
+        if increment_turn:
+            self.turn_state = TurnState(
+                user_turn_count=self.turn_state.user_turn_count + (1 if is_user_turn else 0),
+                total_turns=self.turn_state.total_turns + 1,
+                is_user_turn=is_user_turn,
+                last_message_id=self.turn_state.last_message_id,
+            )
+        else:
+            self.turn_state = TurnState(
+                user_turn_count=self.turn_state.user_turn_count,
+                total_turns=self.turn_state.total_turns,
+                is_user_turn=is_user_turn,
+                last_message_id=self.turn_state.last_message_id,
+            )
+
+    def settle_score(
+        self,
+        final_score: int,
+        bonus_pending: bool = False,
+        score: Optional["ScoreAggregate"] = None,
+    ):
+        """
+        结算积分
+
+        Args:
+            final_score: 最终得分
+            bonus_pending: 是否有待领取奖励
+            score: ScoreAggregate 对象
+        """
+        self.final_score = final_score
+        self.score_settled = True
+        self.bonus_pending = bonus_pending
+        self.score = score
     
     def send_message(self, message_id: int) -> MessageSent:
         """发送消息"""
@@ -557,8 +674,8 @@ class UserSessionAggregate:
             is_user_turn=False,
             last_message_id=MessageId(str(message_id)),
         )
-        
-        self.last_active_at = datetime.utcnow()
+
+        self.last_active_at = datetime.now(timezone.utc)
         
         event = MessageSent(
             aggregate_id=str(self.id),
@@ -572,31 +689,31 @@ class UserSessionAggregate:
     
     def submit_judgment(
         self,
-        guess: str,
+        user_guess: str,
         confidence: str,
         is_mid_game: bool = False,
     ) -> JudgmentSubmitted:
         """提交判断"""
         if not self.can_submit_judgment():
             raise SessionError("Cannot submit judgment")
-        
+
         self.judgment = Judgment(
-            user_guess=guess,
+            user_guess=user_guess,
             confidence=confidence,
             is_mid_game=is_mid_game,
-            submitted_at=datetime.utcnow(),
+            submitted_at=datetime.now(timezone.utc),
         )
-        
+
         event = JudgmentSubmitted(
             aggregate_id=str(self.id),
             session_id=int(self.id.value) if self.id.value.isdigit() else 0,
             user_id=self.user_id.value,
-            guess=guess,
+            guess=user_guess,
             confidence=confidence,
             is_mid_game=is_mid_game,
         )
         self._events.append(event)
-        
+
         return event
     
     def end(self, reason: str) -> UserSessionEnded:
@@ -605,7 +722,7 @@ class UserSessionAggregate:
             raise SessionError(f"Session is not active: {self.status}")
         
         self.status = SessionStatus.ENDED
-        self.ended_at = datetime.utcnow()
+        self.ended_at = datetime.now(timezone.utc)
         self.end_reason = reason
         
         event = UserSessionEnded(
@@ -821,7 +938,7 @@ class ScoreAggregate:
         """结算基础积分"""
         self.settlement = ScoreSettlement(
             base_settled=True,
-            base_settled_at=datetime.utcnow(),
+            base_settled_at=datetime.now(timezone.utc),
             bonus_pending=self.breakdown.opponent_bonus > 0,
             bonus_claimed=self.settlement.bonus_claimed,
             bonus_claimed_at=self.settlement.bonus_claimed_at,
@@ -848,7 +965,7 @@ class ScoreAggregate:
             base_settled_at=self.settlement.base_settled_at,
             bonus_pending=False,
             bonus_claimed=True,
-            bonus_claimed_at=datetime.utcnow(),
+            bonus_claimed_at=datetime.now(timezone.utc),
         )
         
         event = BonusClaimed(
