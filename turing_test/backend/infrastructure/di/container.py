@@ -383,10 +383,10 @@ class AsyncServiceContainer:
         """注册服务"""
         if self._disposed:
             raise RuntimeError("Cannot register services on disposed container")
-        
+
         if implementation_type is None and instance is None and factory is None and async_factory is None:
             implementation_type = service_type
-        
+
         descriptor = ServiceDescriptor(
             service_type=service_type,
             implementation_type=implementation_type,
@@ -394,17 +394,34 @@ class AsyncServiceContainer:
             factory=factory,
             scope=scope,
         )
-        
+
         self._services[service_type] = descriptor
-        
+
         if instance is not None and scope == ServiceScope.SINGLETON:
             self._instances[service_type] = instance
-        
+
         if async_factory:
             self._async_factories[service_type] = async_factory
-        
+
         logger.debug(f"Registered service: {service_type.__name__} (scope={scope.value})")
         return self
+
+    def register_async_factory(
+        self,
+        service_type: Type[T],
+        async_factory: Callable[..., Coroutine[Any, Any, T]],
+    ) -> AsyncServiceContainer:
+        """
+        注册异步工厂
+        
+        Args:
+            service_type: 服务类型
+            async_factory: 异步工厂函数
+            
+        Returns:
+            容器实例
+        """
+        return self.register(service_type, async_factory=async_factory)
     
     async def resolve(self, service_type: Type[T]) -> T:
         """异步解析服务"""
@@ -548,34 +565,58 @@ class AsyncServiceContainer:
 def create_container() -> AsyncServiceContainer:
     """
     创建根容器
-    
+
     注册所有核心服务
     """
     container = AsyncServiceContainer()
-    
+
     # 注册基础设施服务
     from turing_test.backend.infrastructure.events.event_bus import EventBus, event_bus
     from turing_test.backend.infrastructure.cqrs.cqrs import CommandBus, QueryBus, TransactionManager
     from turing_test.backend.infrastructure.messaging.message_router import MessageRouter, MessageQueue, ConnectionManager
     from turing_test.backend.infrastructure.transaction.transaction_manager import TransactionalCoordinator
-    
+
     # 事件总线 (单例)
     container.register_instance(EventBus, event_bus)
-    
+
     # 命令/查询总线
     container.register_singleton(CommandBus)
     container.register_singleton(QueryBus)
-    
+
     # 消息组件
     container.register_singleton(MessageQueue)
     container.register_singleton(MessageRouter)
     container.register_singleton(ConnectionManager)
-    
-    # 注册领域服务 (在应用初始化时完成)
-    # container.register_singleton(MatchService)
-    # container.register_singleton(SessionManager)
-    # container.register_singleton(ScoreService)
-    
+
+    # 注册 Repository 接口到实现
+    from turing_test.backend.infrastructure.repositories import (
+        MatchRepositoryImpl,
+        RoomRepositoryImpl,
+        UserSessionRepositoryImpl,
+        ScoreRepositoryImpl,
+    )
+    from turing_test.backend.domain.repositories import (
+        MatchRepository,
+        RoomRepository,
+        UserSessionRepository,
+        ScoreRepository,
+    )
+
+    # 应用服务
+    from turing_test.backend.application.match_service import MatchApplicationService
+    from turing_test.backend.application.room_service import RoomApplicationService
+    from turing_test.backend.application.session_service import SessionApplicationService
+
+    # 事件处理器
+    from turing_test.backend.infrastructure.events.event_handlers import (
+        MatchEventHandler,
+        RoomEventHandler,
+    )
+
+    # 注意：应用服务和事件处理器的完整注册需要在应用启动时完成
+    # 因为它们需要依赖工作单元和具体的服务实例
+    # 这里只注册类型，实际解析在请求作用域中进行
+
     return container
 
 

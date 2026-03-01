@@ -44,33 +44,71 @@ from turing_test.backend.domain.models import (
 class MatchAggregate:
     """
     匹配聚合根
-    
+
     职责:
     1. 管理匹配状态流转
     2. 记录匹配结果
     3. 发布匹配事件
     """
-    
+
     id: MatchId
     user_id: UserId
     status: MatchStatus = MatchStatus.PENDING
     request: Optional[MatchRequest] = None
     result: Optional[MatchResult] = None
     room_id: Optional[RoomId] = None
-    
+
     requested_at: datetime = field(default_factory=datetime.utcnow)
     matched_at: Optional[datetime] = None
     expired_at: Optional[datetime] = None
-    
+
     # 领域事件 (待发布)
     _events: List[DomainEvent] = field(default_factory=list, repr=False)
-    
+
     # 匹配结果字段
     opponent_type: Optional[OpponentType] = None
     matched_opponent_id: Optional[UserId] = None
     bot_config_id: Optional[str] = None
     bot_level: Optional[str] = None
     is_honeypot: bool = False
+
+    @classmethod
+    def create(
+        cls,
+        user_id: UserId,
+        user_score_snapshot: int,
+        preferences: Optional[Dict[str, Any]] = None,
+    ) -> MatchAggregate:
+        """
+        创建匹配聚合根
+
+        Args:
+            user_id: 用户 ID
+            user_score_snapshot: 用户积分快照
+            preferences: 匹配偏好
+
+        Returns:
+            新的 MatchAggregate 实例
+        """
+        match_id = MatchId("")
+        request = MatchRequest(
+            user_id=user_id,
+            user_score=user_score_snapshot,
+            preferences=preferences or {},
+        )
+        match = cls(
+            id=match_id,
+            user_id=user_id,
+            status=MatchStatus.PENDING,
+            request=request,
+            requested_at=datetime.utcnow(),
+        )
+        match._events.append(MatchRequested(
+            aggregate_id=str(match_id),
+            user_id=user_id.value,
+            user_score=user_score_snapshot,
+        ))
+        return match
     
     def record_request(self, request: MatchRequest):
         """记录匹配请求"""
@@ -206,31 +244,65 @@ class MatchAggregate:
 class RoomAggregate:
     """
     对话聚合根
-    
+
     职责:
     1. 管理对话空间
     2. 添加消息
     3. 管理参与者
     4. 发布对话事件
     """
-    
+
     id: RoomId
     type: RoomType
     status: RoomStatus = RoomStatus.ACTIVE
-    
+
     participants: List[ParticipantInfo] = field(default_factory=list)
     total_turns: int = 0
     meta_count: int = 0
-    
+
     created_at: datetime = field(default_factory=datetime.utcnow)
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
-    
+
     end_reason: Optional[str] = None
     first_leaver_id: Optional[UserId] = None
-    
+
     # 领域事件
     _events: List[DomainEvent] = field(default_factory=list, repr=False)
+
+    @classmethod
+    def create(
+        cls,
+        match_id: Optional[MatchId] = None,
+        room_type: RoomType = RoomType.HUMAN_VS_BOT,
+    ) -> RoomAggregate:
+        """
+        创建对话聚合根
+
+        Args:
+            match_id: 关联的匹配 ID
+            room_type: 对话类型
+
+        Returns:
+            新的 RoomAggregate 实例
+        """
+        room_id = RoomId("")
+        room = cls(
+            id=room_id,
+            type=room_type,
+            status=RoomStatus.ACTIVE,
+            created_at=datetime.utcnow(),
+        )
+        room._events.append(RoomCreated(
+            aggregate_id=str(room_id),
+            room_id=str(room_id),
+            room_type=room_type.value,
+        ))
+        return room
+
+    def add_participant_raw(self, participant: ParticipantInfo):
+        """添加参与者（内部方法，用于 Repository 层）"""
+        self.participants.append(participant)
     
     def add_participant(self, participant: ParticipantInfo):
         """添加参与者"""
@@ -380,42 +452,81 @@ class RoomAggregate:
 class UserSessionAggregate:
     """
     用户会话聚合根
-    
+
     职责:
     1. 管理用户会话状态
     2. 提交判断
     3. 同步 Room 状态
     4. 发布会话事件
     """
-    
+
     id: SessionId
     user_id: UserId
     room_id: RoomId
     match_id: Optional[MatchId] = None
-    
+
     turn_state: TurnState = field(default_factory=lambda: TurnState(
         user_turn_count=0,
         total_turns=0,
         is_user_turn=True,
         last_message_id=None,
     ))
-    
+
     judgment: Optional[Judgment] = None
     status: SessionStatus = SessionStatus.ACTIVE
-    
+
     created_at: datetime = field(default_factory=datetime.utcnow)
     last_active_at: datetime = field(default_factory=datetime.utcnow)
     ended_at: Optional[datetime] = None
     end_reason: Optional[str] = None
-    
+
     # 积分字段
     final_score: Optional[int] = None
     score_settled: bool = False
     bonus_pending: bool = False
     bonus_claimed: bool = False
-    
+
     # 领域事件
     _events: List[DomainEvent] = field(default_factory=list, repr=False)
+
+    # 积分聚合根引用
+    score: Optional[ScoreAggregate] = None
+
+    @classmethod
+    def create(
+        cls,
+        user_id: UserId,
+        room_id: RoomId,
+        match_id: Optional[MatchId] = None,
+    ) -> UserSessionAggregate:
+        """
+        创建用户会话聚合根
+
+        Args:
+            user_id: 用户 ID
+            room_id: 对话 ID
+            match_id: 匹配 ID（可选）
+
+        Returns:
+            新的 UserSessionAggregate 实例
+        """
+        session_id = SessionId("")
+        session = cls(
+            id=session_id,
+            user_id=user_id,
+            room_id=room_id,
+            match_id=match_id,
+            status=SessionStatus.ACTIVE,
+            created_at=datetime.utcnow(),
+            last_active_at=datetime.utcnow(),
+        )
+        session._events.append(UserSessionCreated(
+            aggregate_id=str(session_id),
+            session_id=int(session_id.value) if session_id.value.isdigit() else 0,
+            user_id=user_id.value,
+            room_id=str(room_id),
+        ))
+        return session
     
     def sync_from_room(self, room: RoomAggregate):
         """从 Room 同步状态"""
@@ -541,18 +652,18 @@ class UserSessionAggregate:
 class ScoreAggregate:
     """
     积分聚合根
-    
+
     职责:
     1. 计算积分
     2. 结算基础分
     3. 发放奖励
     4. 发布积分事件
     """
-    
+
     session_id: SessionId
     user_id: UserId
     room_id: RoomId
-    
+
     breakdown: ScoreBreakdown = field(default_factory=ScoreBreakdown)
     settlement: ScoreSettlement = field(default_factory=lambda: ScoreSettlement(
         base_settled=False,
@@ -561,13 +672,75 @@ class ScoreAggregate:
         bonus_claimed=False,
         bonus_claimed_at=None,
     ))
-    
+
     opponent_guess: Optional[str] = None
     opponent_confidence: Optional[str] = None
     opponent_is_correct: Optional[bool] = None
-    
+
     # 领域事件
     _events: List[DomainEvent] = field(default_factory=list, repr=False)
+
+    @classmethod
+    def create(
+        cls,
+        user_session_id: SessionId,
+        user_id: UserId,
+        room_id: RoomId,
+        base_score: int,
+        confidence_multiplier: float = 1.0,
+        meta_multiplier: float = 1.0,
+        mid_game_multiplier: float = 1.0,
+        entry_fee: int = 2,
+        turn_penalty: int = 0,
+        opponent_bonus: int = 0,
+        opponent_guess: Optional[str] = None,
+        opponent_confidence: Optional[str] = None,
+        opponent_is_correct: Optional[bool] = None,
+    ) -> ScoreAggregate:
+        """
+        创建积分聚合根
+
+        Args:
+            user_session_id: 用户会话 ID
+            user_id: 用户 ID
+            room_id: 对话 ID
+            base_score: 基础分
+            confidence_multiplier: 信心倍率
+            meta_multiplier: 元对话倍率
+            mid_game_multiplier: 中途判断倍率
+            entry_fee: 入场费
+            turn_penalty: 轮次惩罚
+            opponent_bonus: 对方猜错奖励
+            opponent_guess: 对方判断
+            opponent_confidence: 对方信心
+            opponent_is_correct: 对方是否正确
+
+        Returns:
+            新的 ScoreAggregate 实例
+        """
+        score = cls(
+            session_id=user_session_id,
+            user_id=user_id,
+            room_id=room_id,
+            breakdown=ScoreBreakdown(
+                base_score=base_score,
+                confidence_multiplier=confidence_multiplier,
+                meta_multiplier=meta_multiplier,
+                mid_game_multiplier=mid_game_multiplier,
+                entry_fee=entry_fee,
+                turn_penalty=turn_penalty,
+                opponent_bonus=opponent_bonus,
+            ),
+            opponent_guess=opponent_guess,
+            opponent_confidence=opponent_confidence,
+            opponent_is_correct=opponent_is_correct,
+        )
+        score._events.append(ScoreCalculating(
+            aggregate_id=str(user_session_id),
+            session_id=int(user_session_id.value) if user_session_id.value.isdigit() else 0,
+            user_id=user_id.value,
+        ))
+        return score
     
     def calculate(
         self,
