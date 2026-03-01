@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-概率分流匹配机制测试脚本 - 重构版
+概率分流匹配机制测试脚本（新 API 版）
 
 测试内容:
 1. Bot 池加权随机抽取（使用 random.choices）
@@ -10,24 +10,30 @@
 4. 钓鱼 Bot 在 Bot 局中的比例 (15%)
 5. 真人匹配超时降级
 6. 线程安全测试
+
+⚠️ 已迁移到新 API:
+    - MatchServiceConfig → MatchConfig
+    - pool.get_bot() → pool.draw()
+    - 使用新模块路径
 """
 
 import asyncio
 import sys
 from pathlib import Path
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 import threading
 
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from turing_test.backend.services.match_bot_pool import (
-    BotPool, HoneypotPool,
-    create_bot_pool, create_honeypot_pool,
+from turing_test.backend.services.match_service import (
+    MatchConfig,
+    MatchType,
+    MatchRequest,
+    MatchService,
 )
-from turing_test.backend.services.match_service.service import (
-    MatchService, MatchType, MatchRequest, MatchServiceConfig,
+from turing_test.backend.services.match_service.pools import (
+    BotPool, HoneypotPool, BotPoolConfig, HoneypotPoolConfig,
 )
 
 
@@ -54,18 +60,20 @@ def test_bot_pool_weights():
     """测试 Bot 池加权随机抽取"""
     print_header("测试 1: Bot 池加权随机抽取")
 
-    config = {
-        "bots": [
-            {"id": "lv1_newbie", "weight": 0.35, "description": "新手 Bot"},
-            {"id": "lv2_typical", "weight": 0.45, "description": "典型 AI"},
-            {"id": "lv3_logic", "weight": 0.20, "description": "逻辑机器"},
-        ]
-    }
+    from turing_test.backend.services.match_service.pools import BotConfig
 
-    pool = create_bot_pool(config)
+    config = BotPoolConfig(
+        bots=[
+            BotConfig(id="lv1_newbie", weight=0.35, description="新手 Bot"),
+            BotConfig(id="lv2_typical", weight=0.45, description="典型 AI"),
+            BotConfig(id="lv3_logic", weight=0.20, description="逻辑机器"),
+        ]
+    )
+
+    pool = BotPool(config)
 
     # 抽取 1000 次统计分布
-    draws = [pool.get_bot().id for _ in range(1000)]
+    draws = [pool.draw().id for _ in range(1000)]
     counts = Counter(draws)
 
     # 计算比例
@@ -109,17 +117,19 @@ def test_honeypot_pool_weights():
     """测试钓鱼 Bot 池加权随机抽取"""
     print_header("测试 2: 钓鱼 Bot 池加权随机抽取")
 
-    config = {
-        "bots": [
-            {"id": "aggressive", "weight": 0.4, "description": "攻击型"},
-            {"id": "sus", "weight": 0.6, "description": "可疑型"},
-        ]
-    }
+    from turing_test.backend.services.match_service.pools import HoneypotBotConfig
 
-    pool = create_honeypot_pool(config)
+    config = HoneypotPoolConfig(
+        bots=[
+            HoneypotBotConfig(id="aggressive", weight=0.4, description="攻击型"),
+            HoneypotBotConfig(id="sus", weight=0.6, description="可疑型"),
+        ]
+    )
+
+    pool = HoneypotPool(config)
 
     # 抽取 1000 次统计分布
-    draws = [pool.get_bot().id for _ in range(1000)]
+    draws = [pool.draw().id for _ in range(1000)]
     counts = Counter(draws)
 
     # 计算比例
@@ -156,7 +166,7 @@ async def test_match_probability():
     """测试匹配概率分布 (30% 真人 / 70% Bot)"""
     print_header("测试 3: 匹配概率分布")
 
-    config = MatchServiceConfig(
+    config = MatchConfig(
         human_probability=0.30,
         bot_probability=0.70,
         honeypot_in_bot_rate=0.15,
@@ -164,14 +174,14 @@ async def test_match_probability():
     service = MatchService(config)
 
     # 模拟 1000 次匹配类型决定
-    match_types = [service._decide_match_type() for _ in range(1000)]
+    match_types = [service.coordinator.algorithm.decide_match_type(config) for _ in range(1000)]
     counts = Counter(match_types)
 
     # 计算比例
     total = len(match_types)
-    bot_count = counts.get("bot", 0)
-    honeypot_count = counts.get("honeypot", 0)
-    human_count = counts.get("human", 0)
+    bot_count = counts.get(MatchType.BOT, 0)
+    honeypot_count = counts.get(MatchType.HONEYPOT, 0)
+    human_count = counts.get(MatchType.HUMAN, 0)
 
     bot_total = bot_count + honeypot_count  # Bot 局总数 (含钓鱼)
 
@@ -219,26 +229,31 @@ async def test_timeout_fallback():
     """测试真人匹配超时降级为 Bot"""
     print_header("测试 4: 真人匹配超时降级")
 
-    config = MatchServiceConfig(
+    config = MatchConfig(
         timeout_seconds=2,  # 2 秒超时
         cleanup_interval_seconds=1,
     )
     service = MatchService(config)
-    
+
     # 设置 Bot 池
-    bot_pool = create_bot_pool()
-    honeypot_pool = create_honeypot_pool()
-    service.set_bot_pools(bot_pool, honeypot_pool)
+    bot_pool = BotPool()
+    honeypot_pool = HoneypotPool()
+    service.coordinator.bot_pool = bot_pool
+    service.coordinator.honeypot_pool = honeypot_pool
 
     print("模拟用户加入等待队列，等待超时...")
 
     # 手动添加一个超时的等待请求
     import time
-    service._waiting_queue[999] = MatchRequest(
+    from turing_test.backend.services.match_service import MatchRequest, MatchType
+    
+    await service.coordinator.queue.add(MatchRequest(
         user_id=999,
         timestamp=time.time() - 3,  # 3 秒前
         match_type=MatchType.HUMAN,
-    )
+        websocket_ref=0,
+        user_score=100,
+    ))
 
     # 触发清理
     await service._cleanup_expired()
@@ -270,23 +285,25 @@ def test_thread_safety():
     """测试 Bot 池的线程安全性"""
     print_header("测试 5: 线程安全测试")
 
-    config = {
-        "bots": [
-            {"id": "lv1_newbie", "weight": 0.35, "description": "新手 Bot"},
-            {"id": "lv2_typical", "weight": 0.45, "description": "典型 AI"},
-            {"id": "lv3_logic", "weight": 0.20, "description": "逻辑机器"},
-        ]
-    }
+    from turing_test.backend.services.match_service.pools import BotConfig
 
-    pool = create_bot_pool(config)
-    
+    config = BotPoolConfig(
+        bots=[
+            BotConfig(id="lv1_newbie", weight=0.35, description="新手 Bot"),
+            BotConfig(id="lv2_typical", weight=0.45, description="典型 AI"),
+            BotConfig(id="lv3_logic", weight=0.20, description="逻辑机器"),
+        ]
+    )
+
+    pool = BotPool(config)
+
     results = []
     errors = []
-    
+
     def draw_bot():
         try:
             for _ in range(100):
-                bot = pool.get_bot()
+                bot = pool.draw()
                 results.append(bot.id)
         except Exception as e:
             errors.append(str(e))
@@ -297,7 +314,7 @@ def test_thread_safety():
         t = threading.Thread(target=draw_bot)
         threads.append(t)
         t.start()
-    
+
     for t in threads:
         t.join()
 
@@ -323,17 +340,18 @@ async def test_dependency_injection():
     print_header("测试 6: 依赖注入测试")
 
     # 创建 Bot 池
-    bot_pool = create_bot_pool()
-    honeypot_pool = create_honeypot_pool()
-    
+    bot_pool = BotPool()
+    honeypot_pool = HoneypotPool()
+
     # 创建服务并注入 Bot 池
-    config = MatchServiceConfig()
+    config = MatchConfig()
     service = MatchService(config)
-    service.set_bot_pools(bot_pool, honeypot_pool)
+    service.coordinator.bot_pool = bot_pool
+    service.coordinator.honeypot_pool = honeypot_pool
 
     # 验证 Bot 池已注入
-    injected_bot_pool, injected_honeypot_pool = service.get_bot_pools()
-    
+    injected_bot_pool, injected_honeypot_pool = service.coordinator.get_bot_pools()
+
     if injected_bot_pool is bot_pool and injected_honeypot_pool is honeypot_pool:
         print_result("依赖注入", True)
         return True
@@ -348,7 +366,7 @@ async def test_dependency_injection():
 
 async def main():
     """主函数"""
-    print_header("概率分流匹配机制测试 - 重构版")
+    print_header("概率分流匹配机制测试 - 新 API 版")
 
     results = []
 

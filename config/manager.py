@@ -780,6 +780,10 @@ def get_config_manager(project_root: Optional[Path] = None) -> ConfigManager:
         with _config_lock:
             if _config_manager is None:
                 root = project_root or Path(__file__).parent.parent
+                
+                # 先加载 .env 文件到系统环境变量
+                _load_env_file(root)
+                
                 _config_manager = ConfigManager(root)
                 _config_manager.add_source('yaml', YamlConfigSource(
                     root / 'config.yaml'
@@ -788,6 +792,33 @@ def get_config_manager(project_root: Optional[Path] = None) -> ConfigManager:
                 _config_manager.load()
 
     return _config_manager
+
+
+def _load_env_file(project_root: Path) -> None:
+    """
+    加载 .env 文件到系统环境变量
+
+    Args:
+        project_root: 项目根目录
+    """
+    try:
+        from dotenv import load_dotenv
+
+        # 加载 .env 文件
+        env_file = project_root / ".env"
+        if env_file.exists():
+            load_dotenv(env_file)
+            logger.debug(f"已加载 .env 文件：{env_file}")
+
+        # 加载 .env.local (用于本地开发覆盖)
+        env_local = project_root / ".env.local"
+        if env_local.exists():
+            load_dotenv(env_local)
+            logger.debug(f"已加载 .env.local 文件：{env_local}")
+    except ImportError:
+        logger.warning("python-dotenv 未安装，无法加载 .env 文件")
+    except Exception as e:
+        logger.warning(f"加载 .env 文件失败：{e}")
 
 
 def reset_config_manager():

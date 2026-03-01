@@ -145,11 +145,13 @@ async def end_session(
 
     # 清理匹配结果缓存（允许用户重新匹配）
     from turing_test.backend.services.match_service import get_match_service
-    match_service = get_match_service()
-    await match_service.clear_result(session.user_id)
-    # 如果是真人匹配，也需要清理对手的匹配结果
-    if session.opponent_user_id:
-        await match_service.clear_result(session.opponent_user_id)
+    try:
+        match_service = get_match_service()
+        await match_service.clear_result(session.user_id)
+        if session.opponent_user_id:
+            await match_service.clear_result(session.opponent_user_id)
+    except RuntimeError:
+        pass  # 服务未初始化时忽略
 
     logger.info(f"用户主动结束会话：session_id={session_id}, reason={end_reason}")
 

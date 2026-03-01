@@ -1,1 +1,0 @@
-import{a as e}from"./index-aYDMLKYX.js";async function o(s){return e.get(`/session/${s}`)}async function a(s,n="user_gave_up"){return e.post(`/session/${s}/end`,{end_reason:n})}async function r(s){return e.get(`/session/${s}/result`)}export{o as a,a as e,r as g};

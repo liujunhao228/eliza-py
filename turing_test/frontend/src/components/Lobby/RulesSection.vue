@@ -88,10 +88,12 @@
         type="primary"
         size="large"
         @click="handleStartMatch"
+        :disabled="disabled"
+        :loading="disabled"
         class="btn-start"
       >
         <span class="btn-icon">🎮</span>
-        开始匹配
+        {{ disabled ? '匹配中...' : '开始匹配' }}
       </el-button>
       <p class="hint-text">点击开始匹配，寻找你的对手</p>
     </div>
@@ -105,6 +107,10 @@ import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
 const userStore = useUserStore()
+
+const props = defineProps<{
+  disabled?: boolean
+}>()
 
 const emit = defineEmits<{
   (e: 'start-match'): void

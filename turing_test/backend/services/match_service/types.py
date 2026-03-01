@@ -27,7 +27,7 @@ class OpponentType(str, Enum):
 class MatchRequest:
     """
     匹配请求
-    
+
     Attributes:
         user_id: 用户 ID
         timestamp: 加入队列时间戳（UTC）
@@ -46,7 +46,7 @@ class MatchRequest:
 class MatchResultData:
     """
     匹配结果数据（内部使用）
-    
+
     Attributes:
         session_id: 会话 ID
         opponent_type: 对手类型
@@ -65,7 +65,7 @@ class MatchResultData:
     opponent_user_id: Optional[int] = None
     match_duration_ms: int = 0
     matched_at: str = ""
-    
+
     def __post_init__(self):
         """后处理：设置默认值"""
         if not self.matched_at:
@@ -76,9 +76,9 @@ class MatchResultData:
 class SafeMatchResult:
     """
     安全匹配结果（返回给前端）
-    
+
     仅包含非敏感字段，防止泄露对手真实身份。
-    
+
     Attributes:
         session_id: 会话 ID
         opponent_type: 对手类型（固定为 "opponent"）
@@ -95,7 +95,7 @@ class SafeMatchResult:
 class MatchStatistics:
     """
     匹配服务统计信息
-    
+
     Attributes:
         waiting_count: 等待队列人数
         human_waiting: 等待真人匹配的人数
@@ -114,3 +114,16 @@ class MatchStatistics:
 UserId = int
 SessionId = int
 WebsocketRef = int
+
+
+@dataclass
+class QueueSnapshot:
+    """
+    队列快照（供算法使用）
+
+    Attributes:
+        requests: 当前队列中的请求
+        timestamp: 快照时间戳
+    """
+    requests: Dict[UserId, MatchRequest]
+    timestamp: float = field(default_factory=lambda: datetime.now(timezone.utc).timestamp())

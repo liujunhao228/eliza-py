@@ -79,6 +79,20 @@ async def lifespan(app: FastAPI):
     await session_state_manager.start()
     logger.info("✅ 会话超时清理任务已启动")
 
+    # 初始化匹配服务
+    try:
+        from turing_test.backend.services.match_service import (
+            MatchService, MatchConfig, set_match_service
+        )
+        match_service = MatchService(MatchConfig())
+        match_service.start()  # 启动后台清理任务
+        app.state.match_service = match_service
+        set_match_service(match_service)  # 同时设置全局单例
+        logger.info("✅ 匹配服务初始化成功")
+    except Exception as e:
+        logger.error(f"❌ 匹配服务初始化失败：{e}")
+        raise
+
     yield
 
     # 关闭时清理
@@ -97,6 +111,15 @@ async def lifespan(app: FastAPI):
         await manager.stop_heartbeat_monitor()
     except Exception as e:
         logger.error(f"❌ WebSocket 心跳监控关闭失败：{e}")
+
+    # 停止匹配服务
+    try:
+        match_service = getattr(app.state, "match_service", None)
+        if match_service:
+            await match_service.stop()
+            logger.info("✅ 匹配服务已停止")
+    except Exception as e:
+        logger.error(f"❌ 匹配服务关闭失败：{e}")
 
     # 关闭 AI Bot 池
     try:

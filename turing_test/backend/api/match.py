@@ -1,5 +1,5 @@
 """
-匹配 API 路由 - 重构版
+匹配 API 路由（重构版）
 
 概率分流匹配模式:
 - 30% 真人匹配
@@ -9,11 +9,6 @@
 安全设计:
 - 前端仅返回 opponent_type="opponent"
 - true_identity、bot_level、is_honeypot 仅后台记录
-
-修复内容:
-- 更新 API 调用使用新的 join_queue 方法签名
-- 添加完整的错误处理
-- 使用依赖注入获取匹配服务
 """
 
 from typing import Optional, Dict, Any
@@ -37,10 +32,7 @@ router = APIRouter()
 # 依赖注入
 # =============================================================================
 
-async def get_match_service_dep():
-    """获取匹配服务实例（依赖注入）"""
-    from turing_test.backend.services.match_service import get_match_service
-    return get_match_service()
+from turing_test.backend.services.match_service.di import MatchServiceDep
 
 
 # =============================================================================
@@ -58,12 +50,14 @@ async def get_match_service_dep():
 - 真人匹配超时 10 秒后降级为 Bot
 
 ⚠️ 返回结果已过滤敏感字段，前端无法得知对手真实身份
+
+🔒 防重复请求：如果用户已有匹配结果，直接返回旧结果
 """,
 )
 async def join_match_queue(
     user_id: int = Query(..., description="用户 ID", gt=0),
     db: AsyncSession = Depends(get_db),
-    match_service = Depends(get_match_service_dep),
+    match_service: MatchServiceDep = None,
 ):
     """
     加入匹配队列（概率分流模式）
@@ -93,7 +87,7 @@ async def join_match_queue(
         # 获取 WebSocket 引用（从 session state 或其他来源）
         # TODO: 实现 WebSocket 引用获取逻辑
         websocket_ref = 0  # 占位符
-        
+
         # 加入队列并匹配
         match_result = await match_service.join_queue(
             user_id=user_id,
@@ -117,9 +111,30 @@ async def join_match_queue(
             match_duration_ms=match_result.match_duration_ms,
             message="匹配成功",
         )
-        
+
     except ValueError as e:
-        logger.warning(f"匹配请求参数错误：user_id={user_id}, error={e}")
+        # 用户已在队列中或已有匹配结果
+        logger.info(f"用户 {user_id} 重复请求：{e}")
+        
+        # 尝试返回已有结果（处理超时清理的竞态）
+        existing_result = await match_service.get_result(user_id)
+        if existing_result:
+            logger.info(f"用户 {user_id} 重复请求，返回已有匹配结果")
+            return MatchResponse(
+                session_id=existing_result.session_id,
+                opponent_type=existing_result.opponent_type,
+                match_duration_ms=existing_result.match_duration_ms,
+                message="使用已有匹配结果",
+            )
+        
+        # 如果用户确实在队列中等待，返回冲突
+        if "已在匹配队列中" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(e),
+            )
+        
+        # 其他 ValueError
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
@@ -145,7 +160,7 @@ async def join_match_queue(
     description="获取匹配队列状态",
 )
 async def get_match_status(
-    match_service = Depends(get_match_service_dep),
+    match_service: MatchServiceDep = None,
 ):
     """获取匹配状态"""
     stats = match_service.get_statistics()
@@ -164,7 +179,7 @@ async def get_match_status(
 )
 async def leave_match_queue(
     user_id: int = Query(..., description="用户 ID", gt=0),
-    match_service = Depends(get_match_service_dep),
+    match_service: MatchServiceDep = None,
 ):
     """离开匹配队列"""
     success = await match_service.remove_from_queue(user_id)
@@ -185,7 +200,7 @@ async def leave_match_queue(
 )
 async def get_match_result(
     user_id: int = Query(..., description="用户 ID", gt=0),
-    match_service = Depends(get_match_service_dep),
+    match_service: MatchServiceDep = None,
 ):
     """获取匹配结果"""
     result = await match_service.get_result(user_id)
@@ -256,7 +271,7 @@ async def get_session_admin(
     description="查看匹配服务统计信息",
 )
 async def get_match_stats(
-    match_service = Depends(get_match_service_dep),
+    match_service: MatchServiceDep = None,
 ):
     """获取匹配服务统计"""
     stats = match_service.get_statistics()
@@ -286,7 +301,7 @@ async def get_match_stats(
     description="检查匹配服务健康状态",
 )
 async def health_check(
-    match_service = Depends(get_match_service_dep),
+    match_service: MatchServiceDep = None,
 ):
     """健康检查"""
     return {

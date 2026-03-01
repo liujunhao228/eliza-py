@@ -3,6 +3,7 @@
     <!-- 规则说明（未匹配时显示） -->
     <RulesSection
       v-if="!isMatching"
+      :disabled="isStartingMatch"
       @start-match="handleStartMatch"
       @logout="handleLogout"
     />
@@ -36,10 +37,16 @@ const gameStore = useGameStore()
 const isMatching = ref(false)
 const matchingSectionRef = ref<InstanceType<typeof MatchingSection>>()
 const isCompleting = ref(false)  // 防止重复请求
+const isStartingMatch = ref(false)  // 防止重复点击开始匹配
 const matchTimeoutTimer = ref<number | null>(null)
 
 // 开始匹配
 async function handleStartMatch() {
+  // 防止重复点击
+  if (isStartingMatch.value || isMatching.value) {
+    return
+  }
+
   if (!userStore.userId) {
     showError('用户信息不存在，请重新登录')
     router.push('/login')
@@ -47,6 +54,9 @@ async function handleStartMatch() {
   }
 
   try {
+    // 标记为正在开始匹配
+    isStartingMatch.value = true
+
     // 切换到匹配界面
     isMatching.value = true
 
@@ -82,6 +92,9 @@ async function handleStartMatch() {
   } catch (error: any) {
     showError(error.message || '匹配失败，请重试')
     handleCancel()
+  } finally {
+    // 重置状态
+    isStartingMatch.value = false
   }
 }
 

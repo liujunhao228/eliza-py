@@ -40,7 +40,12 @@ function canRetry(error: AxiosError): boolean {
   if (!error.response) {
     return true
   }
-  
+
+  // 409 冲突不重试（表示已在队列中）
+  if (error.response.status === 409) {
+    return false
+  }
+
   // 仅 5xx 服务器错误和 429 限流可重试
   const status = error.response.status
   return status >= 500 || status === 429

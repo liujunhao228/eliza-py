@@ -11,27 +11,28 @@ export const ErrorCode = {
   UNKNOWN: 'UNKNOWN_ERROR',
   NETWORK_ERROR: 'NETWORK_ERROR',
   TIMEOUT: 'TIMEOUT_ERROR',
-  
+
   // 认证错误
   UNAUTHORIZED: 'UNAUTHORIZED',
   INVALID_TOKEN: 'INVALID_TOKEN',
   TOKEN_EXPIRED: 'TOKEN_EXPIRED',
-  
+
   // 用户输入错误
   INVALID_INPUT: 'INVALID_INPUT',
   VALIDATION_ERROR: 'VALIDATION_ERROR',
-  
+
   // 业务错误
   USER_NOT_FOUND: 'USER_NOT_FOUND',
   SESSION_NOT_FOUND: 'SESSION_NOT_FOUND',
   INVALID_INVITE_CODE: 'INVALID_INVITE_CODE',
   INSUFFICIENT_SCORE: 'INSUFFICIENT_SCORE',
-  
+  CONFLICT: 'CONFLICT',
+
   // WebSocket 错误
   WS_CONNECTION_FAILED: 'WS_CONNECTION_FAILED',
   WS_DISCONNECTED: 'WS_DISCONNECTED',
   WS_MESSAGE_ERROR: 'WS_MESSAGE_ERROR',
-  
+
   // 用户操作
   USER_CANCEL: 'USER_CANCEL'
 } as const
@@ -129,6 +130,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.SESSION_NOT_FOUND]: '会话不存在',
   [ErrorCode.INVALID_INVITE_CODE]: '邀请码无效',
   [ErrorCode.INSUFFICIENT_SCORE]: '积分不足',
+  [ErrorCode.CONFLICT]: '请求冲突，请稍后重试',
   [ErrorCode.WS_CONNECTION_FAILED]: 'WebSocket 连接失败',
   [ErrorCode.WS_DISCONNECTED]: 'WebSocket 连接已断开',
   [ErrorCode.WS_MESSAGE_ERROR]: 'WebSocket 消息处理错误',
@@ -179,6 +181,11 @@ export function handleAxiosError(error: any): AppError {
       return new AppError(
         ErrorCode.SESSION_NOT_FOUND,
         '请求的资源不存在'
+      )
+    case 409:
+      return new AppError(
+        ErrorCode.CONFLICT,
+        data?.message || '请求冲突'
       )
     case 422:
       return new ValidationError(
