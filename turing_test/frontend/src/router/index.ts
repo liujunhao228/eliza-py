@@ -5,7 +5,6 @@ import { STORAGE_KEYS } from '@/utils/constants'
 // 延迟加载页面组件
 const Login = () => import('@/views/Login.vue')
 const Lobby = () => import('@/views/Lobby.vue')
-const MatchingView = () => import('@/views/MatchingView.vue')
 const Chat = () => import('@/views/Chat/index.vue')
 const Survey = () => import('@/views/Survey.vue')
 const Result = () => import('@/views/Result.vue')
@@ -19,7 +18,6 @@ const SharedSession = () => import('@/views/SharedSession.vue')
 export type RouteName =
   | 'Login'
   | 'Lobby'
-  | 'Matching'
   | 'Chat'
   | 'Survey'
   | 'Result'
@@ -72,15 +70,6 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       title: '大厅'
-    } satisfies AppRouteMeta
-  },
-  {
-    path: '/matching',
-    name: 'Matching',
-    component: MatchingView,
-    meta: {
-      requiresAuth: true,
-      title: '匹配中'
     } satisfies AppRouteMeta
   },
   {

@@ -14,18 +14,18 @@ class MatchConfig:
     匹配服务配置
 
     Attributes:
-        human_probability: 真人匹配概率 (默认 30%)
-        bot_probability: Bot 匹配概率 (默认 70%)
+        human_probability: 真人匹配概率 (默认 70%)
+        bot_probability: Bot 匹配概率 (默认 30%)
         honeypot_in_bot_rate: 钓鱼 Bot 在 Bot 局中的比例 (默认 15%)
         timeout_seconds: 真人匹配超时时间 (秒)
         fake_delay_min_ms: 假装延迟最小值 (毫秒)
         fake_delay_max_ms: 假装延迟最大值 (毫秒)
         cleanup_interval_seconds: 清理任务间隔 (秒)
     """
-    human_probability: float = 0.30
-    bot_probability: float = 0.70
+    human_probability: float = 0.70
+    bot_probability: float = 0.30
     honeypot_in_bot_rate: float = 0.15
-    timeout_seconds: int = 10
+    timeout_seconds: int = 8  # 真人匹配超时时间（秒）- 缩短至 8 秒，确保前端能收到响应
     fake_delay_min_ms: int = 1000
     fake_delay_max_ms: int = 3000
     cleanup_interval_seconds: int = 5
@@ -53,8 +53,8 @@ class MatchConfig:
             honeypot_rate = 0.15
 
         return cls(
-            human_probability=getattr(settings.turing.match, 'human_probability', 0.30),
-            bot_probability=getattr(settings.turing.match, 'bot_probability', 0.70),
+            human_probability=getattr(settings.turing.match, 'human_probability', 0.70),
+            bot_probability=getattr(settings.turing.match, 'bot_probability', 0.30),
             honeypot_in_bot_rate=honeypot_rate,
             timeout_seconds=getattr(settings.turing.match, 'timeout_seconds', 10),
             fake_delay_min_ms=getattr(settings.turing.match, 'fake_delay_min_ms', 1000),

@@ -82,9 +82,80 @@ async def lifespan(app: FastAPI):
     # 初始化匹配服务
     try:
         from turing_test.backend.services.match_service import (
-            MatchService, MatchConfig, set_match_service
+            MatchService, MatchConfig, set_match_service, get_match_service
         )
+        from turing_test.backend.database import async_session_maker
+        from turing_test.backend.models import Session
+        from sqlalchemy import select
+        from datetime import datetime, timezone
+
         match_service = MatchService(MatchConfig())
+
+        # 注入会话创建器（异步非阻塞）
+        class SessionCreator:
+            """会话创建器（用于匹配服务注入）"""
+
+            async def create_session(self, safe_result, user_id: int) -> None:
+                """
+                根据匹配结果创建会话（异步非阻塞）
+
+                Args:
+                    safe_result: 安全匹配结果（SafeMatchResult）
+                    user_id: 用户 ID
+                """
+                try:
+                    # 获取内部结果（包含完整信息）
+                    match_service_instance = get_match_service()
+                    internal_result = await match_service_instance.get_result_internal(user_id)
+                    
+                    if not internal_result:
+                        logger.error(f"无法获取用户 {user_id} 的内部匹配结果")
+                        return
+
+                    # 如果 session_id 已有值，说明会话已创建，跳过
+                    if internal_result.session_id > 0:
+                        logger.info(f"用户 {user_id} 会话已存在：session_id={internal_result.session_id}")
+                        return
+
+                    async with async_session_maker() as session:
+                        # 解析真实身份信息
+                        true_identity = internal_result.true_identity or ""
+                        bot_level = None
+
+                        if true_identity.startswith("Bot_"):
+                            # 从 true_identity 提取 Bot 等级
+                            bot_level = true_identity.replace("Bot_", "").lower()
+                        elif true_identity.startswith("Honeypot_"):
+                            # 钓鱼 Bot
+                            pass
+                        elif true_identity == "Human":
+                            # 真人匹配
+                            pass
+
+                        # 创建会话记录
+                        db_session = Session(
+                            user_id=user_id,
+                            opponent_type=internal_result.opponent_type,
+                            true_identity=true_identity,
+                            bot_level=bot_level,
+                            is_honeypot=internal_result.is_honeypot or False,
+                            opponent_user_id=internal_result.opponent_user_id,
+                            ended_at=None,
+                        )
+                        session.add(db_session)
+                        await session.commit()
+                        await session.refresh(db_session)
+
+                        # 更新内部结果中的 session_id
+                        internal_result.session_id = db_session.id
+
+                        logger.info(f"创建会话：session_id={db_session.id}, user_id={user_id}")
+                        
+                except Exception as e:
+                    logger.error(f"创建会话失败：user_id={user_id}, error={e}", exc_info=True)
+
+        match_service.set_session_creator(SessionCreator())
+
         match_service.start()  # 启动后台清理任务
         app.state.match_service = match_service
         set_match_service(match_service)  # 同时设置全局单例

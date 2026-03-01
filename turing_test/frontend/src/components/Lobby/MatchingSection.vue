@@ -12,12 +12,6 @@
     <!-- 状态信息 -->
     <p class="status-message">正在为您寻找合适的对话者</p>
 
-    <!-- 连接状态提示 -->
-    <div v-if="isConnecting" class="connecting-tip">
-      <span class="tip-icon">📡</span>
-      <span class="tip-text">正在连接服务器...</span>
-    </div>
-
     <!-- 进度条 -->
     <div class="progress-container">
       <BaseProgress
@@ -62,26 +56,22 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { BaseCard, BaseProgress, BaseButton } from '@/components/common'
-import { MATCH_CONFIG } from '@/stores/match'
 
 interface Props {
   /** 等待时间（秒） */
   waitTime: number
-  /** 是否正在连接 WebSocket */
-  isConnecting?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  waitTime: 0,
-  isConnecting: false
+  waitTime: 0
 })
 
 defineEmits<{
   (e: 'cancel'): void
 }>()
 
-// 超时时间（秒）- 从配置读取
-const timeoutSeconds = MATCH_CONFIG.TIMEOUT_SECONDS
+// 超时时间（秒）- 与前端配置保持一致
+const timeoutSeconds = 15
 
 // 进度百分比
 const progress = computed(() => {
@@ -162,29 +152,6 @@ const progress = computed(() => {
   font-size: 16px;
   color: var(--text-secondary);
   margin-bottom: 24px;
-}
-
-.connecting-tip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--bg-tertiary);
-  border-radius: var(--rounded-lg);
-  margin-bottom: 24px;
-  width: fit-content;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.connecting-tip .tip-icon {
-  font-size: 18px;
-}
-
-.connecting-tip .tip-text {
-  font-size: 13px;
-  color: var(--text-secondary);
 }
 
 .progress-container {

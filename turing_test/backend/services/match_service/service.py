@@ -166,9 +166,9 @@ class MatchService:
         # 执行匹配
         result = await self.coordinator.match_user(user_id, websocket_ref, user_score)
 
-        # 创建会话
+        # 异步创建会话（不阻塞响应）
         if self._session_creator:
-            await self._session_creator.create_session(result, user_id)
+            asyncio.create_task(self._session_creator.create_session(result, user_id))
 
         return result
 

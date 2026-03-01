@@ -1,0 +1,1 @@
+import{a as r}from"./index-DTH4ySBZ.js";async function s(t){return r.post(`/match/join?user_id=${t}`)}async function n(t){try{return await r.get(`/match/result?user_id=${t}`)}catch(a){if(a.code==="NOT_FOUND"||a.response?.status===404)return null;throw a}}async function c(t){return r.post(`/match/leave?user_id=${t}`)}export{n as g,c as l,s};
