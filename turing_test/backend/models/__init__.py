@@ -87,6 +87,32 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    
+    # 新领域模型关系
+    matches: Mapped[list["Match"]] = relationship(
+        "Match",
+        back_populates="user",
+        foreign_keys="Match.user_id",
+    )
+    user_sessions: Mapped[list["UserSession"]] = relationship(
+        "UserSession",
+        back_populates="user",
+        foreign_keys="UserSession.user_id",
+    )
+    session_scores: Mapped[list["SessionScore"]] = relationship(
+        "SessionScore",
+        back_populates="user",
+        foreign_keys="SessionScore.user_id",
+    )
+    room_participations: Mapped[list["RoomParticipant"]] = relationship(
+        "RoomParticipant",
+        back_populates="user",
+    )
+    messages: Mapped[list["Message"]] = relationship(
+        "Message",
+        back_populates="sender",
+        foreign_keys="Message.sender_id",
+    )
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, nickname='{self.nickname}', score={self.score})>"
@@ -282,12 +308,7 @@ class Session(Base):
         back_populates="sessions",
         foreign_keys="Session.user_id",
     )
-    messages: Mapped[list["Message"]] = relationship(
-        "Message",
-        back_populates="session",
-        cascade="all, delete-orphan",
-        foreign_keys="Message.session_id",
-    )
+    # 注意：messages 关系已移除，新消息系统使用 domain_models.Message
     survey: Mapped[Optional["Survey"]] = relationship(
         "Survey",
         back_populates="session",
@@ -304,58 +325,6 @@ class Session(Base):
         return (
             f"<Session(id={self.id}, user_id={self.user_id}, "
             f"opponent_type='{self.opponent_type}')>"
-        )
-
-
-# =============================================================================
-# 消息表
-# =============================================================================
-
-class Message(Base):
-    """聊天消息表"""
-
-    __tablename__ = "messages"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    session_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("sessions.id", ondelete="CASCADE"),
-        index=True,
-    )
-
-    # 消息内容
-    sender: Mapped[str] = mapped_column(
-        String(20),
-        index=True,
-        comment="'user' 或 'opponent'"
-    )
-    content: Mapped[str] = mapped_column(Text)
-
-    # 元对话标记
-    is_meta_conversation: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False,
-        index=True,
-    )
-    meta_keyword: Mapped[Optional[str]] = mapped_column(
-        String(50),
-        nullable=True,
-    )
-
-    # 时间戳
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        index=True,
-    )
-
-    # 关系
-    session: Mapped["Session"] = relationship("Session", back_populates="messages")
-
-    def __repr__(self) -> str:
-        return (
-            f"<Message(id={self.id}, session_id={self.session_id}, "
-            f"sender='{self.sender}')>"
         )
 
 
@@ -822,5 +791,5 @@ User.invite_code_usage: Mapped[Optional["InviteCode"]] = relationship(
 # =============================================================================
 
 Index("idx_sessions_user_started", Session.user_id, Session.started_at)
-Index("idx_messages_session_created", Message.session_id, Message.created_at)
+# 注意：Message 索引已移除，新消息系统使用 domain_models.Message
 Index("idx_score_history_user_created", ScoreHistory.user_id, ScoreHistory.created_at)
