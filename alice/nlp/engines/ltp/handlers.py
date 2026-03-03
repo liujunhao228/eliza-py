@@ -81,7 +81,7 @@ class NERTaskHandler(BaseTaskHandler):
     """命名实体识别处理器 (NER)"""
     task_type = TaskType.NER
 
-    # LTP NER 标签映射（BIOES 标注方案）
+    # LTP NER 标签映射（参考 LTP 4.1.4 文档 - 命名实体识别标注集）
     ENTITY_MAPPING: Dict[str, EntityType] = {
         'Nh': EntityType.PERSON,        # 人名
         'Ni': EntityType.ORGANIZATION,  # 机构名
@@ -90,6 +90,13 @@ class NERTaskHandler(BaseTaskHandler):
         'nd': EntityType.DATE,          # 日期
         'nz': EntityType.GENERAL,       # 其他专名
     }
+
+    @classmethod
+    def get_entity_type(cls, ner_tag: str) -> EntityType:
+        """获取实体类型（优先使用 config 映射）"""
+        from .config import NER_ENTITY_MAPPING
+        type_name = NER_ENTITY_MAPPING.get(ner_tag, 'GENERAL')
+        return EntityType(type_name) if type_name in EntityType.__members__ else EntityType.GENERAL
 
     def process(self, ltp_output: Any, text: str,
                 tokens: List[Token]) -> List[Entity]:
@@ -129,9 +136,7 @@ class NERTaskHandler(BaseTaskHandler):
                     continue
                 end_pos = start_pos + len(entity_text)
 
-            entity_type_enum = self.ENTITY_MAPPING.get(
-                entity_type, EntityType.GENERAL
-            )
+            entity_type_enum = self.get_entity_type(entity_type)
 
             entities.append(Entity(
                 text=entity_text,

@@ -37,6 +37,12 @@ from .handlers import (
     SRLTaskHandler,
     SDPTaskHandler,
 )
+from .validators import (
+    PosTagValidator,
+    DependencyValidator,
+    SemanticRoleValidator,
+    SemanticDepValidator,
+)
 from .exceptions import LtpError, ModelLoadError, AnalysisError
 
 logger = logging.getLogger(__name__)
@@ -270,7 +276,46 @@ class LtpEngine(SyntaxAnalyzer):
                 ltp_output, text, result.tokens
             )
 
+        # 验证标注集（如果启用）
+        if self.config.enable_validation:
+            self._validate_result(result)
+
         return result
+
+    def _validate_result(self, result: LtpFullResult) -> None:
+        """验证分析结果的标注集完整性"""
+        has_error = False
+
+        # 验证词性标注
+        if result.pos_tags:
+            invalid_pos = PosTagValidator.validate(result.pos_tags)
+            if invalid_pos and self.config.validation_strict:
+                has_error = True
+                logger.warning(f"发现 {len(invalid_pos)} 个无效词性标签")
+
+        # 验证依存关系
+        if result.dependencies:
+            invalid_dep = DependencyValidator.validate(result.dependencies)
+            if invalid_dep and self.config.validation_strict:
+                has_error = True
+                logger.warning(f"发现 {len(invalid_dep)} 个无效依存关系")
+
+        # 验证语义角色
+        if result.semantic_roles:
+            invalid_role = SemanticRoleValidator.validate(result.semantic_roles)
+            if invalid_role and self.config.validation_strict:
+                has_error = True
+                logger.warning(f"发现 {len(invalid_role)} 个无效语义角色")
+
+        # 验证语义依存
+        if result.semantic_deps and result.semantic_deps.edges:
+            invalid_sdp = SemanticDepValidator.validate(result.semantic_deps.edges)
+            if invalid_sdp and self.config.validation_strict:
+                has_error = True
+                logger.warning(f"发现 {len(invalid_sdp)} 个无效语义依存关系")
+
+        if has_error and self.config.validation_strict:
+            raise AnalysisError("标注集验证失败")
 
     def _update_stats(self, elapsed_ms: float, success: bool):
         """更新性能统计"""

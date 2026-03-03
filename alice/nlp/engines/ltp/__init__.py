@@ -7,9 +7,10 @@ LTP 引擎模块
 增强版 LTP 引擎，支持完整的 NLP 分析功能。
 
 模块结构:
-- config: 配置类 (LtpConfig)
+- config: 配置类 (LtpConfig) - 含标注集常量
 - models: 数据模型 (Token, POSTag, DependencyRelation, LtpFullResult 等)
 - handlers: 任务处理器 (CWSTaskHandler, POSTaskHandler 等)
+- validators: 验证器 (PosTagValidator, DependencyValidator 等)
 - exceptions: 异常类 (LtpError, ModelLoadError, AnalysisError)
 - engine: 主引擎类 (LtpEngine)
 
@@ -21,7 +22,7 @@ LTP 引擎模块
     >>> print(result.to_json())
 """
 
-from .config import LtpConfig
+from .config import LtpConfig, NER_ENTITY_MAPPING, POS_TAG_SET, SEMANTIC_ROLE_SET
 from .models import (
     TaskType,
     Token,
@@ -41,6 +42,12 @@ from .handlers import (
     SRLTaskHandler,
     SDPTaskHandler,
 )
+from .validators import (
+    PosTagValidator,
+    DependencyValidator,
+    SemanticRoleValidator,
+    SemanticDepValidator,
+)
 from .exceptions import (
     LtpError,
     ModelLoadError,
@@ -51,6 +58,9 @@ from .engine import LtpEngine, LTP_AVAILABLE, LTP_VERSION
 __all__ = [
     # 配置
     'LtpConfig',
+    'NER_ENTITY_MAPPING',
+    'POS_TAG_SET',
+    'SEMANTIC_ROLE_SET',
     # 模型
     'TaskType',
     'Token',
@@ -68,6 +78,11 @@ __all__ = [
     'DEPTaskHandler',
     'SRLTaskHandler',
     'SDPTaskHandler',
+    # 验证器
+    'PosTagValidator',
+    'DependencyValidator',
+    'SemanticRoleValidator',
+    'SemanticDepValidator',
     # 异常
     'LtpError',
     'ModelLoadError',

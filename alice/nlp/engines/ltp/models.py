@@ -46,21 +46,35 @@ class POSTag:
     pos: str          # 词性标签
     probability: float = 1.0
 
-    # 常见词性对照表（PKU 标注集）
+    # 完整 863 词性标注集（27 种）
+    # 参考：LTP 4.1.4 文档 - 词性标注集
     POS_DESCRIPTIONS: Dict[str, str] = field(default_factory=lambda: {
-        'n': '名词', 'v': '动词', 'a': '形容词', 'd': '副词',
-        'm': '数词', 'q': '量词', 'r': '代词', 'p': '介词',
-        'c': '连词', 'u': '助词', 'e': '叹词', 'y': '语气词',
-        'o': '拟声词', 'h': '前缀', 'k': '后缀', 'x': '字符串',
-        'w': '标点符号',
-        # 命名实体标签
-        'nh': '人名', 'ni': '机构名', 'ns': '地名',
-        'nt': '时间词', 'nz': '其他专名',
+        # 实词 - 体词
+        'n': '名词', 'nd': '方位名词', 'nh': '人名', 'ni': '机构名',
+        'nl': '处所名词', 'ns': '地名', 'nt': '时间词', 'nz': '其他专名',
+        'v': '动词', 'a': '形容词', 'b': '其他名词修饰语',
+        'm': '数词', 'q': '量词', 'r': '代词',
+        # 实词 - 谓词
+        'd': '副词', 'z': '状态词',
+        # 虚词
+        'p': '介词', 'c': '连词', 'u': '助词',
+        # 其他
+        'e': '叹词', 'o': '拟声词', 'wp': '标点符号',
+        # 语素/词缀
+        'h': '前缀', 'k': '后缀', 'g': '语素',
+        # 特殊
+        'i': '成语', 'j': '简称', 'ws': '外来词', 'x': '非语素字',
     })
 
     @property
     def description(self) -> str:
         return self.POS_DESCRIPTIONS.get(self.pos, '未知')
+
+    @classmethod
+    def is_valid_pos(cls, pos: str) -> bool:
+        """检查词性标签是否有效"""
+        from .config import POS_TAG_SET
+        return pos in POS_TAG_SET
 
 
 @dataclass
@@ -105,23 +119,42 @@ class SemanticRole:
     predicate: str
     arguments: List[Tuple[str, str, int, int]]  # (role_type, text, start, end)
 
-    # 语义角色类型（基于 PropBank 标准）
+    # 完整语义角色类型（22 种）
+    # 参考：LTP 4.1.4 文档 - 语义角色类型
     ROLE_DESCRIPTIONS: Dict[str, str] = field(default_factory=lambda: {
-        'A0': '施事（动作发出者）',
-        'A1': '受事（动作承受者）',
-        'A2': '起点/终点/受益人',
-        'A3': '起点/受益人',
-        'A4': '终点',
-        'A5': '工具/方式',
-        'ADV': '附加语（状语）',
-        'TMP': '时间',
+        # 核心论元
+        'ARG0': '施事（动作发出者）',
+        'ARG1': '受事（动作承受者）',
+        'ARG2': '与事/范围',
+        'ARG3': '起点/受益人',
+        'ARG4': '终点',
+        # 附加角色
+        'ADV': '状语',
+        'BNF': '受益人',
+        'CND': '条件',
+        'CRD': '并列',
+        'DGR': '程度',
+        'DIR': '方向',
+        'DIS': '话语标记',
+        'EXT': '范围',
+        'FRQ': '频率',
         'LOC': '地点',
         'MNR': '方式',
         'PRP': '目的',
-        'CAU': '原因',
-        'EXT': '范围',
-        'DIR': '方向',
+        'QTY': '数量',
+        'TMP': '时间',
+        'TPC': '话题',
+        # 特殊角色
+        'PRD': '谓语',
+        'PSR': '持有者',
+        'PSE': '被持有',
     })
+
+    @classmethod
+    def is_valid_role(cls, role: str) -> bool:
+        """检查语义角色是否有效"""
+        from .config import SEMANTIC_ROLE_SET
+        return role in SEMANTIC_ROLE_SET
 
 
 @dataclass
@@ -130,6 +163,88 @@ class SemanticDependency:
     head_idx: int
     dependent_idx: int
     relation: str
+
+    # 完整语义依存关系标注集
+    # 参考：LTP 4.1.4 文档 - 语义依存关系
+    
+    # 语义周边角色（16 种）
+    CORE_ROLES: set = field(default_factory=lambda: {
+        'AGT', 'EXP', 'PAT', 'CONT', 'DATV', 'LINK',
+        'TOOL', 'MATL', 'MANN', 'SCO', 'REAS', 'TIME',
+        'LOC', 'MEAS', 'STAT', 'FEAT',
+    })
+
+    # 语义结构关系前缀
+    STRUCT_PREFIXES: set = field(default_factory=lambda: {'r', 'd'})  # 反关系/嵌套关系
+
+    # 事件关系（3 种）
+    EVENT_RELATIONS: set = field(default_factory=lambda: {'eCOO', 'ePREC', 'eSUCC'})
+
+    # 语义依附标记（4 种）
+    DEPENDENCY_MARKERS: set = field(default_factory=lambda: {'mPUNC', 'mNEG', 'mRELA', 'mDEPD'})
+
+    # 完整有效关系集合
+    VALID_RELATIONS: set = field(default_factory=lambda: {
+        # 核心角色
+        'AGT', 'EXP', 'PAT', 'CONT', 'DATV', 'LINK',
+        'TOOL', 'MATL', 'MANN', 'SCO', 'REAS', 'TIME',
+        'LOC', 'MEAS', 'STAT', 'FEAT',
+        # 事件关系
+        'eCOO', 'ePREC', 'eSUCC',
+        # 依附标记
+        'mPUNC', 'mNEG', 'mRELA', 'mDEPD',
+    })
+
+    @property
+    def relation_type(self) -> str:
+        """获取关系类型分类"""
+        if self.relation in self.CORE_ROLES:
+            return '核心角色'
+        elif self.relation in self.EVENT_RELATIONS:
+            return '事件关系'
+        elif self.relation in self.DEPENDENCY_MARKERS:
+            return '依附标记'
+        elif len(self.relation) > 1 and self.relation[0] in self.STRUCT_PREFIXES:
+            if self.relation[0] == 'r':
+                return '反关系'
+            else:
+                return '嵌套关系'
+        return '未知'
+
+    @property
+    def description(self) -> str:
+        """获取关系描述"""
+        descriptions = {
+            'AGT': '施事', 'EXP': '当事', 'PAT': '受事', 'CONT': '客事',
+            'DATV': '涉事', 'LINK': '系事', 'TOOL': '工具', 'MATL': '材料',
+            'MANN': '方式', 'SCO': '范围', 'REAS': '缘由', 'TIME': '时间',
+            'LOC': '空间', 'MEAS': '度量', 'STAT': '状态', 'FEAT': '修饰',
+            'eCOO': '并列关系', 'ePREC': '先行关系', 'eSUCC': '后继关系',
+            'mPUNC': '标点标记', 'mNEG': '否定标记', 'mRELA': '关系标记', 'mDEPD': '依附标记',
+        }
+        base = descriptions.get(self.relation, self.relation)
+        if len(self.relation) > 1 and self.relation[0] == 'r':
+            return f'反{descriptions.get(self.relation[1:], self.relation[1:])}'
+        elif len(self.relation) > 1 and self.relation[0] == 'd':
+            return f'嵌套{descriptions.get(self.relation[1:], self.relation[1:])}'
+        return base
+
+    @classmethod
+    def is_valid_relation(cls, relation: str) -> bool:
+        """验证语义依存关系是否有效"""
+        # 核心角色
+        if relation in cls.CORE_ROLES:
+            return True
+        # 事件关系
+        if relation in cls.EVENT_RELATIONS:
+            return True
+        # 依附标记
+        if relation in cls.DEPENDENCY_MARKERS:
+            return True
+        # 反关系/嵌套关系 (rEXP, dCONT 等)
+        if len(relation) > 1 and relation[0] in cls.STRUCT_PREFIXES:
+            return relation[1:] in cls.CORE_ROLES
+        return False
 
 
 @dataclass
