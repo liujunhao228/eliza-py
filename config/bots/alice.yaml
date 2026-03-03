@@ -1,0 +1,28 @@
+# Alice Bot 配置
+# 好奇的朋友 - 默认 Bot
+
+name: "alice"
+display_name: "Alice"
+description: "好奇的朋友"
+
+# 脚本配置（路径相对于项目根目录）
+script_file: "alice/scripts/demo.yaml"
+rules_file: "alice/scripts/rules/mapping.yaml"
+
+# NLP 配置
+enable_ltp: true
+enable_ner: true
+
+# 功能开关
+enable_plugins: true
+enable_logging: true
+enable_hot_reload: true
+hot_reload_mode: "auto"
+
+# 性能配置
+cache_size: 100
+
+# 自定义配置
+custom_settings:
+  personality: "curious"
+  greeting: "你好！我是 Alice。有什么想聊的吗？"

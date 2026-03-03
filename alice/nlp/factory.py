@@ -100,6 +100,15 @@ class NlpFactory:
         pipeline = factory.create_pipeline(['jieba', 'ner', 'sentiment'])
         result = pipeline.process("今天天气真好")
     """
+    
+    _instance: Optional['NlpFactory'] = None
+    _initialized: bool = False
+
+    def __new__(cls, *args, **kwargs):
+        """单例模式实现"""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
@@ -115,8 +124,35 @@ class NlpFactory:
                 - ltp_enable_srl: 是否启用语义角色标注（默认 False）
                 - ltp_enable_sdp: 是否启用语义依存分析（默认 False）
         """
+        # 避免重复初始化
+        if self._initialized:
+            return
+            
         self.config = config or {}
         self._cache: Dict[str, Any] = {}
+        self._initialized = True
+    
+    @classmethod
+    def get_instance(cls, config: Optional[Dict[str, Any]] = None) -> 'NlpFactory':
+        """
+        获取 NLP 工厂单例实例
+        
+        Args:
+            config: 配置字典
+            
+        Returns:
+            NLP 工厂实例
+        """
+        if cls._instance is None or not cls._instance._initialized:
+            cls._instance = cls(config=config)
+        return cls._instance
+    
+    @classmethod
+    def reset_instance(cls):
+        """重置单例实例（用于测试）"""
+        if cls._instance is not None:
+            cls._instance._initialized = False
+        cls._instance = None
 
     def create_segmenter(self, use_ltp: bool = False) -> Segmenter:
         """

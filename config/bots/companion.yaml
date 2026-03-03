@@ -1,0 +1,28 @@
+# Companion Bot 配置
+# 温暖的陪伴者
+
+name: "companion"
+display_name: "伙伴"
+description: "温暖的陪伴者"
+
+# 脚本配置（路径相对于项目根目录）
+script_file: "config/scripts/companion_scripts.yaml"
+rules_file: "config/rules/companion_rules.yaml"
+
+# NLP 配置
+enable_ltp: true
+enable_ner: true
+
+# 功能开关
+enable_plugins: false
+enable_logging: true
+enable_hot_reload: true
+hot_reload_mode: "auto"
+
+# 性能配置
+cache_size: 50
+
+# 自定义配置
+custom_settings:
+  personality: "warm"
+  greeting: "嗨，我在这里陪着你。"

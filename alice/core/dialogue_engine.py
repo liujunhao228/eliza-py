@@ -304,11 +304,12 @@ class DialogueEngine:
     def _initialize_plugins(self) -> None:
         """
         初始化插件系统
+
+        注意：脚本引擎和重组引擎由对话引擎统一管理，
+        插件通过注入方式获取这些引擎，不再创建独立实例。
         """
         # 注册好奇心插件
         curiosity_config = {
-            "script_file": self.script_file,
-            "rules_file": self.rules_file,
             "priority": 50,
         }
 
@@ -320,6 +321,14 @@ class DialogueEngine:
 
         if success:
             logger.info("好奇心插件已注册")
+
+            # 注入引擎到插件（插件不再创建独立实例）
+            plugin = self.plugin_manager.get_plugin("curiosity")
+            if plugin:
+                if self.script_engine:
+                    plugin.set_script_engine(self.script_engine)
+                if self.reassembly_engine:
+                    plugin.set_reassembly_engine(self.reassembly_engine)
         else:
             logger.warning("好奇心插件注册失败")
 

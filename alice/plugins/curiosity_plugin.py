@@ -67,22 +67,12 @@ class CuriosityPlugin(BasePlugin):
         初始化插件
 
         注意：脚本引擎和重组引擎由对话引擎统一初始化并注入
-        插件只负责使用这些引擎
+        插件只负责使用这些引擎，不再创建独立实例
 
         Returns:
             是否初始化成功
         """
         try:
-            # 如果配置中指定了文件路径，创建独立的引擎实例
-            script_file = self.config.get("script_file")
-            rules_file = self.config.get("rules_file")
-
-            if script_file and not self.script_engine:
-                self.script_engine = YAMLScriptEngine(script_file=script_file)
-
-            if rules_file and not self.reassembly_engine:
-                self.reassembly_engine = SyntaxReassembly(rules_file=rules_file)
-
             logger.info("好奇心插件初始化成功")
             return True
 
@@ -98,7 +88,7 @@ class CuriosityPlugin(BasePlugin):
             script_engine: YAML 脚本引擎实例
         """
         self.script_engine = script_engine
-        logger.debug(f"好奇心插件已绑定脚本引擎，支持 {len(script_engine.intents)} 个意图")
+        logger.info(f"好奇心插件已绑定脚本引擎，支持 {len(script_engine.intents)} 个意图")
 
     def set_reassembly_engine(self, reassembly_engine: SyntaxReassembly) -> None:
         """
@@ -108,7 +98,7 @@ class CuriosityPlugin(BasePlugin):
             reassembly_engine: 句法重组引擎实例
         """
         self.reassembly_engine = reassembly_engine
-        logger.debug("好奇心插件已绑定重组引擎")
+        logger.info("好奇心插件已绑定重组引擎")
 
     def process_input(self, text: str, context: Dict[str, Any]) -> PluginResult:
         """

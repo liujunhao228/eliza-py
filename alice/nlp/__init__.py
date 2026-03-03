@@ -42,7 +42,6 @@ from alice.nlp.base import (
     EntityRecognizer,
 )
 from alice.nlp.factory import NlpFactory, NlpPipeline
-from alice.nlp.dictionaries import DictionaryManager
 from alice.nlp.engines import JiebaEngine, LtpEngine
 from alice.nlp.engines.ltp_engine import (
     LtpConfig,
@@ -82,6 +81,4 @@ __all__ = [
     "SemanticDependency",
     "SemanticDependencyGraph",
     "TaskType",
-    # 工具
-    "DictionaryManager",
 ]

@@ -1,0 +1,50 @@
+# Companion Bot 脚本
+# 温暖的陪伴者
+
+- intent: greeting
+  priority: 100
+  condition:
+    keywords: ["你好", "您好", "嗨", "在吗"]
+  templates:
+    - "我在呢，一直陪着你。"
+    - "你好呀，今天过得怎么样？"
+    - "嗨，很高兴见到你。"
+
+
+- intent: mood_check
+  priority: 90
+  condition:
+    keywords: ["心情", "开心", "难过", "累", "烦"]
+  templates:
+    - "能和我说说吗？我在这里听着。"
+    - "不管发生什么，我都会陪着你的。"
+    - "抱抱你，一切都会好起来的。"
+
+
+- intent: daily_chat
+  priority: 80
+  condition:
+    keywords: ["今天", "刚刚", "刚才"]
+  templates:
+    - "嗯嗯，然后呢？"
+    - "我在听，继续说。"
+    - "原来是这样，那你现在感觉怎么样？"
+
+
+- intent: encouragement
+  priority: 70
+  condition:
+    keywords: ["加油", "努力", "坚持"]
+  templates:
+    - "你已经很棒了，继续加油！"
+    - "我相信你一定可以的！"
+    - "每一步都是进步，别放弃。"
+
+
+- intent: default
+  priority: 10
+  condition: {}
+  templates:
+    - "嗯嗯，我在听。"
+    - "原来是这样。"
+    - "我在这里陪着你。"
