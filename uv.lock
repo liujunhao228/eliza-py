@@ -421,6 +421,7 @@ dependencies = [
     { name = "bcrypt" },
     { name = "fastapi" },
     { name = "flask" },
+    { name = "flask-cors" },
     { name = "gunicorn" },
     { name = "httpx" },
     { name = "jieba" },
@@ -485,6 +486,7 @@ requires-dist = [
     { name = "flake8", marker = "extra == 'all'", specifier = ">=6.0.0,<7.0.0" },
     { name = "flake8", marker = "extra == 'dev'", specifier = ">=6.0.0,<7.0.0" },
     { name = "flask", specifier = ">=2.3.2,<3.0.0" },
+    { name = "flask-cors", specifier = ">=4.0.0,<5.0.0" },
     { name = "gunicorn", specifier = ">=21.2.0,<22.0.0" },
     { name = "httpx", specifier = ">=0.25.2,<0.27.0" },
     { name = "jieba", specifier = ">=0.42.1,<0.43.0" },
@@ -589,6 +591,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/46/b7/4ace17e37abd9c21715dea5ee11774a25e404c486a7893fa18e764326ead/flask-2.3.3.tar.gz", hash = "sha256:09c347a92aa7ff4a8e7f3206795f30d826654baf38b873d0744cd571ca609efc", size = 672756, upload-time = "2023-08-21T19:52:35.012Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fd/56/26f0be8adc2b4257df20c1c4260ddd0aa396cf8e75d90ab2f7ff99bc34f9/flask-2.3.3-py3-none-any.whl", hash = "sha256:f69fcd559dc907ed196ab9df0e48471709175e696d6e698dd4dbe940f96ce66b", size = 96112, upload-time = "2023-08-21T19:52:33.115Z" },
+]
+
+[[package]]
+name = "flask-cors"
+version = "4.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flask" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1c/41/89ea5af8b9d647036237c528abb2fdf8bb10b23b3f750e8e2da07873b270/flask_cors-4.0.2.tar.gz", hash = "sha256:493b98e2d1e2f1a4720a7af25693ef2fe32fbafec09a2f72c59f3e475eda61d2", size = 30954, upload-time = "2024-08-30T16:32:59.844Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/60/e941089faf4f50f2e0231d7f7af69308616a37e99da3ec75df60b8809db7/Flask_Cors-4.0.2-py2.py3-none-any.whl", hash = "sha256:38364faf1a7a5d0a55bd1d2e2f83ee9e359039182f5e6a029557e1f56d92c09a", size = 14467, upload-time = "2024-08-30T16:32:58.687Z" },
 ]
 
 [[package]]

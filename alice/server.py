@@ -14,10 +14,12 @@ Alice Web 界面
 """
 
 import logging
+import os
+import time
 from datetime import datetime
-from pathlib import Path
 from typing import Optional, List, Dict, Any
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from alice.bots import get_registry, BotRegistry, BotInstance
 from alice.exceptions import (
     InputValidationError,
@@ -31,9 +33,6 @@ from alice.utils.sanitizer import sanitize_text
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-
-# 模板目录
-TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 # 全局 Bot 注册中心实例（懒加载）
 _registry: Optional[BotRegistry] = None
@@ -96,12 +95,6 @@ def get_bot(bot_name: Optional[str] = None) -> Optional[BotInstance]:
     return registry.get_default_bot()
 
 
-@app.route('/')
-def index():
-    """渲染聊天界面"""
-    return render_template('chat.html')
-
-
 @app.route('/api/chat', methods=['POST'])
 def chat():
     """
@@ -110,14 +103,18 @@ def chat():
     Request JSON:
         {
             "message": "用户输入的消息",
-            "bot": "Bot 名称（可选，默认使用 alice）"
+            "bot": "Bot 名称（可选，默认使用 alice）",
+            "context": {
+                "sessionId": "会话 ID（可选）",
+                "history": [{"role": "user|assistant", "content": "消息内容"}]（可选）
+            }
         }
 
     Response JSON:
         {
             "response": "Bot 的回复",
             "bot": "Bot 名称",
-            "timestamp": "时间戳"
+            "latency": 延迟毫秒数
         }
     """
     data = request.get_json()
@@ -132,8 +129,14 @@ def chat():
         }), 400
 
     user_input = data['message'].strip()
-    bot_name = data.get('bot', None)
-    
+    bot_name = data.get('bot', 'alice')
+    context = data.get('context', {})
+
+    # 记录会话 ID（用于未来上下文追踪）
+    session_id = context.get('sessionId')
+    if session_id:
+        logger.debug(f"会话 ID: {session_id}")
+
     bot = get_bot(bot_name)
     if bot is None:
         return jsonify({
@@ -141,15 +144,20 @@ def chat():
         }), 404
 
     if not user_input:
+        start_time = time.time()
         response = bot.respond("")
+        latency = int((time.time() - start_time) * 1000)
         return jsonify({
             'response': response,
             'bot': bot.name,
-            'timestamp': datetime.now().isoformat()
+            'latency': latency
         })
 
     try:
+        start_time = time.time()
         response = bot.respond(user_input)
+        latency = int((time.time() - start_time) * 1000)
+        
         logger.info(
             "请求处理成功",
             extra={
@@ -159,13 +167,14 @@ def chat():
                 'input_length': len(user_input),
                 'input_preview': sanitize_text(user_input[:50]),
                 'response_length': len(response),
+                'latency_ms': latency,
             }
         )
 
         return jsonify({
             'response': response,
             'bot': bot.name,
-            'timestamp': datetime.now().isoformat()
+            'latency': latency
         })
 
     except (InputValidationError, ScriptMatchingError) as e:
@@ -366,7 +375,11 @@ def run_server(host: str = '0.0.0.0', port: int = 5000, debug: bool = False, bot
     # 预加载 Bot
     registry = get_registry_instance(bot_names)
     loaded_bots = registry.list_bots()
-    
+
+    # 配置 CORS
+    cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3003')
+    CORS(app, origins=[origin.strip() for origin in cors_origins.split(',')])
+
     print(f"🚀 Alice Web 服务器启动中...")
     print(f"📍 访问地址：http://localhost:{port}")
     print(f"🤖 已加载 Bot: {', '.join(loaded_bots)}")

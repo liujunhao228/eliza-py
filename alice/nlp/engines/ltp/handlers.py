@@ -96,7 +96,7 @@ class NERTaskHandler(BaseTaskHandler):
         """获取实体类型（优先使用 config 映射）"""
         from .config import NER_ENTITY_MAPPING
         type_name = NER_ENTITY_MAPPING.get(ner_tag, 'GENERAL')
-        return EntityType(type_name) if type_name in EntityType.__members__ else EntityType.GENERAL
+        return EntityType[type_name] if type_name in EntityType.__members__ else EntityType.GENERAL
 
     def process(self, ltp_output: Any, text: str,
                 tokens: List[Token]) -> List[Entity]:
